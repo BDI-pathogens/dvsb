@@ -21,7 +21,10 @@ data {
   vector[num_cal_tot] y_cal;
   vector<lower = 0>[num_cal_tot] x_cal;
   vector[num_sam_tot] y_sam;
-  
+  int<lower = 0> num_f_pred_vars;
+  array[num_f_pred_vars] int<lower = 2> num_cat_per_f_pred_var;
+  matrix<lower = 0, upper = 1>[num_plate, sum(num_cat_per_f_pred_var)] design_matrix_f;
+
   // Other things to keep fixed over a complete round of sampling: a binary
   // switch to control whether we sample from the prior or the posterior
   // (important to compare the difference), switches for using normal or student 
@@ -29,10 +32,12 @@ data {
   int<lower = 0, upper = 1> sample_posterior_not_prior;
   int<lower = 0, upper = 1> use_student_for_obs;
   real<lower = 0> student_df_obs;
-  vector[4] f_lower;
-  vector[4] f_upper;
-  vector[4] sigma_f_plate_lower;
-  vector[4] sigma_f_plate_upper;
+  row_vector[4] f_lower;
+  row_vector[4] f_upper;
+  row_vector[4] sigma_f_plate_lower;
+  row_vector[4] sigma_f_plate_upper;
+  row_vector[4] sigma_f_pred_vars_lower;
+  row_vector[4] sigma_f_pred_vars_upper;
   real y_obs_sd_min_lower;
   real y_obs_sd_min_upper;
   real y_obs_sd_jump_lower;
@@ -47,21 +52,34 @@ data {
 
   real p_sam_pos_lower;
   real p_sam_pos_upper;
-  real Rho_plate_prior_eta;
+  real rho_prior_eta;
   
 }
 
 transformed data {
   array[num_plate] vector[4] zeros;
   for (i in 1:num_plate) zeros[i] = rep_vector(0, 4);
+  int tot_cat_per_f_pred_var = sum(num_cat_per_f_pred_var);
+  array[tot_cat_per_f_pred_var] vector[4] zeros_for_f_pred_vars;
+  for (i in 1:tot_cat_per_f_pred_var) zeros_for_f_pred_vars[i] = rep_vector(0, 4);
+  int predict_f = 1 ? num_f_pred_vars > 0 : 0;
+  array[num_f_pred_vars] row_vector[4] sigma_f_pred_vars_lower_array;
+  array[num_f_pred_vars] row_vector[4] sigma_f_pred_vars_upper_array;
+  for (f_pred_var in 1:num_f_pred_vars) {
+    sigma_f_pred_vars_lower_array[f_pred_var] = sigma_f_pred_vars_lower;
+    sigma_f_pred_vars_upper_array[f_pred_var] = sigma_f_pred_vars_upper;
+  }
 }
 
 parameters {
   
-  // Those constrained only by lower and upper
-  vector<lower = f_lower, upper = f_upper>[4] f;
-  vector<lower = sigma_f_plate_lower, upper = sigma_f_plate_upper>[4] sigma_f_plate;
+  // Tensor params constrained only by lower and upper
+  row_vector<lower = f_lower, upper = f_upper>[4] f;
+  row_vector<lower = sigma_f_plate_lower, upper = sigma_f_plate_upper>[4] sigma_f_plate;
+  array[num_f_pred_vars] row_vector<lower = sigma_f_pred_vars_lower_array,
+    upper = sigma_f_pred_vars_upper_array>[4] sigma_f_pred_vars;
   
+  // Scalar params constrained only by lower and upper
   real<lower = x_sam_neg_mu_lower, upper = x_sam_neg_mu_upper> x_sam_neg_mu;
   real<lower = x_sam_pos_mu_jump_lower, upper = x_sam_pos_mu_jump_upper> x_sam_pos_mu_jump;
   real<lower = x_sam_neg_sd_lower, upper = x_sam_neg_sd_upper> x_sam_neg_sd;
@@ -72,9 +90,10 @@ parameters {
   real<lower = y_obs_sd_jump_lower, upper = y_obs_sd_jump_upper> y_obs_sd_jump;
   
   // Those with explicit priors declared
-  corr_matrix[4] Rho_plate;
-  array[num_plate] vector[4] f_plate_effects_unscaled;
+  corr_matrix[4] rho;
+  array[num_plate] row_vector[4] f_plate_effects_unscaled;
   vector<lower = 0>[num_sam_id] x_sam;
+  array[tot_cat_per_f_pred_var] row_vector[4] f_effects_by_pred_var_cat_unscaled;
 }
 
 transformed parameters{
@@ -88,21 +107,32 @@ transformed parameters{
   real x_sam_pos_mu = x_sam_neg_mu + x_sam_pos_mu_jump;
   real x_sam_pos_beta  = x_sam_pos_mu / x_sam_pos_sd^2;
   real x_sam_pos_alpha = x_sam_pos_beta * x_sam_pos_mu;
-
-  array[num_plate] vector[4] f_per_plate;
-  for (plate in 1:num_plate) {
-    f_per_plate[plate] = f +
-    [
-      f_plate_effects_unscaled[plate][1] * sigma_f_plate[1],
-      f_plate_effects_unscaled[plate][2] * sigma_f_plate[2],
-      f_plate_effects_unscaled[plate][3] * sigma_f_plate[3],
-      f_plate_effects_unscaled[plate][4] * sigma_f_plate[4]
-      ]';
+  
+  matrix[tot_cat_per_f_pred_var, 4] f_effects_by_pred_var_cat;
+  {
+    int cat_current = 1;
+    for (f_pred_var in 1:num_f_pred_vars) {
+      int num_cat_this_f_pred_var = num_cat_per_f_pred_var[f_pred_var];
+      for (cat in cat_current:(cat_current + num_cat_this_f_pred_var - 1)) {
+        f_effects_by_pred_var_cat[cat, ] = f_effects_by_pred_var_cat_unscaled[cat] .* 
+        sigma_f_pred_vars[f_pred_var]; // element-wise multiplication of 4-vectors
+      }
+      cat_current += num_cat_this_f_pred_var;
+    }
   }
+
+  matrix[num_plate, 4] f_per_plate = rep_matrix(f, num_plate);
+  for (plate in 1:num_plate) {
+    f_per_plate[plate, ] += f_plate_effects_unscaled[plate] .* sigma_f_plate;
+  }
+  if (predict_f) {
+    f_per_plate += design_matrix_f * f_effects_by_pred_var_cat;
+  }
+  
   array[num_plate] real exp_f_1_mult_f_4_per_plate;
   for (plate in 1:num_plate) {
     exp_f_1_mult_f_4_per_plate[plate] =
-      exp(f_per_plate[plate][1] * f_per_plate[plate][4]);
+      exp(f_per_plate[plate, 1] * f_per_plate[plate, 4]);
   }
 
   
@@ -112,13 +142,13 @@ transformed parameters{
   for (cal_rep in 1:num_cal_tot) {
     int plate = which_plate_cal[cal_rep];
     y_cal_mean_per_obs[cal_rep] =  PL4(x_cal[cal_rep],
-    f_per_plate[plate][1], f_per_plate[plate][2], f_per_plate[plate][3], 
+    f_per_plate[plate, 1], f_per_plate[plate, 2], f_per_plate[plate, 3], 
     exp_f_1_mult_f_4_per_plate[plate]);
   }
   for (sam_rep in 1:num_sam_tot) {
     int plate = which_plate_sam[sam_rep];
     y_sam_mean_per_obs[sam_rep] =  PL4(x_sam[which_id_sam[sam_rep]],
-    f_per_plate[plate][1], f_per_plate[plate][2], f_per_plate[plate][3], 
+    f_per_plate[plate, 1], f_per_plate[plate, 2], f_per_plate[plate, 3], 
     exp_f_1_mult_f_4_per_plate[plate]);
   }
   }
@@ -128,12 +158,12 @@ transformed parameters{
   profile("y_sds") {
   for (cal_rep in 1:num_cal_tot) {
     int plate = which_plate_cal[cal_rep];
-    y_obs_sd_cal[cal_rep] = PL4(x_cal[cal_rep], f_per_plate[plate][1],
+    y_obs_sd_cal[cal_rep] = PL4(x_cal[cal_rep], f_per_plate[plate, 1],
     y_obs_sd_min, y_obs_sd_max, exp_f_1_mult_f_4_per_plate[plate]);
   }
   for (sam_rep in 1:num_sam_tot) {
     int plate = which_plate_sam[sam_rep];
-    y_obs_sd_sam[sam_rep] = PL4(x_sam[which_id_sam[sam_rep]], f_per_plate[plate][1],
+    y_obs_sd_sam[sam_rep] = PL4(x_sam[which_id_sam[sam_rep]], f_per_plate[plate, 1],
     y_obs_sd_min, y_obs_sd_max, exp_f_1_mult_f_4_per_plate[plate]);
   }
   }
@@ -146,8 +176,8 @@ model {
   // Priors
   x_sam_pos_sd ~ uniform(x_sam_neg_sd * sqrt((x_sam_neg_mu + x_sam_pos_mu_jump) / x_sam_neg_mu),
   x_sam_neg_sd * (x_sam_neg_mu + x_sam_pos_mu_jump) / x_sam_neg_mu);
-  Rho_plate ~ lkj_corr(Rho_plate_prior_eta);
-  f_plate_effects_unscaled ~ multi_normal(zeros, Rho_plate);
+  rho ~ lkj_corr(rho_prior_eta);
+  f_plate_effects_unscaled ~ multi_normal(zeros, rho);
   profile("mixture_model") {
   for (sam_id in 1:num_sam_id) {
     target += log_sum_exp(
@@ -155,6 +185,7 @@ model {
       p_sam_neg_log + gamma_lpdf(x_sam[sam_id] | x_sam_neg_alpha, x_sam_neg_beta));
   }
   }
+  f_effects_by_pred_var_cat_unscaled ~ multi_normal(zeros_for_f_pred_vars, rho);
   
   
   // Likelihood

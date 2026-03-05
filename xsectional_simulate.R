@@ -36,10 +36,10 @@ use_student_for_obs <- FALSE
 student_df_obs <- 5
 
 # Unmodelled aspects of the data-generating process (things we condition on)
-num_plate <- 1
+num_plate <- 20
 num_rep_per_cal <- 2
 num_rep_per_sam <- 2
-num_sam_per_plate <- 200
+num_sam_per_plate <- 0
 xlogs <- log(c(0.5, 1.5, 4.5, 13, 40)) #c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cals
 
 y_obs_sd_min <- 0.006
@@ -62,11 +62,6 @@ f <- c(0.95,
        3.35,
        2.45)
 
-#f_predictor_vars <- list(
-#  operator = c("chris", "lucie", "anton"),
-#  lab = c("BEN", "GUI", "LIB", "NGA")
-#)
-
 # The covariance matrix for the plate-level random effects on f, parameterised
 # by the square root of the diagonal entries and the dimensionless correlation
 # matrix.
@@ -74,13 +69,30 @@ sigma_f_plate <- c(0.0065,
                    0.0009,
                    0.09,
                    0.035)
-Rho_plate <- matrix(c(1, 0, 0, 0,
-                      0, 1, 0, 0,
-                      0, 0, 1, 0,
-                      0, 0, 0, 1),
-                    4, 4, byrow = TRUE)
-stopifnot(isSymmetric(Rho_plate))
-stopifnot(all(diag(Rho_plate) == 1))
+rho <- matrix(c(1, 0, 0, 0,
+                0, 1, 0, 0,
+                0, 0, 1, 0,
+                0, 0, 0, 1),
+              4, 4, byrow = TRUE)
+stopifnot(isSymmetric(rho))
+stopifnot(all(diag(rho) == 1))
+
+# f_pred_vars should either be an empty list, or a named list in which 
+# each element is a character vector of length at least 2 with no duplicates.
+# Each character vector consists of categories that systematically differ in
+# their f values. 
+# We randomly assign each plate exactly one element from each character vector.
+# sigma_f_pred_vars should be a list with the same names as f_pred_vars.
+# Each element in sigma_f_pred_vars is a 4-vector of standard deviations of the
+# elements of f associated with that predictor variable.
+f_pred_vars <- list(
+  OP = c("chris", "anton"),
+  LAB = c("ben", "gui", "lib")
+)
+sigma_f_pred_vars <- list(
+  OP = 2 * sigma_f_plate,
+  LAB = 3 * sigma_f_plate
+)
 
 # SIMULATE ----
 
@@ -90,8 +102,25 @@ draw_student_or_norm <- function(n, student, student_df) {
   return(rnorm(n))
 }
 
-# Derived params
+# Check f_pred_vars 
+f_pred_vars_names <- names(f_pred_vars)
+stopifnot(! any(f_pred_vars_names %in% # avoid name clashes with variables
+                  c("plate", "f", "f_1", "f_2", "f_3", "f_4", "label")))
+stopifnot(identical(sort(f_pred_vars_names),
+                    sort(names(sigma_f_pred_vars))))
+num_f_pred_vars <- length(f_pred_vars)
+predict_f <- num_f_pred_vars > 0L
+if (predict_f) {
+  for (name_ in f_pred_vars_names) {
+    stopifnot(is.character(f_pred_vars[[name_]]))
+    stopifnot(length(f_pred_vars[[name_]]) >= 2L)
+    stopifnot(!anyDuplicated(f_pred_vars[[name_]]))
+  }
+}
+num_cat_per_f_pred_var <- map_int(f_pred_vars, length)
+num_f_pred_var_cats <- sum(num_cat_per_f_pred_var)
 
+# Derived params
 x_sam_neg_beta  <- x_sam_neg_mu / x_sam_neg_sd^2
 x_sam_neg_alpha <- x_sam_neg_beta * x_sam_neg_mu
 x_sam_pos_mu <- x_sam_neg_mu + x_sam_pos_mu_jump
@@ -103,15 +132,52 @@ xs <- exp(xlogs)
 
 # Make a df with one row per plate
 df_plate <- tibble(plate = 1:num_plate)
+for (f_pred_var in f_pred_vars_names) {
+  df_plate[[f_pred_var]] <- sample(f_pred_vars[[f_pred_var]],
+                                   size = num_plate,
+                                   replace = TRUE)
+}
 
-# Assign plate effects
-Sigma_plate <- diag(sigma_f_plate) %*% Rho_plate %*% diag(sigma_f_plate)
+# Draw plate-level variation in f
+Sigma_plate <- diag(sigma_f_plate) %*% rho %*% diag(sigma_f_plate)
 f_plate_effects <- rmvnorm(num_plate, c(0, 0, 0, 0), Sigma_plate)
+df_plate$f_effect_plate <- map(1:num_plate, ~ f_plate_effects[.x, ])
+
+# Draw variation in f due to f_pred_vars
+f_effects_by_pred_var <- list()
+for (f_pred_var in f_pred_vars_names) {
+  sigma_f_ <- sigma_f_pred_vars[[f_pred_var]]
+  Sigma_f_ <- diag(sigma_f_) %*% rho %*% diag(sigma_f_)
+  num_cats <- length(f_pred_vars[[f_pred_var]])
+  f_effects_ <- rmvnorm(num_cats, c(0, 0, 0, 0), Sigma_f_)
+  rownames(f_effects_) <- f_pred_vars[[f_pred_var]]
+  f_effects_by_pred_var[[f_pred_var]] <- f_effects_
+  df_plate[[paste0("f_effect_", f_pred_var)]] <- map(
+    df_plate[[f_pred_var]], ~ f_effects_[.x, ])
+}
+
+# Assign f by plate
+df_plate$f <- map(1:num_plate, ~ f)
+for (plate in 1:num_plate) {
+  df_plate$f[[plate]] <- f + df_plate$f_effect_plate[[plate]]
+}
+for (f_pred_var in f_pred_vars_names) {
+  for (plate in 1:num_plate) {
+    df_plate$f[[plate]] <- df_plate$f[[plate]] +
+      df_plate[[paste0("f_effect_", f_pred_var)]][[plate]]
+  }
+}
 df_plate <- df_plate %>%
-  mutate(f_1 = f[[1]] + f_plate_effects[, 1],
-         f_2 = f[[2]] + f_plate_effects[, 2],
-         f_3 = f[[3]] + f_plate_effects[, 3],
-         f_4 = f[[4]] + f_plate_effects[, 4])
+  unnest_wider(f, names_sep = "_")
+
+# Label plates for plotting
+df_plate$label <- paste("plate", df_plate$plate)
+for (f_pred_var in f_pred_vars_names) {
+  df_plate$label <- paste0(df_plate$label, ", ", f_pred_var, " ",
+                           df_plate[[f_pred_var]])
+}
+df_plate <- df_plate %>%
+  mutate(label = fct_reorder(label, plate))
 
 PL4 <- function(xlog, f_1, f_2, f_3, f_4) {
   f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4)))
@@ -127,10 +193,10 @@ df_cal <- df_plate %>%
 # Plot y expected by plate
 ggplot(df_cal %>% 
          filter(cal == 1)) +
-  geom_line(aes(xlog, y_mean, group = plate, col = as.factor(plate))) +
+  geom_line(aes(xlog, y_mean, group = label, col = label)) +
   labs(x = "x = Ab concentration (log)",
        y = "y = ELISA OD",
-       col = "plate") +
+       col = "") +
   coord_cartesian(expand = F) +
   ylim(0, NA)
 
@@ -142,18 +208,18 @@ df_cal <- df_cal %>%
 
 # Plot observed y
 ggplot(df_cal) +
-  geom_point(aes(jitter(x), y, col = as.factor(plate))) +
+  geom_point(aes(jitter(x), y, col = label)) +
   scale_x_log10(breaks = xs) +
   labs(x = "Concentration",
        y = "OD",
-       col = "plate")
+       col = "")
 ggplot(df_cal %>% filter(plate <= 25)) +
   geom_point(aes(x, y)) +
   scale_x_log10(breaks = xs) +
   labs(x = "Concentration",
        y = "OD",
        col = "plate") +
-  facet_wrap(~plate)
+  facet_wrap(~label)
 
 # Calculate indepent ML 4PL curves per plate and add to the plot
 if (FALSE) {
@@ -248,17 +314,19 @@ ggplot(df_sam) +
 
 
 # Plot calibrators and samples by plate
-bind_rows(df_cal %>% mutate(label = "calibrator") ,
-          df_sam %>% mutate(label = if_else(pos, "+ sample", "- sample"))) %>%
-  ggplot() +
-  geom_point(aes(jitter(x), y, col = label)) +
-  scale_x_log10(breaks = xs) +
-  facet_wrap(~plate) +
-  labs(x = "Concentration",
-       y = "Observed optical density",
-       col = "") +
-  theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0)) 
-ggsave("~/lassa_serology_cross-sectional_data.pdf", height = 9, width = 12)  
+if (FALSE) {
+  bind_rows(df_cal %>% mutate(type = "calibrator") ,
+            df_sam %>% mutate(type = if_else(pos, "+ sample", "- sample"))) %>%
+    ggplot() +
+    geom_point(aes(jitter(x), y, col = type)) +
+    scale_x_log10(breaks = xs) +
+    facet_wrap(~label) +
+    labs(x = "Concentration",
+         y = "Observed optical density",
+         col = "") +
+    theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0)) 
+  ggsave("~/lassa_serology_cross-sectional_data.pdf", height = 9, width = 12)  
+}
 
 # PREPARE DATA FOR STAN ----
 
@@ -275,6 +343,8 @@ stan_input_posterior <- list(
   y_cal = df_cal$y,
   y_sam = df_sam$y,
   x_cal = df_cal$x,
+  num_f_pred_vars = num_f_pred_vars,
+  num_cat_per_f_pred_var = num_cat_per_f_pred_var,
   sample_posterior_not_prior = 1L
 )
 
