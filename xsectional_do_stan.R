@@ -1,13 +1,16 @@
 library(data.table)
 
-data_was_simulated <- TRUE
-read_samples_from_file <- FALSE
-#files_samples <- Sys.glob("~/enable/samples_full_run-202509041645-*-48d289.csv")
-files_samples <- Sys.glob("~/enable/samples_full_run-202509160846-*-76908a.csv")
+data_was_simulated <- FALSE
+read_samples_from_file <- TRUE
+#files_samples <- Sys.glob("~/enable/samples_full_run-202509160846-*-76908a.csv") # non-baseline, no observation mixture model
+#files_samples <- Sys.glob("~/enable/samples_full_run-202509180821-*-54ceae.csv") # baseline only, mixture observation with p_sam_rep_is_blank and correct y_sim
+#files_samples <- Sys.glob("~/enable/samples_full_run-202509192120-*-212f13.csv") # non-baseline, mixture observation without p_sam_rep_is_blank and with y_sim excluding blank possibility
+#files_samples <- Sys.glob("~/enable/samples_full_run-202509231402-*-34f4eb.csv") # all calibration only, including all blanks to identify which are outliers
+files_samples <- Sys.glob("/Users/cwymant/enable/samples_full_run-202509240958-*-8dbbf0.csv") # non-baseline, mixture observation without p_sam_rep_is_blank and with y_sim excluding blank possibility, after removing some outliers
 
 # INPUT ABOUT STAN ----
 
-file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v15.stan"
+file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v16.stan"
 sample_prior_manually <- TRUE
 num_mc_chains <- 4
 num_mc_iterations_posterior <- 500
@@ -24,6 +27,7 @@ if (data_was_simulated) {
     "x_sam_neg_sd", 0, x_sam_neg_sd * 2,
     "x_sam_pos_sd", 0, x_sam_pos_sd * 2,
     "p_pos", 0, 1,
+    "p_blank", 0, 2 * p_blank,
     "y_obs_sd_cal_min",  0, 2 * y_obs_sd_cal_min,
     "y_obs_sd_cal_jump", 0, 2 * y_obs_sd_cal_jump,
     "y_obs_sd_sam_min",  0, 2 * y_obs_sd_sam_min,
@@ -47,6 +51,7 @@ if (data_was_simulated) {
     "x_sam_pos_sd", 0, 2.5, 
     "x_sam_pos_mu", -1, 3,
     "p_pos", 0, 1,
+    "p_blank", 0, 0.05,
     "y_obs_sd_cal_min", 0, 0.015,
     "y_obs_sd_cal_jump", 0.1, 1,
     "y_obs_sd_sam_min", 0, 0.03,
@@ -56,13 +61,13 @@ if (data_was_simulated) {
   df_priors_vectors <- tribble(
     ~param, ~lower, ~upper,
     "sigma_f_plate", c(0, 0, 0, 0), c(0.25, 0.025, 2.5, 2),
-    "f", c(0.8, -0.05, 3, 2.2), c(1.1, 0.05, 4.5, 3),
+    "f", c(0.8, -0.05, 3, 2.2), c(1.1, 0.05, 5.5, 3.8),
     "sigma_f_pred_vars", c(0, 0, 0, 0), c(0.6, 0.1, 4, 3)
   )
   
 }
 
-# The eta parameter of the LKJ prior for Rho_bat
+# The eta parameter of the LKJ prior for rho
 rho_prior_eta <- 2
 
 # SYNCHRONISE SIMULATED AND REAL DATA PREVIOUS STEPS ----
@@ -276,8 +281,9 @@ if (read_samples_from_file) {
   print(end_time)
   print(end_time - start_time)
   
-  # samples_posterior$save_output_files("~/enable/", basename = "samples_full_run")
-  #samples_posterior$profiles()
+  #samples_posterior$save_output_files("~/enable/", basename = "samples_full_run")
+  # rm(samples_posterior)
+  # save.image("~/enable/samples_full_run_TODO_DATE.RData")
   
 }
 
@@ -485,6 +491,7 @@ if (data_was_simulated) {
     "x_sam_neg_mu", x_sam_neg_mu,
     "x_sam_pos_mu", x_sam_pos_mu,
     "p_pos", p_pos,
+    "p_blank", p_blank,
     "y_obs_sd_cal_min",  y_obs_sd_cal_min,
     "y_obs_sd_cal_jump", y_obs_sd_cal_jump,
     "y_obs_sd_sam_min",  y_obs_sd_sam_min,
@@ -627,12 +634,13 @@ p <- ggplot() +
   geom_histogram(data = df_fit_wide_postandprior %>%
                    select(!matches("f_effect")) %>%
                    select(!matches("p_pos_")) %>%
+                   select(!matches("_jump")) %>%
                    pivot_longer(-c("sample", "density_type"), names_to = "param"),
                  aes(value, fill = density_type, y = after_stat(density)),
                  alpha = 0.6,
                  position = "identity",
                  bins = 50) +
-  facet_wrap(~param, scales = "free", nrow = 8) +
+  facet_wrap(~param, scales = "free", nrow = 5) +
   scale_fill_brewer(palette = "Set1") +
   coord_cartesian(expand = FALSE) +
   labs(fill = "",
@@ -645,7 +653,7 @@ if (data_was_simulated) {
                       aes(xintercept = value))
 }
 p
-ggsave("~/enable/enable_posteriors.pdf", height = 10, width = 20)
+ggsave("~/enable/enable_posteriors.pdf", height = 8, width = 9.4)
 
 p <- ggplot() +
   geom_histogram(data = df_fit_wide_postandprior %>%
@@ -863,9 +871,10 @@ ggplot() +
 ggsave("~/foo_7.pdf", height = 3.3, width = 3.3)
 
 # The posteriors for the 4PL function by plate
-xlog_range <- seq(log(0.2), log(40), length.out = 30)
+xlog_range <- seq(log(0.2), log(40), length.out = 50)
 df_4pl <- df_fit_wide_postonly %>%
   select(sample, starts_with("f_per_plate[")) %>%
+  filter(sample %% 10 == 0) %>%
   pivot_longer(-sample, names_to = "param") %>%
   tidyr::extract(param, 
                  into = c("plate_int", "f_index"), 
@@ -943,7 +952,7 @@ if (data_was_simulated) {
 p
 
 # Plot P(x | pos), P(x | neg), P(x), P(pos | x) again but now with logx
-xlogs_plot <- log(10) * -30:20 / 10
+xlogs_plot <- log(10) * -90:60 / 30
 df_xlog_distributions <- df_fit_wide_postonly %>%
   filter(sample %% 10 == 0) %>%
   select("sample", "x_sam_pos_mu", "x_sam_pos_sd",
@@ -962,7 +971,7 @@ p <- ggplot() +
   geom_line(data = df_xlog_distributions,
             aes(x = xlog, y = value, group = sample), alpha = 0.15) +
   facet_wrap(vars(name), scales = "free_y", ncol = 1) +
-  labs(x = "xlog = log_e(Ab concentration)",
+  labs(x = "log_e(Ab concentration)",
        y = "") +
   #scale_x_log10(expand = c(0, 0), limits = c(NA, NA)) +
   scale_x_continuous(expand = c(0, 0), limits = c(NA, NA)) +
@@ -981,6 +990,9 @@ if (data_was_simulated) {
               aes(x = xlog, y = value), colour = "blue") 
 }
 p
+ggsave("~/enable/enable_parametric_prob_pos.pdf", height = 5, width = 6)
+
+
 
 # Posterior retrodictive check
 group_size <- 15
@@ -1023,29 +1035,30 @@ for (group in unique(df_plot_group$plot_group)) {
 dev.off()
 
 # Plot the posterior distribution of the population level distribution of point
-# estimates of x_sam (not the posterior distribution of the parametric
-# pop-level distribution of x_sam)
+# estimates of x_sam and the posterior distribution of the parametric
+# pop-level distribution of x_sam
 df_fit_wide_postonly %>%
   filter(sample %% 20 == 0) %>%
   select(sample, starts_with("xlog_sam[")) %>%
   pivot_longer(-c("sample"), names_to = "param") %>%
   mutate(value = exp(value)) %>%
   ggplot() +
-  #geom_rect(xmin=1, xmax=1.8, ymin=-Inf, ymax=+Inf, 
-  #          fill='grey', alpha=0.2) +
-  geom_vline(xintercept = 1) +
-  geom_vline(xintercept = 1.8) +
-  geom_density(aes(value, group = sample), alpha = 0.01) +
+  geom_vline(xintercept = 0) +
+  geom_vline(xintercept = log(1.8)) +
+  geom_line(data = df_xlog_distributions %>% filter(name == "P(xlog)"),
+            aes(x = xlog, y = value, group = sample), alpha = 0.15, col = "blue") +
+  geom_density(aes(log(value) , group = sample), alpha = 0.01) +
   coord_cartesian(expand = F) +
   # 
   #scale_x_continuous(limits = c(0, 4)) +
-  scale_x_log10(limits = c(1e-3, 100)) + 
-  labs(x = "Ab concentration",
-       y = "population distribution of point estimates (inverting the 4PL)") +
+  #scale_x_log10(limits = c(1e-3, 100)) + 
+  labs(x = "log_e(Ab concentration)",
+       #y = "population distribution of point estimates (inverting the 4PL)") +
+       y = "probability density") +
   #geom_line(data = df_gamma_, aes(x, p), col = "blue") +
   #geom_density(data = df_x_sam_point, aes(x), col = "blue") +
   NULL 
-ggsave("~/enable/enable_PopDistributionOfX_LogScale.pdf", height = 4.5, width = 5.3)
+ggsave("~/enable/enable_PopDistributionOfX_LogScale.pdf", height = 4, width = 6.5)
 
 df_x_sam_point <- df_fit_wide_postonly %>%
   select(starts_with("x_sam[")) %>%
@@ -1070,18 +1083,21 @@ df_x_sam_point %>%
 # Plot the posterior distribution of the population level distribution of 
 # stochastically redrawn y_sam 
 df_fit_wide_postonly %>%
-  filter(sample %% 20 == 0) %>%
+  filter(sample %% 30 == 0) %>%
   select(sample, starts_with("y_sam_sim[")) %>%
   pivot_longer(-c("sample"), names_to = "param") %>%
   mutate(value = log10(value)) %>%
   ggplot() +
-  geom_histogram(data = df_sam, aes(x = log10(y), y = after_stat(density))) +
+  geom_histogram(data = df_sam, 
+                 aes(x = log10(y), y = after_stat(density)), 
+                 bins = 60) +
   geom_density(aes(value, group = sample), alpha = 0.01) +
   coord_cartesian(expand = F) +
   scale_x_continuous(limits = c(-3, 1)) +
-  labs(x = "log10(y)",
-       y = "population distribution") +
+  labs(x = "log10(OD value)",
+       y = "probability density") +
   NULL 
+ggsave("~/enable/enable_PopDistributionOfODs.pdf", height = 4, width = 6.5)
 
 
 

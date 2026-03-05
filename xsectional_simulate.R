@@ -29,24 +29,25 @@ theme_set(theme_classic())
 
 # INPUT ----
 
-set.seed(12345)
+set.seed(123456)
 
 # Unmodelled aspects of the data-generating process (things we condition on)
 num_plate <- 20
-num_rep_per_cal <- 2
+num_sam_per_plate <- 10
 num_rep_per_sam <- 2
-num_sam_per_plate <- 20
+num_rep_per_cal <- 2
 xlogs <- log(c(0, 0.5, 1.5, 4.5, 13, 40)) #c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cals
 
 y_obs_sd_cal_min <- 0.01
-y_obs_sd_cal_jump <- 0.15
+y_obs_sd_cal_jump <- 0.4
 y_obs_sd_sam_min <- 0.002
-y_obs_sd_sam_jump <- 0.2
+y_obs_sd_sam_jump <- 0.4
 x_sam_neg_mu <- -2.9
 x_sam_neg_sd <- 1
 x_sam_pos_mu <- 0.7
 x_sam_pos_sd <- 1.1
 p_pos <- 0.5
+p_blank <- 0.2
 
 # The four parameters of the logistic regression (f_1, f_2, f_3, f_4)
 # which calibrator the OD, y, through
@@ -59,10 +60,10 @@ f <- c(0.95,
 # The covariance matrix for the plate-level random effects on f, parameterised
 # by the square root of the diagonal entries and the dimensionless correlation
 # matrix.
-sigma_f_plate <- c(0.0065,
-                   0.0009,
-                   0.09,
-                   0.035)
+sigma_f_plate <- c(0.065,
+                   0.009,
+                   0.9,
+                   0.35)
 rho <- matrix(c(1, 0, 0, 0,
                 0, 1, 0, 0,
                 0, 0, 1, 0,
@@ -182,9 +183,6 @@ for (f_pred_var in f_pred_vars_names) {
   for (cat_num in 1:num_cats) {
     f_effects_[cat_num, ] <- f_effects_[cat_num, ] - f_effects_col_means
   }
-  # TODO: perhaps this ?
-  # If their mean is not zero, using our parameterisation we'll estimate the 
-  # central value and deviations from it wrongly
   rownames(f_effects_) <- f_pred_vars[[f_pred_var]]
   f_effects_by_pred_var[[f_pred_var]] <- f_effects_
   df_plate[[paste0("f_effect_", f_pred_var)]] <- map(
@@ -282,7 +280,7 @@ if (FALSE) {
          linetype = "") +
     geom_line(data = df_ml %>% filter(y == "truth"),
               aes(x, value, col = as.factor(plate))) 
-  ggsave("~/foo_1.pdf", height = 3.5, width = 4)
+  ggsave("~/foo_1.pdf", height = 5.5, width = 6)
   ggplot(df_cal) +
     geom_point(aes(x, y, col = as.factor(plate))) +
     scale_x_log10(breaks = xs) +
@@ -294,6 +292,14 @@ if (FALSE) {
     geom_line(data = df_ml %>% filter(y == "truth"),
               aes(x, value, col = as.factor(plate))) 
   ggsave("~/foo_2.pdf", height = 8, width = 3.2)
+  ggplot(df_cal %>% filter(plate == 18)) +
+    geom_point(aes(x, y)) +
+    scale_x_log10(breaks = xs) +
+    labs(x = "x = Ab concentration",
+         y = "y = OD") +
+    geom_line(data = df_ml %>% filter(y == "truth") %>% filter(plate == 18),
+              aes(x, value)) 
+  ggsave("~/foo_2b.pdf", height = 4, width = 4)
   ggplot(df_cal) +
     geom_point(aes(x, y, col = as.factor(plate))) +
     scale_x_log10(breaks = xs) +
@@ -337,9 +343,6 @@ for (p_pos_pred_var in p_pos_pred_vars_names) {
   num_cats <- length(p_pos_pred_vars[[p_pos_pred_var]])
   p_pos_effects_ <- rnorm(num_cats, 0, sigma_p_pos_)
   p_pos_effects_ <- p_pos_effects_ - mean(p_pos_effects_)
-  # TODO: perhaps p_pos_effects_ <- p_pos_effects_ - mean(p_pos_effects_) ?
-  # If their mean is not zero, using our parameterisation we'll estimate the 
-  # central value and deviations from it wrongly
   names(p_pos_effects_) <- p_pos_pred_vars[[p_pos_pred_var]]
   p_pos_effects_by_pred_var[[p_pos_pred_var]] <- p_pos_effects_
   p_pos_overall_by_pred_var[[p_pos_pred_var]] <- 
@@ -386,7 +389,10 @@ df_sam <- df_sam %>%
   arrange(id_sam) %>%
   mutate(which_sam_rep = row_number(),
          y_obs_sd = PL4(xlog, f_1, y_obs_sd_sam_min, y_obs_sd_sam_max, f_4),
-         y = rnorm(nrow(.), mean = y_mean, sd = y_obs_sd))
+         is_blank = runif(nrow(.)) < p_blank,
+         y = if_else(is_blank,
+                     rnorm(nrow(.), mean = f_2,    sd = y_obs_sd_sam_min),
+                     rnorm(nrow(.), mean = y_mean, sd = y_obs_sd)))
 
 ggplot(df_sam) +
   geom_histogram(aes(y)) +
