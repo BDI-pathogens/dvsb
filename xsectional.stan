@@ -35,10 +35,14 @@ data {
   row_vector[4] sigma_f_plate_upper;
   row_vector[4] sigma_f_pred_vars_lower;
   row_vector[4] sigma_f_pred_vars_upper;
-  real y_obs_sd_min_lower;
-  real y_obs_sd_min_upper;
-  real y_obs_sd_jump_lower;
-  real y_obs_sd_jump_upper;
+  real y_obs_sd_cal_min_lower;
+  real y_obs_sd_cal_min_upper;
+  real y_obs_sd_cal_jump_lower;
+  real y_obs_sd_cal_jump_upper;
+  real y_obs_sd_sam_min_lower;
+  real y_obs_sd_sam_min_upper;
+  real y_obs_sd_sam_jump_lower;
+  real y_obs_sd_sam_jump_upper;
   
   real x_sam_neg_mu_lower;
   real<lower = x_sam_neg_mu_lower> x_sam_neg_mu_upper;
@@ -83,8 +87,10 @@ parameters {
   real<lower = x_sam_neg_sd_lower, upper = x_sam_neg_sd_upper> x_sam_neg_sd;
   real<lower = x_sam_pos_sd_lower, upper = x_sam_pos_sd_upper> x_sam_pos_sd;
   real<lower = p_sam_pos_lower,    upper = p_sam_pos_upper>    p_sam_pos;
-  real<lower = y_obs_sd_min_lower, upper = y_obs_sd_min_upper> y_obs_sd_min;
-  real<lower = y_obs_sd_jump_lower, upper = y_obs_sd_jump_upper> y_obs_sd_jump;
+  real<lower = y_obs_sd_cal_min_lower,  upper = y_obs_sd_cal_min_upper>  y_obs_sd_cal_min;
+  real<lower = y_obs_sd_cal_jump_lower, upper = y_obs_sd_cal_jump_upper> y_obs_sd_cal_jump;
+  real<lower = y_obs_sd_sam_min_lower,  upper = y_obs_sd_sam_min_upper>  y_obs_sd_sam_min;
+  real<lower = y_obs_sd_sam_jump_lower, upper = y_obs_sd_sam_jump_upper> y_obs_sd_sam_jump;
   
   // Enforce that x_sam_pos_mu > x_sam_neg_mu
   real<lower = max([x_sam_pos_mu_lower, x_sam_neg_mu]), upper = x_sam_pos_mu_upper> x_sam_pos_mu;
@@ -101,7 +107,8 @@ transformed parameters{
   
   real p_sam_pos_log = log(  p_sam_pos);
   real p_sam_neg_log = log1m(p_sam_pos);
-  real y_obs_sd_max = y_obs_sd_min + y_obs_sd_jump;
+  real y_obs_sd_cal_max = y_obs_sd_cal_min + y_obs_sd_cal_jump;
+  real y_obs_sd_sam_max = y_obs_sd_sam_min + y_obs_sd_sam_jump;
   vector[num_sam_id] x_sam = exp(xlog_sam);
 
   matrix[tot_cat_per_f_pred_var, 4] f_effects_by_pred_var_cat;
@@ -155,12 +162,12 @@ transformed parameters{
   for (cal_rep in 1:num_cal_tot) {
     int plate = which_plate_cal[cal_rep];
     y_obs_sd_cal[cal_rep] = PL4(x_cal[cal_rep], f_per_plate[plate, 1],
-    y_obs_sd_min, y_obs_sd_max, exp_f_1_mult_f_4_per_plate[plate]);
+    y_obs_sd_cal_min, y_obs_sd_cal_max, exp_f_1_mult_f_4_per_plate[plate]);
   }
   for (sam_rep in 1:num_sam_tot) {
     int plate = which_plate_sam[sam_rep];
     y_obs_sd_sam[sam_rep] = PL4(x_sam[which_id_sam[sam_rep]], f_per_plate[plate, 1],
-    y_obs_sd_min, y_obs_sd_max, exp_f_1_mult_f_4_per_plate[plate]);
+    y_obs_sd_sam_min, y_obs_sd_sam_max, exp_f_1_mult_f_4_per_plate[plate]);
   }
   }
   

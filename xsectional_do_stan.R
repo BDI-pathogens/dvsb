@@ -4,10 +4,10 @@ options(warn = 2)
 
 # INPUT ABOUT STAN ----
 
-file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v11.stan"
+file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v12.stan"
 sample_prior_manually <- TRUE
 num_mc_chains <- 4
-num_mc_iterations_posterior <- 500
+num_mc_iterations_posterior <- 300
 num_mc_iterations_prior <- 2000
 
 # Upper and lower bounds for priors
@@ -20,11 +20,13 @@ if (data_was_simulated) {
     "x_sam_neg_sd", 0, x_sam_neg_sd * 2,
     "x_sam_pos_sd", 0, x_sam_pos_sd * 2,
     "p_sam_pos", 0, 1,
-    "y_obs_sd_min",  0, 2 * y_obs_sd_min,
-    "y_obs_sd_jump", 0, 2 * y_obs_sd_jump
+    "y_obs_sd_cal_min",  0, 2 * y_obs_sd_cal_min,
+    "y_obs_sd_cal_jump", 0, 2 * y_obs_sd_cal_jump,
+    "y_obs_sd_sam_min",  0, 2 * y_obs_sd_sam_min,
+    "y_obs_sd_sam_jump", 0, 2 * y_obs_sd_sam_jump
   )
   df_priors_vectors <- tribble(
-    ~param, ~lower, ~upper,
+    ~param, ~lower, ~upper, 
     "sigma_f_plate", sigma_f_plate * 0.5, sigma_f_plate * 2,
     "f", f-0.5, f+0.5,
     "sigma_f_pred_vars", rep(0, 4), rep(0, 4)) # not needed if ! predict_f
@@ -40,8 +42,10 @@ if (data_was_simulated) {
     "x_sam_pos_sd", 0, 2.5, 
     "x_sam_pos_mu", -1, 3,
     "p_sam_pos", 0, 1,
-    "y_obs_sd_min", 0, 0.01,
-    "y_obs_sd_jump", 0.1, 0.4
+    "y_obs_sd_cal_min", 0, 0.01,
+    "y_obs_sd_cal_jump", 0.1, 0.4,
+    "y_obs_sd_sam_min", 0, 0.03,
+    "y_obs_sd_sam_jump", 0.1, 1
   )
   df_priors_vectors <- tribble(
     ~param, ~lower, ~upper,
@@ -250,7 +254,8 @@ if (sample_prior_manually) {
     }
   }
   df_ps <- df_ps %>%
-    mutate(y_obs_sd_max = y_obs_sd_min + y_obs_sd_jump)
+    mutate(y_obs_sd_cal_max = y_obs_sd_cal_min + y_obs_sd_cal_jump,
+           y_obs_sd_sam_max = y_obs_sd_sam_min + y_obs_sd_sam_jump)
   x_sam_pos_mu_lower <- df_priors %>% filter(param == "x_sam_pos_mu") %>% pull(lower)
   x_sam_pos_mu_upper <- df_priors %>% filter(param == "x_sam_pos_mu") %>% pull(upper)
   df_ps <- df_ps %>%
@@ -342,9 +347,12 @@ if (data_was_simulated) {
     "x_sam_neg_mu", x_sam_neg_mu,
     "x_sam_pos_mu", x_sam_pos_mu,
     "p_sam_pos", p_sam_pos,
-    "y_obs_sd_min", y_obs_sd_min,
-    "y_obs_sd_jump", y_obs_sd_jump,
-    "y_obs_sd_max", y_obs_sd_max
+    "y_obs_sd_cal_min",  y_obs_sd_cal_min,
+    "y_obs_sd_cal_jump", y_obs_sd_cal_jump,
+    "y_obs_sd_sam_min",  y_obs_sd_sam_min,
+    "y_obs_sd_sam_jump", y_obs_sd_sam_jump,
+    "y_obs_sd_cal_max", y_obs_sd_cal_max,
+    "y_obs_sd_sam_max", y_obs_sd_sam_max
   ) 
   
   if (predict_f) {
@@ -566,7 +574,7 @@ ggplot() +
 ggsave("~/foo_7.pdf", height = 3.3, width = 3.3)
 
 # The posteriors for the 4PL function by plate
-xlog_range <- seq(log(0.4), log(40), length.out = 20)
+xlog_range <- seq(log(0.2), log(40), length.out = 30)
 df_4pl <- df_fit_wide %>%
   filter(density_type == "posterior") %>%
   select(-density_type) %>%
@@ -582,7 +590,7 @@ df_4pl <- df_fit_wide %>%
   expand_grid(xlog = xlog_range) %>%
   mutate(x = exp(xlog)) %>%
   mutate(y = PL4(xlog, f_1, f_2, f_3, f_4))
-plate_ints_to_plot <- 1:25
+plate_ints_to_plot <- 1:12
 p <- ggplot(df_4pl %>%
               filter(plate_int %in% plate_ints_to_plot) %>%
               filter(sample %% 10 == 0)) +
@@ -590,7 +598,7 @@ p <- ggplot(df_4pl %>%
   geom_point(data = df_cal %>%
                filter(plate_int %in% plate_ints_to_plot),
              aes(x, y), col = "blue") +
-  facet_wrap(~plate) +
+  facet_wrap(~plate, nrow = 3) +
   scale_x_log10() +
   labs(x = "x = Ab concentration",
        y = "y = OD") +
@@ -605,7 +613,7 @@ if (data_was_simulated) {
               aes(x, y), col = "blue", linewidth = 1)
 }
 p
-ggsave("~/foo_6.pdf", height = 3.3, width = 3.3)
+ggsave("~/enable/enable_calibrator_posterior_curves.pdf", height = 4.5, width = 6)
 
 
 # Plot P(x | pos), P(x | neg), P(x), P(pos | x)
