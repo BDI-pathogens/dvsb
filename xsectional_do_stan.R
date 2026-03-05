@@ -1,18 +1,16 @@
 library(data.table)
 
-data_was_simulated <- FALSE
-read_samples_from_file <- TRUE
+data_was_simulated <- TRUE
+read_samples_from_file <- FALSE
 #files_samples <- Sys.glob("~/enable/samples_full_run-202509041645-*-48d289.csv")
 files_samples <- Sys.glob("~/enable/samples_full_run-202509160846-*-76908a.csv")
 
-options(warn = 2)
-
 # INPUT ABOUT STAN ----
 
-file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v14.stan"
+file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v15.stan"
 sample_prior_manually <- TRUE
 num_mc_chains <- 4
-num_mc_iterations_posterior <- 1000
+num_mc_iterations_posterior <- 500
 num_mc_iterations_prior <- 4000
 use_cmdstanr <- TRUE
 
@@ -203,13 +201,9 @@ if (read_samples_from_file) {
     df_
   }) %>% data.table::rbindlist()
   
-  data.table::setnames(df_fit_wide_postonly, mastiff::rename_params_cmdstandr_to_rstan)
+  data.table::setnames(df_fit_wide_postonly, mastiff::rename_params_cmdstanfile_to_rstan)
   #colnames(df_fit_wide_postonly) <- 
-  #  mastiff::rename_params_cmdstandr_to_rstan(colnames(df_fit_wide_postonly))
-  
-  df_fit_wide_postonly[, sample := 1:nrow(df_fit_wide_postonly)]
-  #df_fit_wide_postonly <- df_fit_wide_postonly %>%
-  #  mutate(sample = row_number())
+  #  mastiff::rename_params_cmdstanfile_to_rstan(colnames(df_fit_wide_postonly))
   
 } else {
   
@@ -234,6 +228,7 @@ if (read_samples_from_file) {
   print(start_time)
   max_treedepth <- 12
   if (use_cmdstanr) {
+    
     samples_posterior <- model_compiled$sample(
       data = stan_input_posterior,
       iter_warmup = num_mc_iterations_posterior / 2,
@@ -242,6 +237,7 @@ if (read_samples_from_file) {
       max_treedepth = max_treedepth,
       parallel_chains = num_mc_chains
     )
+    df_fit_wide_postonly <- samples_posterior$draws(format = "draws_df")
     if (! sample_prior_manually) {
       samples_prior <- model_compiled$sample(
         data = stan_input_prior,
@@ -252,7 +248,9 @@ if (read_samples_from_file) {
         parallel_chains = num_mc_chains
       )
     }
+    
   } else {
+    
     samples_posterior <- sampling(model_compiled,
                                   data = stan_input_posterior,
                                   iter = num_mc_iterations_posterior,
@@ -260,6 +258,9 @@ if (read_samples_from_file) {
                                   control = list(max_treedepth = max_treedepth),
                                   pars = params_to_ignore,
                                   include = FALSE)
+    df_fit_wide_postonly <- samples_posterior %>%
+      as.data.frame()
+    
     if (! sample_prior_manually) {
       samples_prior <- sampling(model_compiled,
                                 data = stan_input_prior,
@@ -278,15 +279,13 @@ if (read_samples_from_file) {
   # samples_posterior$save_output_files("~/enable/", basename = "samples_full_run")
   #samples_posterior$profiles()
   
-  df_fit_wide_postonly <- samples_posterior %>%
-    as.data.frame() %>%
-    as_tibble() %>%
-    mutate(density_type = "posterior",
-           sample = row_number())
-  
 }
 
 # WRANGLE STAN OUTPUT ----
+
+setDT(df_fit_wide_postonly)
+df_fit_wide_postonly[, density_type := "posterior"]
+df_fit_wide_postonly[, sample := 1:nrow(df_fit_wide_postonly)]
 
 # Ugly code to sample from the prior manually. Sorry programming.
 if (sample_prior_manually) {
@@ -459,7 +458,6 @@ df_ps$density_type <- "prior"
 setDT(df_ps)
 
 # Merge prior and posterior samples
-df_fit_wide_postonly[, density_type := "posterior"]
 desired_cols <- names(df_ps)
 df_fit_wide_postandprior <- rbind(df_fit_wide_postonly[,..desired_cols],
                                   df_ps) 

@@ -59,6 +59,7 @@ transformed data {
   
   array[num_plate] vector[4] zeros;
   for (i in 1:num_plate) zeros[i] = rep_vector(0, 4);
+  vector[4] zeros_4 = rep_vector(0, 4);
   
   int tot_cat_per_f_pred_var = sum(num_cat_per_f_pred_var);
   array[tot_cat_per_f_pred_var] vector[4] zeros_for_f_pred_vars;
@@ -203,6 +204,16 @@ transformed parameters{
   }
   }
   
+  vector[num_plate] loglik_per_plate;
+  for (plate in 1:num_plate) {
+    loglik_per_plate[plate] = multi_normal_lpdf(f_plate_effects_unscaled[plate] | zeros_4, rho);
+  }
+  for (cal_rep in 1:num_cal_tot) {
+    loglik_per_plate[which_plate_cal[cal_rep]] +=
+    normal_lpdf(y_cal[cal_rep] | y_cal_mean_per_obs[cal_rep], y_obs_sd_cal[cal_rep]);
+  }
+  
+  
 }
 
 
@@ -211,7 +222,6 @@ model {
   // Priors
   x_sam_pos_mu ~ uniform(max([x_sam_pos_mu_lower, x_sam_neg_mu]), x_sam_pos_mu_upper);
   rho ~ lkj_corr(rho_prior_eta);
-  f_plate_effects_unscaled ~ multi_normal(zeros, rho);
   profile("mixture_model") {
   for (sam_id in 1:num_sam_id) {
     target += log_sum_exp(
@@ -222,13 +232,15 @@ model {
   f_effects_by_pred_var_cat_unscaled ~ multi_normal(zeros_for_f_pred_vars, rho);
   p_pos_effects_by_pred_var_cat_unscaled ~ std_normal();
   
+  // Mixed prior and likelihood term, breaking the separation:
+  target += sum(loglik_per_plate);
+  
   // Likelihood
-  profile("likelihood_cal") {
-  if (sample_posterior_not_prior) {
-    y_cal ~ normal(y_cal_mean_per_obs, y_obs_sd_cal);
+  //profile("likelihood_cal") {
+  //if (sample_posterior_not_prior) {
     target += sum(y_sam_loglik_per_obs);
-  }
-  }
+  //}
+  //}
 } 
 
 generated quantities {
