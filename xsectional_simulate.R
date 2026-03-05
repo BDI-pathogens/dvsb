@@ -29,23 +29,23 @@ theme_set(theme_classic())
 
 # INPUT ----
 
-set.seed(123456)
+set.seed(12345)
 
 # Unmodelled aspects of the data-generating process (things we condition on)
-num_plate <- 50
+num_plate <- 20
 num_rep_per_cal <- 2
 num_rep_per_sam <- 2
-num_sam_per_plate <- 10
-xlogs <- log(c(0.5, 1.5, 4.5, 13, 40)) #c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cals
+num_sam_per_plate <- 20
+xlogs <- log(c(0, 0.5, 1.5, 4.5, 13, 40)) #c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cals
 
-y_obs_sd_cal_min <- 0.06
+y_obs_sd_cal_min <- 0.01
 y_obs_sd_cal_jump <- 0.15
-y_obs_sd_sam_min <- 0.06
-y_obs_sd_sam_jump <- 0.15
+y_obs_sd_sam_min <- 0.002
+y_obs_sd_sam_jump <- 0.2
 x_sam_neg_mu <- -2.9
 x_sam_neg_sd <- 1
 x_sam_pos_mu <- 0.7
-x_sam_pos_sd <- 1.3
+x_sam_pos_sd <- 1.1
 p_pos <- 0.5
 
 # The four parameters of the logistic regression (f_1, f_2, f_3, f_4)

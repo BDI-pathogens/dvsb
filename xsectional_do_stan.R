@@ -1,14 +1,19 @@
+library(data.table)
+
 data_was_simulated <- FALSE
+read_samples_from_file <- TRUE
+#files_samples <- Sys.glob("~/enable/samples_full_run-202509041645-*-48d289.csv")
+files_samples <- Sys.glob("~/enable/samples_full_run-202509160846-*-76908a.csv")
 
 options(warn = 2)
 
 # INPUT ABOUT STAN ----
 
-file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v13.stan"
+file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v14.stan"
 sample_prior_manually <- TRUE
 num_mc_chains <- 4
-num_mc_iterations_posterior <- 500
-num_mc_iterations_prior <- 2000
+num_mc_iterations_posterior <- 1000
+num_mc_iterations_prior <- 4000
 use_cmdstanr <- TRUE
 
 # Upper and lower bounds for priors
@@ -29,7 +34,7 @@ if (data_was_simulated) {
   )
   df_priors_vectors <- tribble(
     ~param, ~lower, ~upper,
-    "sigma_f_plate", sigma_f_plate * 0.5, sigma_f_plate * 2,
+    "sigma_f_plate", sigma_f_plate * 0, sigma_f_plate * 4,
     "f", f-0.5, f+0.5,
     "sigma_f_pred_vars", rep(0, 4), rep(0, 4)) # not needed if ! predict_f
   if (predict_f) {
@@ -44,23 +49,23 @@ if (data_was_simulated) {
     "x_sam_pos_sd", 0, 2.5, 
     "x_sam_pos_mu", -1, 3,
     "p_pos", 0, 1,
-    "y_obs_sd_cal_min", 0, 0.01,
-    "y_obs_sd_cal_jump", 0.1, 0.4,
+    "y_obs_sd_cal_min", 0, 0.015,
+    "y_obs_sd_cal_jump", 0.1, 1,
     "y_obs_sd_sam_min", 0, 0.03,
     "y_obs_sd_sam_jump", 0.1, 1,
     "sigma_p_pos_pred_vars", 0, 2
   )
   df_priors_vectors <- tribble(
     ~param, ~lower, ~upper,
-    "sigma_f_plate", c(0, 0, 0, 0), c(0.15, 0.025, 1.2, 0.7),
-    "f", c(0.8, -0.05, 3, 2.2), c(1.1, 0.05, 3.8, 2.8),
+    "sigma_f_plate", c(0, 0, 0, 0), c(0.25, 0.025, 2.5, 2),
+    "f", c(0.8, -0.05, 3, 2.2), c(1.1, 0.05, 4.5, 3),
     "sigma_f_pred_vars", c(0, 0, 0, 0), c(0.6, 0.1, 4, 3)
   )
   
 }
 
 # The eta parameter of the LKJ prior for Rho_bat
-rho_prior_eta <- 4
+rho_prior_eta <- 2
 
 # SYNCHRONISE SIMULATED AND REAL DATA PREVIOUS STEPS ----
 
@@ -165,16 +170,6 @@ for (row in 1:nrow(df_priors_vectors)) {
 stan_input_prior <- stan_input_posterior
 stan_input_prior$sample_posterior_not_prior <- 0L
 
-# RUN STAN ----
-
-if (use_cmdstanr) {
-  library(cmdstanr)
-} else {
-  library(rstan)
-  rstan_options(auto_write = TRUE)
-  options(mc.cores = parallel::detectCores())
-}
-
 params_to_ignore <- c(
   "f_plate_effects_unscaled",
   "y_cal_mean_per_obs",
@@ -186,64 +181,110 @@ params_to_ignore <- c(
   "p_pos_effects_by_pred_var_cat_unscaled",
   "exp_f_1_mult_f_4_per_plate",
   "p_pos_log_per_sam_id",
-  "p_neg_log_per_sam_id"
+  "p_neg_log_per_sam_id",
+  "f_3_min_f_2_per_plate"
 )
 
-# Compile the Stan code
-if (use_cmdstanr) {
-  model_compiled <- cmdstan_model(file_input_stan)
-} else {
-  model_compiled <- stan_model(file_input_stan)
-}
+# RUN STAN ----
 
-# Run the Stan code
-start_time <- Sys.time()
-cat("Started running Stan at")
-print(start_time)
-max_treedepth <- 12
-if (use_cmdstanr) {
-  samples_posterior <- model_compiled$sample(
-    data = stan_input_posterior,
-    iter_warmup = num_mc_iterations_posterior / 2,
-    iter_sampling = num_mc_iterations_posterior / 2,
-    chains = num_mc_chains,
-    max_treedepth = max_treedepth,
-    parallel_chains = num_mc_chains
-  )
-  if (! sample_prior_manually) {
-    samples_prior <- model_compiled$sample(
-      data = stan_input_prior,
+if (read_samples_from_file) {
+  
+  df_fit_wide_postonly <- map(files_samples, function(file_){
+    cat("Now reading file", file_, "\n")
+    df_ <- data.table::fread(cmd = paste("grep -v '^#'", file_))
+    keep_col <- rep(TRUE, ncol(df_))
+    for (param in params_to_ignore) {
+      keep_based_on_this_param <- 
+        colnames(df_) != param &
+        ! startsWith(colnames(df_), paste0(param, ".")) 
+      keep_col <- keep_col & keep_based_on_this_param
+    }
+    df_ <- df_[, ..keep_col]
+    df_
+  }) %>% data.table::rbindlist()
+  
+  data.table::setnames(df_fit_wide_postonly, mastiff::rename_params_cmdstandr_to_rstan)
+  #colnames(df_fit_wide_postonly) <- 
+  #  mastiff::rename_params_cmdstandr_to_rstan(colnames(df_fit_wide_postonly))
+  
+  df_fit_wide_postonly[, sample := 1:nrow(df_fit_wide_postonly)]
+  #df_fit_wide_postonly <- df_fit_wide_postonly %>%
+  #  mutate(sample = row_number())
+  
+} else {
+  
+  if (use_cmdstanr) {
+    library(cmdstanr)
+  } else {
+    library(rstan)
+    rstan_options(auto_write = TRUE)
+    options(mc.cores = parallel::detectCores())
+  }
+  
+  # Compile the Stan code
+  if (use_cmdstanr) {
+    model_compiled <- cmdstan_model(file_input_stan)
+  } else {
+    model_compiled <- stan_model(file_input_stan)
+  }
+  
+  # Run the Stan code
+  start_time <- Sys.time()
+  cat("Started running Stan at")
+  print(start_time)
+  max_treedepth <- 12
+  if (use_cmdstanr) {
+    samples_posterior <- model_compiled$sample(
+      data = stan_input_posterior,
       iter_warmup = num_mc_iterations_posterior / 2,
       iter_sampling = num_mc_iterations_posterior / 2,
       chains = num_mc_chains,
       max_treedepth = max_treedepth,
       parallel_chains = num_mc_chains
     )
-  }
-} else {
-  samples_posterior <- sampling(model_compiled,
-                                data = stan_input_posterior,
-                                iter = num_mc_iterations_posterior,
+    if (! sample_prior_manually) {
+      samples_prior <- model_compiled$sample(
+        data = stan_input_prior,
+        iter_warmup = num_mc_iterations_posterior / 2,
+        iter_sampling = num_mc_iterations_posterior / 2,
+        chains = num_mc_chains,
+        max_treedepth = max_treedepth,
+        parallel_chains = num_mc_chains
+      )
+    }
+  } else {
+    samples_posterior <- sampling(model_compiled,
+                                  data = stan_input_posterior,
+                                  iter = num_mc_iterations_posterior,
+                                  chains = num_mc_chains,
+                                  control = list(max_treedepth = max_treedepth),
+                                  pars = params_to_ignore,
+                                  include = FALSE)
+    if (! sample_prior_manually) {
+      samples_prior <- sampling(model_compiled,
+                                data = stan_input_prior,
+                                iter = num_mc_iterations_prior,
                                 chains = num_mc_chains,
                                 control = list(max_treedepth = max_treedepth),
                                 pars = params_to_ignore,
                                 include = FALSE)
-  if (! sample_prior_manually) {
-    samples_prior <- sampling(model_compiled,
-                              data = stan_input_prior,
-                              iter = num_mc_iterations_prior,
-                              chains = num_mc_chains,
-                              control = list(max_treedepth = max_treedepth),
-                              pars = params_to_ignore,
-                              include = FALSE)
+    }
   }
+  end_time <- Sys.time()
+  cat("Finished running Stan at")
+  print(end_time)
+  print(end_time - start_time)
+  
+  # samples_posterior$save_output_files("~/enable/", basename = "samples_full_run")
+  #samples_posterior$profiles()
+  
+  df_fit_wide_postonly <- samples_posterior %>%
+    as.data.frame() %>%
+    as_tibble() %>%
+    mutate(density_type = "posterior",
+           sample = row_number())
+  
 }
-end_time <- Sys.time()
-cat("Finished running Stan at")
-print(end_time)
-print(end_time - start_time)
-
-#samples_posterior$profiles()
 
 # WRANGLE STAN OUTPUT ----
 
@@ -415,14 +456,13 @@ if (sample_prior_manually) {
     mutate(sample = row_number())
 }
 df_ps$density_type <- "prior"
+setDT(df_ps)
 
 # Merge prior and posterior samples
-df_fit_wide <- bind_rows(samples_posterior %>%
-                           as.data.frame() %>%
-                           mutate(density_type = "posterior",
-                                  sample = row_number()),
-                         df_ps) %>%
-  as_tibble()
+df_fit_wide_postonly[, density_type := "posterior"]
+desired_cols <- names(df_ps)
+df_fit_wide_postandprior <- rbind(df_fit_wide_postonly[,..desired_cols],
+                                  df_ps) 
 
 if (data_was_simulated) {
   
@@ -557,15 +597,16 @@ rename_params <- function(original_names) {
   }
   df_param_names$new
 }
-colnames(df_fit_wide) <- rename_params(colnames(df_fit_wide))
-colnames(df_ps) <- rename_params(colnames(df_ps))
+setnames(df_fit_wide_postonly, rename_params)
+setnames(df_fit_wide_postandprior, rename_params)
+setnames(df_ps, rename_params)
 if (data_was_simulated) df_true_pop_params$param <- rename_params(df_true_pop_params$param)
 
 # Define p_pos by group, from overall p_pos and p_pos effects
 if (predict_p_pos) {
   for (p_pos_pred_var_cat in df_p_pos_pred_vars_cats$p_pos_pred_var_cat) {
-    df_fit_wide[[paste0("p_pos_for_", p_pos_pred_var_cat)]] <- mastiff::logistic(
-      mastiff::logit(df_fit_wide$p_pos) + df_fit_wide[[paste0("p_pos_effect_", p_pos_pred_var_cat)]])
+    df_fit_wide_postandprior[[paste0("p_pos_for_", p_pos_pred_var_cat)]] <- mastiff::logistic(
+      mastiff::logit(df_fit_wide_postandprior$p_pos) + df_fit_wide_postandprior[[paste0("p_pos_effect_", p_pos_pred_var_cat)]])
     df_ps[[paste0("p_pos_for_", p_pos_pred_var_cat)]] <- mastiff::logistic(
       mastiff::logit(df_ps$p_pos) + df_ps[[paste0("p_pos_effect_", p_pos_pred_var_cat)]])
   }
@@ -585,8 +626,7 @@ if (predict_p_pos) {
 
 # Plot prior vs posterior for all main params, except f_effects
 p <- ggplot() +
-  geom_histogram(data = df_fit_wide %>%
-                   select(density_type, all_of(names(df_ps))) %>%
+  geom_histogram(data = df_fit_wide_postandprior %>%
                    select(!matches("f_effect")) %>%
                    select(!matches("p_pos_")) %>%
                    pivot_longer(-c("sample", "density_type"), names_to = "param"),
@@ -610,7 +650,7 @@ p
 ggsave("~/enable/enable_posteriors.pdf", height = 10, width = 20)
 
 p <- ggplot() +
-  geom_histogram(data = df_fit_wide %>%
+  geom_histogram(data = df_fit_wide_postandprior %>%
                    select(density_type, sample, matches("p_pos_for_")) %>%
                    pivot_longer(-c("sample", "density_type"), names_to = "param"),
                  aes(value, fill = density_type, y = after_stat(density)),
@@ -631,15 +671,81 @@ if (data_was_simulated) {
 p
 ggsave("~/enable/enable_posteriors_p_pos_by_cluster.pdf", height = 20, width = 32)
 
+p <- ggplot() +
+  geom_histogram(data = df_fit_wide_postandprior %>%
+                   select(density_type, sample, matches("p_pos_effect_")) %>%
+                   pivot_longer(-c("sample", "density_type"), names_to = "param"),
+                 aes(value, fill = density_type, y = after_stat(density)),
+                 alpha = 0.6,
+                 position = "identity",
+                 bins = 50) +
+  facet_wrap(~param, scales = "free", nrow = 4) +
+  scale_fill_brewer(palette = "Set1") +
+  coord_cartesian(expand = FALSE) +
+  labs(fill = "",
+       x = "param value",
+       y = "probability density")
+if (data_was_simulated) {
+  p <- p + geom_vline(data = df_true_pop_params %>%
+                        filter(str_detect(param, "p_pos_effect_")),
+                      aes(xintercept = value))
+}
+p
+
+p <- ggplot() +
+  geom_violin(data = df_fit_wide_postonly %>%
+                select(matches("p_pos_effect_age_group_")) %>%
+                pivot_longer(everything(), names_to = "param") %>%
+                mutate(param = str_remove_all(param, "^p_pos_effect_age_group_"),
+                       param = factor(param, levels = c(
+                         "2-5y", "6-10y", "11-17y", "18-50y", ">50y"))),
+              aes(param, value)) +
+  geom_hline(yintercept = 0) +
+  scale_fill_brewer(palette = "Set1") +
+  coord_cartesian(expand = FALSE) +
+  labs(fill = "",
+       x = "Age group",
+       y = "Increase in log odds of being positive")
+p
+ggsave("~/enable/enable_positivity_predictors_age.pdf", height = 4, width = 6)  
+
+p <- ggplot() +
+  geom_violin(data = df_fit_wide_postonly %>%
+                select(matches("p_pos_effect_job_")) %>%
+                pivot_longer(everything(), names_to = "param") %>%
+                mutate(param = str_remove_all(param, "^p_pos_effect_job_")),
+              aes(param, value)) +
+  geom_hline(yintercept = 0) +
+  scale_fill_brewer(palette = "Set1") +
+  coord_cartesian(expand = FALSE) +
+  labs(fill = "",
+       x = "",
+       y = "Increase in log odds of being positive")
+p
+ggsave("~/enable/enable_positivity_predictors_job.pdf", height = 4, width = 6)  
+
+
+p <- ggplot() +
+  geom_violin(data = df_fit_wide_postonly %>%
+                select(matches("p_pos_effect_country_")) %>%
+                pivot_longer(everything(), names_to = "param") %>%
+                mutate(param = str_remove_all(param, "^p_pos_effect_country_")),
+              aes(param, value)) +
+  geom_hline(yintercept = 0) +
+  scale_fill_brewer(palette = "Set1") +
+  coord_cartesian(expand = FALSE) +
+  labs(fill = "",
+       x = "",
+       y = "Increase in log odds of being positive")
+p
+ggsave("~/enable/enable_positivity_predictors_country.pdf", height = 4, width = 6)  
 
 # Plot the posterior median & CI estimates for f_effects.
 # NB almost all CIs from country and lot_id overlap zero - suggests don't need
 # to model this variation. 
 quantiles <- c(0.025, 0.5, 0.975)
-df_fit_wide %>%
-  select(sample, density_type, contains("f_effect[")) %>%
-  filter(density_type == "posterior") %>%
-  select(-density_type) %>%
+df_fit_wide_postonly %>%
+  select(sample, , contains("f_effect[")) %>%
   pivot_longer(-sample, names_to = "param") %>%
   group_by(param) %>%
   reframe(value = quantile(value, probs = quantiles),
@@ -664,9 +770,7 @@ ggsave("~/enable/enable_f_effects_of_lab_and_lot.pdf", height = 8, width = 8)
 
 # Compare true and estimated sample x 
 quantiles <- c(0.025, 0.5, 0.975)
-df_sam_x <- df_fit_wide %>%
-  filter(density_type == "posterior") %>%
-  select(-density_type) %>%
+df_sam_x <- df_fit_wide_postonly %>%
   select(sample, starts_with("x_sam[")) %>%
   pivot_longer(-sample, names_to = "param") %>%
   tidyr::extract(param, 
@@ -697,9 +801,7 @@ if (data_was_simulated) {
 
 # Classification plot
 quantiles <- c(0.025, 0.5, 0.975)
-df_prob_pos <- df_fit_wide %>%
-  filter(density_type == "posterior") %>%
-  select(-density_type) %>%
+df_prob_pos <- df_fit_wide_postonly %>%
   select(sample, starts_with("p_sam_is_pos[")) %>%
   pivot_longer(-sample, names_to = "param") %>%
   tidyr::extract(param, 
@@ -764,9 +866,7 @@ ggsave("~/foo_7.pdf", height = 3.3, width = 3.3)
 
 # The posteriors for the 4PL function by plate
 xlog_range <- seq(log(0.2), log(40), length.out = 30)
-df_4pl <- df_fit_wide %>%
-  filter(density_type == "posterior") %>%
-  select(-density_type) %>%
+df_4pl <- df_fit_wide_postonly %>%
   select(sample, starts_with("f_per_plate[")) %>%
   pivot_longer(-sample, names_to = "param") %>%
   tidyr::extract(param, 
@@ -808,8 +908,7 @@ ggsave("~/enable/enable_calibrator_posterior_curves.pdf", height = 4.5, width = 
 # Plot P(x | pos), P(x | neg), P(x), P(pos | x)
 xs_plot <- seq(from = 0, to = 4,
                length.out = 500)
-df_x_distributions <- df_fit_wide %>%
-  filter(density_type == "posterior") %>%
+df_x_distributions <- df_fit_wide_postonly %>%
   filter(sample %% 10 == 0) %>%
   select("sample", "x_sam_pos_alpha", "x_sam_pos_beta",
          "x_sam_neg_alpha", "x_sam_neg_beta", "p_pos") %>%
@@ -847,8 +946,7 @@ p
 
 # Plot P(x | pos), P(x | neg), P(x), P(pos | x) again but now with logx
 xlogs_plot <- log(10) * -30:20 / 10
-df_xlog_distributions <- df_fit_wide %>%
-  filter(density_type == "posterior") %>%
+df_xlog_distributions <- df_fit_wide_postonly %>%
   filter(sample %% 10 == 0) %>%
   select("sample", "x_sam_pos_mu", "x_sam_pos_sd",
          "x_sam_neg_mu", "x_sam_neg_sd", "p_pos") %>%
@@ -892,8 +990,7 @@ df_plot_group <- df_cal %>%
   select(plate, plate_int) %>%
   distinct() %>%
   mutate(plot_group = 1 + (row_number() - 1) %/% group_size) 
-df_plot <- df_fit_wide %>% # this needed for full dataset, instead of df_fit, due to memory exhaustion
-  filter(density_type == "posterior") %>%
+df_plot <- df_fit_wide_postonly %>% 
   filter(sample %% 10 == 0) %>%
   select(sample, starts_with("y_cal_sim[")) %>%
   pivot_longer(-c("sample"), names_to = "param") %>%
@@ -930,27 +1027,29 @@ dev.off()
 # Plot the posterior distribution of the population level distribution of point
 # estimates of x_sam (not the posterior distribution of the parametric
 # pop-level distribution of x_sam)
-df_fit_wide %>%
+df_fit_wide_postonly %>%
   filter(sample %% 20 == 0) %>%
-  filter(density_type == "posterior") %>%
-  select(sample, starts_with("x_sam[")) %>%
+  select(sample, starts_with("xlog_sam[")) %>%
   pivot_longer(-c("sample"), names_to = "param") %>%
-  #mutate(value = exp(value)) %>%
+  mutate(value = exp(value)) %>%
   ggplot() +
+  #geom_rect(xmin=1, xmax=1.8, ymin=-Inf, ymax=+Inf, 
+  #          fill='grey', alpha=0.2) +
+  geom_vline(xintercept = 1) +
+  geom_vline(xintercept = 1.8) +
   geom_density(aes(value, group = sample), alpha = 0.01) +
   coord_cartesian(expand = F) +
   # 
   #scale_x_continuous(limits = c(0, 4)) +
   scale_x_log10(limits = c(1e-3, 100)) + 
-  labs(x = "Ab concentration (log_e)",
+  labs(x = "Ab concentration",
        y = "population distribution of point estimates (inverting the 4PL)") +
   #geom_line(data = df_gamma_, aes(x, p), col = "blue") +
   #geom_density(data = df_x_sam_point, aes(x), col = "blue") +
   NULL 
-ggsave("~/enable/enable_PopDistributionOfX_LogScale.pdf", height = 6, width = 6)
+ggsave("~/enable/enable_PopDistributionOfX_LogScale.pdf", height = 4.5, width = 5.3)
 
-df_x_sam_point <- df_fit_wide %>%
-  filter(density_type == "posterior") %>%
+df_x_sam_point <- df_fit_wide_postonly %>%
   select(starts_with("x_sam[")) %>%
   map(median) %>%
   as_tibble() %>%
@@ -972,9 +1071,8 @@ df_x_sam_point %>%
 
 # Plot the posterior distribution of the population level distribution of 
 # stochastically redrawn y_sam 
-df_fit_wide %>%
+df_fit_wide_postonly %>%
   filter(sample %% 20 == 0) %>%
-  filter(density_type == "posterior") %>%
   select(sample, starts_with("y_sam_sim[")) %>%
   pivot_longer(-c("sample"), names_to = "param") %>%
   mutate(value = log10(value)) %>%

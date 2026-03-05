@@ -1,14 +1,5 @@
 // See the associated R file for explanations and definitions of abbreviations.
 
-functions {
-  real PL4(real x, real f_1, real f_2, real f_3, real exp_f_1_mult_f_4) {
-    if (x == 0) return f_2;
-    //return f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4)));
-    return f_2 + (f_3 - f_2) / (1 + x^(-f_1) * exp_f_1_mult_f_4);
-  }
-}
-
-
 data {
   // Actual data
   int<lower = 1> num_plate;
@@ -82,6 +73,12 @@ transformed data {
   
   int tot_cat_per_p_pos_pred_var = sum(num_cat_per_p_pos_pred_var);
   int predict_p_pos = 1 ? num_p_pos_pred_vars > 0 : 0;
+  
+  vector[num_cal_tot] xlog_cal = log(x_cal);
+  array[num_cal_tot] int x_cal_is_zero;
+  for (cal_rep in 1:num_cal_tot) {
+    x_cal_is_zero[cal_rep] = 1 ? x_cal[cal_rep] == 0 : 0;
+  }
 
 }
 
@@ -119,10 +116,6 @@ parameters {
 
 transformed parameters{
   
-  real y_obs_sd_cal_max = y_obs_sd_cal_min + y_obs_sd_cal_jump;
-  real y_obs_sd_sam_max = y_obs_sd_sam_min + y_obs_sd_sam_jump;
-  vector[num_sam_id] x_sam = exp(xlog_sam);
-
   matrix[tot_cat_per_f_pred_var, 4] f_effects_by_pred_var_cat;
   {
     int cat_current = 1;
@@ -144,6 +137,8 @@ transformed parameters{
     f_per_plate += design_matrix_f * f_effects_by_pred_var_cat;
   }
   
+  vector[num_plate] f_3_min_f_2_per_plate = f_per_plate[, 3] - f_per_plate[, 2];
+
   vector[tot_cat_per_p_pos_pred_var] p_pos_effects_by_pred_var_cat;
   {
     int cat_current = 1;
@@ -169,42 +164,34 @@ transformed parameters{
     p_pos_log_per_sam_id = rep_vector(log(  p_pos), num_sam_id);
     p_neg_log_per_sam_id = rep_vector(log1m(p_pos), num_sam_id);
   }
-  
-  array[num_plate] real exp_f_1_mult_f_4_per_plate;
-  for (plate in 1:num_plate) {
-    exp_f_1_mult_f_4_per_plate[plate] =
-      exp(f_per_plate[plate, 1] * f_per_plate[plate, 4]);
-  }
 
   vector[num_cal_tot] y_cal_mean_per_obs;
   vector[num_sam_tot] y_sam_mean_per_obs;
-  profile("y_means") {
-  for (cal_rep in 1:num_cal_tot) {
-    int plate = which_plate_cal[cal_rep];
-    y_cal_mean_per_obs[cal_rep] =  PL4(x_cal[cal_rep],
-    f_per_plate[plate, 1], f_per_plate[plate, 2], f_per_plate[plate, 3], 
-    exp_f_1_mult_f_4_per_plate[plate]);
-  }
-  for (sam_rep in 1:num_sam_tot) {
-    int plate = which_plate_sam[sam_rep];
-    y_sam_mean_per_obs[sam_rep] =  PL4(x_sam[which_id_sam[sam_rep]],
-    f_per_plate[plate, 1], f_per_plate[plate, 2], f_per_plate[plate, 3], 
-    exp_f_1_mult_f_4_per_plate[plate]);
-  }
-  }
-  
   vector[num_cal_tot] y_obs_sd_cal;
   vector[num_sam_tot] y_obs_sd_sam;
-  profile("y_sds") {
+  profile("y_means_and_sds") {
+    
   for (cal_rep in 1:num_cal_tot) {
-    int plate = which_plate_cal[cal_rep];
-    y_obs_sd_cal[cal_rep] = PL4(x_cal[cal_rep], f_per_plate[plate, 1],
-    y_obs_sd_cal_min, y_obs_sd_cal_max, exp_f_1_mult_f_4_per_plate[plate]);
+    if (x_cal_is_zero[cal_rep]) {
+      y_cal_mean_per_obs[cal_rep] = f_per_plate[which_plate_cal[cal_rep], 2];
+      y_obs_sd_cal[cal_rep] = y_obs_sd_cal_min;
+    } else {
+      int plate = which_plate_cal[cal_rep];
+      real denominator = 
+      (1 + exp(-f_per_plate[plate, 1] * (xlog_cal[cal_rep] - f_per_plate[plate, 4])));
+      y_cal_mean_per_obs[cal_rep] =
+      f_per_plate[plate, 2] + f_3_min_f_2_per_plate[plate] / denominator;
+      y_obs_sd_cal[cal_rep] = y_obs_sd_cal_min + y_obs_sd_cal_jump / denominator;
+    }
   }
+  
   for (sam_rep in 1:num_sam_tot) {
     int plate = which_plate_sam[sam_rep];
-    y_obs_sd_sam[sam_rep] = PL4(x_sam[which_id_sam[sam_rep]], f_per_plate[plate, 1],
-    y_obs_sd_sam_min, y_obs_sd_sam_max, exp_f_1_mult_f_4_per_plate[plate]);
+    real denominator = (1 + exp(-f_per_plate[plate, 1] * (xlog_sam[which_id_sam[sam_rep]] - f_per_plate[plate, 4])));
+    y_sam_mean_per_obs[sam_rep] =
+    f_per_plate[plate, 2] + f_3_min_f_2_per_plate[plate] / denominator;
+    y_obs_sd_sam[sam_rep] =
+    y_obs_sd_sam_min + y_obs_sd_sam_jump / denominator;
   }
   }
   
@@ -246,9 +233,12 @@ model {
 
 generated quantities {
   
+  real y_obs_sd_cal_max = y_obs_sd_cal_min + y_obs_sd_cal_jump;
+  real y_obs_sd_sam_max = y_obs_sd_sam_min + y_obs_sd_sam_jump;
+  
   array[num_cal_tot] real y_cal_sim = normal_rng(y_cal_mean_per_obs, y_obs_sd_cal);
   array[num_sam_tot] real y_sam_sim = normal_rng(y_sam_mean_per_obs, y_obs_sd_sam);
-  
+
   vector[num_sam_id] p_sam_is_pos;
   for (sam_id in 1:num_sam_id) {
     real p_log = p_pos_log_per_sam_id[sam_id] +
