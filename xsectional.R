@@ -36,50 +36,47 @@ theme_set(theme_classic())
 set.seed(123)
 
 # Stan things
-file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/lassa_serology_model_crosssectional_v4.stan"
+file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/lassa_serology_model_crosssectional_v5.stan"
 sample_prior_manually <- TRUE
 num_mc_chains <- 4
-num_mc_iterations_posterior <- 500
+num_mc_iterations_posterior <- 700
 num_mc_iterations_prior <- 5000
 
 # Switch between normal and student t distributions
-use_student_for_x   <- FALSE
-use_student_for_obs <- FALSE
+use_student_for_obs <- TRUE
 student_df_x   <- 4
 student_df_obs <- 5
 
 # Unmodelled aspects of the data-generating process (things we condition on)
-num_bat <- 50
+num_bat <- 15
 num_rep_per_con <- 2
 num_rep_per_sam <- 2
-num_sam_per_bat <- 10
-xs <- log(c(0.5, 1.5, 4.5, 13, 40)) # concentrations of cons
+num_sam_per_bat <- 20
+xs <- c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cons
 
-y_obs_sd_min <- 0.0002
-y_obs_sd_jump <- 0.018
-x_sam_neg_mu <- 0.4
-x_sam_pos_mu <- 2.6
-x_sam_neg_sd <- 0.25
-x_sam_pos_sd <- 0.25
+y_obs_sd_min <- 0.001
+y_obs_sd_jump <- 0.016
+x_exp_sam_neg_alpha <- 1
+x_exp_sam_pos_alpha_jump <- 1
+x_exp_sam_pos_beta <- 2/3 # beta a.k.a. gamma a.k.a rate
+x_exp_sam_neg_beta_jump <- 30
 p_sam_pos <- 0.5
 
 # The four parameters of the logistic regression (f_1, f_2, f_3, f_4)
 # which control the OD, y, through
 # f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (x - f_4))) 
-f <- c(0.9,
+f <- c(0.8,
        0,
        3.5,
        2.5)
 
-
-
 # The covariance matrix for the batch-level random effects on f, parameterised
 # by the square root of the diagonal entries and the dimensionless correlation
 # matrix.
-sigma_bat_f <- c(0.1,
+sigma_bat_f <- c(0.01,
+                 0.005,
                  0.01,
-                 0.9,
-                 0.35)
+                 0.03)
 Rho_bat <- matrix(c(1, 0, 0, 0,
                     0, 1, 0, 0,
                     0, 0, 1, 0,
@@ -91,10 +88,10 @@ stopifnot(all(diag(Rho_bat) == 1))
 # Upper and lower bounds for priors
 df_priors_scalars <- tribble(
   ~param, ~lower, ~upper,
-  "x_sam_neg_mu", x_sam_neg_mu - 1, x_sam_neg_mu + 1,
-  "x_sam_pos_mu", x_sam_pos_mu - 1, x_sam_pos_mu + 1,
-  "x_sam_neg_sd", x_sam_neg_sd * 0.1, x_sam_neg_sd * 2,
-  "x_sam_pos_sd", x_sam_pos_sd * 0.1, x_sam_pos_sd * 2,
+  "x_exp_sam_neg_alpha", 0, x_exp_sam_neg_alpha + 1,
+  "x_exp_sam_pos_alpha_jump", 0, x_exp_sam_pos_alpha_jump + 1,
+  "x_exp_sam_pos_beta", 0, x_exp_sam_pos_beta * 2,
+  "x_exp_sam_neg_beta_jump", 0, x_exp_sam_neg_beta_jump * 2,
   "p_sam_pos", 0, 1,
   "y_obs_sd_min",  0, 2 * y_obs_sd_min,
   "y_obs_sd_jump", 0, 2 * y_obs_sd_jump
@@ -115,6 +112,14 @@ draw_student_or_norm <- function(n, student, student_df) {
   if (student) return(rt(n, df = student_df))
   return(rnorm(n))
 }
+
+# Derived params
+x_exp_sam_neg_beta <- x_exp_sam_pos_beta + x_exp_sam_neg_beta_jump
+x_exp_sam_pos_alpha <- x_exp_sam_neg_alpha + x_exp_sam_pos_alpha_jump
+y_obs_sd_max <- y_obs_sd_min + y_obs_sd_jump
+x_exp_sam_pos_mu <- x_exp_sam_pos_alpha / x_exp_sam_pos_beta
+x_exp_sam_neg_mu <- x_exp_sam_neg_alpha / x_exp_sam_neg_beta
+
 
 # Make a df with one row per batch
 df_bat <- tibble(bat = 1:num_bat)
@@ -229,17 +234,18 @@ df_sam <- df_bat %>%
   arrange(bat) %>%
   mutate(id_sam = row_number(),
          pos = runif(num_sam_id) < p_sam_pos,
-         x = draw_student_or_norm(num_sam_id, use_student_for_x, student_df_x),
          x = if_else(pos,
-                     x_sam_pos_mu + x_sam_pos_sd * x,
-                     x_sam_neg_mu + x_sam_neg_sd * x),
+                     rgamma(num_sam_id, rate = x_exp_sam_pos_beta, 
+                            shape = x_exp_sam_pos_alpha),
+                     rgamma(num_sam_id, rate = x_exp_sam_neg_beta, 
+                            shape = x_exp_sam_neg_alpha)),
+         x = log(x),
          y_mean = PL4(x, f_1, f_2, f_3, f_4))
 
 if (FALSE) {
-  ggplot(df_sam %>% mutate(x = pmax(x, 5.1),
-                           x = pmin(x, 8.3))) +
+  ggplot(df_sam) +
     geom_histogram(aes(exp(x)), fill = "grey") +
-    scale_x_log10(breaks = exp(xs)) +
+    scale_x_log10() +
     coord_cartesian(expand = F) +
     labs(x = "x = Ab concentration",
          y = "Number of samples") 
@@ -257,7 +263,11 @@ df_sam <- df_sam %>%
            draw_student_or_norm(num_sam_tot, use_student_for_obs, student_df_obs)) 
 
 ggplot(df_sam) +
-  geom_histogram(aes(y))
+  geom_histogram(aes(y)) +
+  scale_x_log10(limits = c(1e-3, 1e1))
+
+
+
 
 # Plot controls and samples by batch
 bind_rows(df_con %>% mutate(label = "control") ,
@@ -276,7 +286,6 @@ ggsave("~/lassa_serology_cross-sectional_data.pdf", height = 9, width = 12)
 # RUN STAN ----
 
 stan_input_posterior <- list(
-  use_student_for_x = as.integer(use_student_for_x),
   use_student_for_obs = as.integer(use_student_for_obs),
   student_df_x = student_df_x,
   student_df_obs = student_df_obs,
@@ -384,20 +393,19 @@ if (sample_prior_manually) {
         purrr::map_dbl(1:N, ~ Rho_bat_samples[.x, i, j])
     }
   }
-  x_sam_pos_mu_lower <- df_priors %>% filter(param == "x_sam_pos_mu") %>% pull(lower)
-  x_sam_pos_mu_upper <- df_priors %>% filter(param == "x_sam_pos_mu") %>% pull(upper)
   df_prior_samples <- df_prior_samples %>%
-    mutate(x_sam_pos_mu = runif(N,
-                                pmax(x_sam_pos_mu_lower, x_sam_neg_mu),
-                                x_sam_pos_mu_upper),
-           density_type = "prior")
+    mutate(x_exp_sam_pos_alpha = x_exp_sam_neg_alpha + x_exp_sam_pos_alpha_jump,
+           x_exp_sam_neg_beta = x_exp_sam_pos_beta + x_exp_sam_neg_beta_jump,
+           y_obs_sd_max = y_obs_sd_min + y_obs_sd_jump,
+           x_exp_sam_pos_mu = x_exp_sam_pos_alpha / x_exp_sam_pos_beta,
+           x_exp_sam_neg_mu = x_exp_sam_neg_alpha / x_exp_sam_neg_beta)
   
 } else {
   df_prior_samples <- samples_prior %>%
     as.data.frame() %>%
-    mutate(density_type = "prior",
-           sample = row_number())
+    mutate(sample = row_number())
 }
+df_prior_samples$density_type <- "prior"
 
 df_fit_wide <- bind_rows(samples_posterior %>%
                            as.data.frame() %>%
@@ -427,16 +435,27 @@ df_true_pop_params <- tribble(
   "Rho_bat[2,3]", Rho_bat[2,3],
   "Rho_bat[2,4]", Rho_bat[2,4],
   "Rho_bat[3,4]", Rho_bat[3,4],
-  "x_sam_neg_mu", x_sam_neg_mu,
-  "x_sam_pos_mu", x_sam_pos_mu,
-  "x_sam_neg_sd", x_sam_neg_sd,
-  "x_sam_pos_sd", x_sam_pos_sd,
+  "x_exp_sam_neg_alpha", x_exp_sam_neg_alpha,
+  "x_exp_sam_pos_alpha", x_exp_sam_pos_alpha,
+  "x_exp_sam_neg_beta", x_exp_sam_neg_beta,
+  "x_exp_sam_pos_beta", x_exp_sam_pos_beta,
+  "x_exp_sam_neg_mu", x_exp_sam_neg_mu,
+  "x_exp_sam_pos_mu", x_exp_sam_pos_mu,
   "p_sam_pos", p_sam_pos,
   "y_obs_sd_min", y_obs_sd_min,
-  "y_obs_sd_jump", y_obs_sd_jump
+  "y_obs_sd_max", y_obs_sd_max
 )
 
+
 # PLOT STAN OUTPUT ----
+
+#vec_true_pop_params <- df_true_pop_params$value
+#names(vec_true_pop_params) <- df_true_pop_params$param
+#mastiff::plot_posterior(df_fit_wide %>% filter(density_type == "posterior"), 
+#                        prior_samples = df_fit_wide %>% filter(density_type == "prior"),
+#                        true_param_values = vec_true_pop_params,
+#                        params_desired = names(vec_true_pop_params),
+#                        skip_stanfit_to_dt = TRUE)
 
 ggplot() +
   geom_histogram(data = df_fit %>%
@@ -461,15 +480,15 @@ quantiles <- c(0.025, 0.5, 0.975)
 df_sam_x <- df_fit %>%
   filter(density_type == "posterior") %>%
   select(-density_type) %>%
-  filter(startsWith(param, "x_sam[")) %>%
+  filter(startsWith(param, "x_exp_sam[")) %>%
   tidyr::extract(param, 
                  into = "id_sam", 
-                 regex = "x_sam\\[([0-9]+)\\]") %>%
+                 regex = "x_exp_sam\\[([0-9]+)\\]") %>%
   mutate(id_sam = as.integer(id_sam)) %>%
   group_by(id_sam) %>%
   reframe(value = quantile(value, probs = quantiles),
           quantile = quantiles) %>%
-  pivot_wider(names_from = quantile, names_prefix = "x_q_")
+  pivot_wider(names_from = quantile, names_prefix = "x_exp_q_")
 df_sam_x %>%
   left_join(df_sam %>%
               select(id_sam, x) %>%
@@ -477,8 +496,8 @@ df_sam_x %>%
             by = "id_sam") %>%
   filter(id_sam %% 15 == 0) %>%
   ggplot() +
-  geom_errorbar(aes(exp(x), ymin = exp(x_q_0.025), ymax = exp(x_q_0.975))) +
-  geom_point(aes(exp(x), exp(x_q_0.5))) +
+  geom_errorbar(aes(exp(x), ymin = x_exp_q_0.025, ymax = x_exp_q_0.975)) +
+  geom_point(aes(exp(x), x_exp_q_0.5)) +
   geom_abline() +
   scale_x_log10(breaks = exp(xs)) +
   scale_y_log10(breaks = exp(xs)) +
@@ -518,7 +537,7 @@ inner_join(df_prob_pos,
        x = "Probability sample is positive",
        fill = "Truth:") +
   coord_cartesian(expand = FALSE) +
-  scale_x_continuous(limits = c(NA, 1.01))
+  scale_x_continuous(limits = c(NA, NA))
 ggsave("~/foo_5.pdf", height = 2.7, width = 3.5)
 
 inner_join(df_prob_pos,
@@ -533,7 +552,7 @@ inner_join(df_sam_x, df_prob_pos, by = "id_sam") %>%
   ggplot() +
   #geom_errorbar(aes(x_q_0.5, ymin = prob_pos_q_0.025, ymax = prob_pos_q_0.975)) +
   #geom_errorbarh(aes(y = prob_pos_q_0.5, xmin = x_q_0.025, xmax = x_q_0.975)) +
-  geom_point(aes(x_q_0.5, prob_pos_q_0.5)) +
+  geom_point(aes(x_exp_q_0.5, prob_pos_q_0.5)) +
   labs(x = "Estimated concentration",
        y = "Estimated probability of being positive")
 
@@ -549,7 +568,7 @@ df_4pl <- df_fit %>%
   pivot_wider(names_from = f_index, names_prefix = "f_") %>%
   expand_grid(x = seq(min(xs), max(xs), length.out = 20)) %>%
   mutate(y = PL4(x, f_1, f_2, f_3, f_4))
-bats_to_plot <- c(34,36,35,1)
+bats_to_plot <- 1:num_bat
 ggplot(df_4pl %>%
          filter(bat %in% bats_to_plot) %>%
          filter(sample %% 10 == 0)) +
@@ -580,47 +599,38 @@ ggplot() +
 ggsave("~/foo_7.pdf", height = 3.3, width = 3.3)
 
 
-xs_plot <- seq(from = x_sam_neg_mu - 3 * x_sam_neg_sd,
-               to   = x_sam_pos_mu + 3 * x_sam_pos_sd,
-               length.out = 100)
-if (use_student_for_x) {
-  df_x_distributions_truth <-
-    tibble(x = xs_plot,
-           `P(x | pos)` = dt((x - x_sam_pos_mu) / x_sam_pos_sd, student_df_x) / x_sam_pos_sd,
-           `P(x | neg)` = dt((x - x_sam_neg_mu) / x_sam_neg_sd, student_df_x) / x_sam_neg_sd)
-} else {
-  df_x_distributions_truth <-
-    tibble(x = xs_plot,
-           `P(x | pos)` = dnorm(x, x_sam_pos_mu, x_sam_pos_sd),
-           `P(x | neg)` = dnorm(x, x_sam_neg_mu, x_sam_neg_sd))
-}
-df_x_distributions_truth <- df_x_distributions_truth %>%
-  mutate(`P(x)` = p_sam_pos * `P(x | pos)` + (1 - p_sam_pos) * `P(x | neg)`,
-         `P(pos | x)` = p_sam_pos * `P(x | pos)` / `P(x)`) %>%
-  pivot_longer(-x)
+xs_plot <- seq(from = 0, to = 10,
+               length.out = 500)
+df_x_distributions_truth <-
+  tibble(x_exp = xs_plot,
+         `P(x_exp | pos)` = dgamma(x_exp, shape = x_exp_sam_pos_alpha, rate = x_exp_sam_pos_beta),
+         `P(x_exp | neg)` = dgamma(x_exp, shape = x_exp_sam_neg_alpha, rate = x_exp_sam_neg_beta),
+         `P(x_exp)` = p_sam_pos * `P(x_exp | pos)` + (1 - p_sam_pos) * `P(x_exp | neg)`,
+         `P(pos | x_exp)` = p_sam_pos * `P(x_exp | pos)` / `P(x_exp)`) %>%
+  pivot_longer(-x_exp)
 df_x_distributions <- df_fit_wide %>%
   filter(density_type == "posterior") %>%
   filter(sample %% 10 == 0) %>%
-  select("sample", "x_sam_pos_mu", "x_sam_pos_sd", "x_sam_neg_mu", "x_sam_neg_sd",
-         "p_sam_pos") %>%
-  full_join(tibble(x = xs_plot),
+  select("sample", "x_exp_sam_pos_alpha", "x_exp_sam_pos_beta",
+         "x_exp_sam_neg_alpha", "x_exp_sam_neg_beta", "p_sam_pos") %>%
+  full_join(tibble(x_exp = xs_plot),
             by = character()) %>%
-  mutate(`P(x | pos)` = dnorm(x, x_sam_pos_mu, x_sam_pos_sd),
-         `P(x | neg)` = dnorm(x, x_sam_neg_mu, x_sam_neg_sd),
-         `P(x)` = p_sam_pos * `P(x | pos)` + (1 - p_sam_pos) * `P(x | neg)`,
-         `P(pos | x)` = p_sam_pos * `P(x | pos)` / `P(x)`) %>%
-  select(sample, x, `P(x | pos)`, 
-         `P(x | neg)`, `P(x)`, `P(pos | x)`) %>%
-  pivot_longer(c("P(x | pos)", "P(x | neg)", "P(x)", "P(pos | x)"))
+  mutate(`P(x_exp | pos)` = dgamma(x_exp, shape = x_exp_sam_pos_alpha, rate = x_exp_sam_pos_beta),
+         `P(x_exp | neg)` = dgamma(x_exp, shape = x_exp_sam_neg_alpha, rate = x_exp_sam_neg_beta),
+         `P(x_exp)` = p_sam_pos * `P(x_exp | pos)` + (1 - p_sam_pos) * `P(x_exp | neg)`,
+         `P(pos | x_exp)` = p_sam_pos * `P(x_exp | pos)` / `P(x_exp)`) %>%
+  select(sample, x_exp, `P(x_exp | pos)`, 
+         `P(x_exp | neg)`, `P(x_exp)`, `P(pos | x_exp)`) %>%
+  pivot_longer(c("P(x_exp | pos)", "P(x_exp | neg)", "P(x_exp)", "P(pos | x_exp)"))
 p <- ggplot() +
   geom_line(data = df_x_distributions,
-            aes(x = x, y = value, group = sample), alpha = 0.15) +
+            aes(x = x_exp, y = value, group = sample), alpha = 0.15) +
   geom_line(data = df_x_distributions_truth,
-            aes(x = x, y = value), colour = "blue") +
+            aes(x = x_exp, y = value), colour = "blue") +
   facet_wrap(vars(name), scales = "free_y", ncol = 1) +
-  labs(x = "x",
+  labs(x = "x_exp",
        y = "y") +
-  scale_x_continuous(expand = c(0, 0), limits = c(NA, NA)) +
+  scale_x_log10(expand = c(0, 0), limits = c(NA, NA)) +
   scale_y_continuous(expand = c(0, 0), limits = c(NA, NA))
 p
 p <- ggplot() +
@@ -650,7 +660,7 @@ df_posterior_retrodictive <- df_fit %>%
   left_join(df_con %>%
               select(bat, x, which_con),
             by = "which_con")
-bats_to_plot <- 41:50
+bats_to_plot <- 1:num_bat
 ggplot(df_posterior_retrodictive %>% filter(bat %in% bats_to_plot)) +
   geom_violin(aes(x = as.factor(exp(x)), y = value)) +
   geom_point(data = df_con %>% filter(bat %in% bats_to_plot), 
