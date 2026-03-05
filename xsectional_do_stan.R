@@ -4,10 +4,10 @@ options(warn = 2)
 
 # INPUT ABOUT STAN ----
 
-file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v10.stan"
+file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v11.stan"
 sample_prior_manually <- TRUE
 num_mc_chains <- 4
-num_mc_iterations_posterior <- 1000
+num_mc_iterations_posterior <- 500
 num_mc_iterations_prior <- 2000
 
 # Upper and lower bounds for priors
@@ -408,10 +408,6 @@ colnames(df_fit_wide) <- rename_params(colnames(df_fit_wide))
 colnames(df_ps) <- rename_params(colnames(df_ps))
 if (data_was_simulated) df_true_pop_params$param <- rename_params(df_true_pop_params$param)
 
-# Pivot to long format: one col for all params
-df_fit <- df_fit_wide %>%
-  pivot_longer(-c("sample", "density_type"), names_to = "param")
-
 # PLOT STAN OUTPUT ----
 
 # Plot prior vs posterior for all main params, except f_effects
@@ -768,8 +764,8 @@ df_x_sam_point <- df_fit_wide %>%
                  regex = "x_sam\\[([0-9]+)\\]") %>%
   mutate(which_sam_rep = as.integer(which_sam_rep)) %>%
   left_join(df_sam %>% 
-              select(sample_id, id_sam) %>%
-              mutate(which_sam_rep = row_number()), by = "which_sam_rep")
+              select(sample_id, id_sam, which_sam_rep),
+            by = "which_sam_rep")
 df_x_sam_point %>%
   summarise(.by = c("id_sam", "sample_id"),
             x = if_else(all(is.infinite(x)),
@@ -793,6 +789,7 @@ df_fit_wide %>%
   labs(x = "log10(y)",
        y = "population distribution") +
   NULL 
+
 
 
 

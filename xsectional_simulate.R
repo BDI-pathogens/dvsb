@@ -31,12 +31,8 @@ theme_set(theme_classic())
 
 set.seed(123)
 
-# Switch between normal and student t distributions
-use_student_for_obs <- FALSE
-student_df_obs <- 5
-
 # Unmodelled aspects of the data-generating process (things we condition on)
-num_plate <- 50
+num_plate <- 20
 num_rep_per_cal <- 2
 num_rep_per_sam <- 2
 num_sam_per_plate <- 20
@@ -91,12 +87,6 @@ sigma_f_pred_vars <- list(
 )
 
 # SIMULATE ----
-
-draw_student_or_norm <- function(n, student, student_df) {
-  stopifnot(is.logical(student))
-  if (student) return(rt(n, df = student_df))
-  return(rnorm(n))
-}
 
 # Check f_pred_vars 
 f_pred_vars_names <- names(f_pred_vars)
@@ -194,8 +184,7 @@ ggplot(df_cal %>%
 # Draw observed y
 df_cal <- df_cal %>%
   mutate(y_obs_sd = PL4(xlog, f_1, y_obs_sd_min, y_obs_sd_max, f_4),
-         y = y_mean + y_obs_sd *
-           draw_student_or_norm(nrow(.), use_student_for_obs, student_df_obs))
+         y = rnorm(nrow(.), mean = y_mean, sd = y_obs_sd))
 
 # Plot observed y
 ggplot(df_cal) +
@@ -294,10 +283,9 @@ num_sam_tot <- num_sam_id * num_rep_per_sam
 df_sam <- df_sam %>%
   slice(rep(row_number(), num_rep_per_sam)) %>%
   arrange(id_sam) %>%
-  mutate(which_sam = row_number(),
+  mutate(which_sam_rep = row_number(),
          y_obs_sd = PL4(xlog, f_1, y_obs_sd_min, y_obs_sd_max, f_4),
-         y = y_mean + y_obs_sd *
-           draw_student_or_norm(num_sam_tot, use_student_for_obs, student_df_obs)) 
+         y = rnorm(nrow(.), mean = y_mean, sd = y_obs_sd))
 
 ggplot(df_sam) +
   geom_histogram(aes(y)) +
@@ -322,8 +310,6 @@ if (FALSE) {
 # PREPARE DATA FOR STAN ----
 
 stan_input_posterior <- list(
-  use_student_for_obs = as.integer(use_student_for_obs),
-  student_df_obs = student_df_obs,
   num_plate = num_plate,
   num_cal_tot = nrow(df_cal),
   num_sam_id = num_sam_id,

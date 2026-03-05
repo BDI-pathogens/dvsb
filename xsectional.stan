@@ -27,11 +27,8 @@ data {
 
   // Other things to keep fixed over a complete round of sampling: a binary
   // switch to control whether we sample from the prior or the posterior
-  // (important to compare the difference), switches for using normal or student 
-  // t distributions, and upper and lower bounds for the priors.
+  // (important to compare the difference), and upper and lower bounds for the priors.
   int<lower = 0, upper = 1> sample_posterior_not_prior;
-  int<lower = 0, upper = 1> use_student_for_obs;
-  real<lower = 0> student_df_obs;
   row_vector[4] f_lower;
   row_vector[4] f_upper;
   row_vector[4] sigma_f_plate_lower;
@@ -167,6 +164,14 @@ transformed parameters{
   }
   }
   
+  vector[num_sam_tot] y_sam_loglik_per_obs;
+  profile("likelihood_sam") {
+  for (sam_rep in 1:num_sam_tot) {
+    y_sam_loglik_per_obs[sam_rep] = normal_lpdf(
+    y_sam[sam_rep] | y_sam_mean_per_obs[sam_rep], y_obs_sd_sam[sam_rep]);
+  }
+  }
+  
 }
 
 
@@ -187,34 +192,18 @@ model {
   
   
   // Likelihood
-  profile("likelihood") {
+  profile("likelihood_cal") {
   if (sample_posterior_not_prior) {
-    if (use_student_for_obs) {
-      y_cal ~ student_t(rep_vector(student_df_obs, num_cal_tot), y_cal_mean_per_obs, y_obs_sd_cal);
-      y_sam ~ student_t(rep_vector(student_df_obs, num_sam_tot), y_sam_mean_per_obs, y_obs_sd_sam);
-    } else {
-      y_cal ~ normal(y_cal_mean_per_obs, y_obs_sd_cal);
-      y_sam ~ normal(y_sam_mean_per_obs, y_obs_sd_sam);
-    }
+    y_cal ~ normal(y_cal_mean_per_obs, y_obs_sd_cal);
+    target += sum(y_sam_loglik_per_obs);
   }
   }
 } 
 
 generated quantities {
   
-  array[num_cal_tot] real y_cal_sim;
-  if (use_student_for_obs) {
-    y_cal_sim = student_t_rng(rep_vector(student_df_obs, num_cal_tot), y_cal_mean_per_obs, y_obs_sd_cal);
-  } else {
-    y_cal_sim = normal_rng(y_cal_mean_per_obs, y_obs_sd_cal);
-  }
-  
-  array[num_sam_tot] real y_sam_sim;
-  if (use_student_for_obs) {
-    y_sam_sim = student_t_rng(rep_vector(student_df_obs, num_sam_tot), y_sam_mean_per_obs, y_obs_sd_sam);
-  } else {
-    y_sam_sim = normal_rng(y_sam_mean_per_obs, y_obs_sd_sam);
-  }
+  array[num_cal_tot] real y_cal_sim = normal_rng(y_cal_mean_per_obs, y_obs_sd_cal);
+  array[num_sam_tot] real y_sam_sim = normal_rng(y_sam_mean_per_obs, y_obs_sd_sam);
   
   vector[num_sam_id] p_sam_is_pos;
   for (sam_id in 1:num_sam_id) {
