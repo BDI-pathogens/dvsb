@@ -50,21 +50,21 @@ if (use_cmdstanr) {
 # INPUT ----
 
 # Stan things
-file_input_stan <- "~/Infectious Disease Dropbox/Vaccine Work/Lassa/code_serology_model/lassa_serology_model_crosssectional.stan"
+file_input_stan <- "~/Infectious Disease Dropbox/Vaccine Work/Lassa/code_serology_model/lassa_serology_model_crosssectional_v2.stan"
 num_mc_chains <- 4
 num_mc_iterations <- 200
 
 # Unmodelled aspects of the data-generating process (things we condition on)
 num_bat <- 20
-num_con_per_bat <- 2 # This many replicates per concentration value
+num_con_per_bat <- 2 # This many replicates per x value
 num_sam_per_bat <- 4
-concentrations <- 1000 * 2^(-2:3) 
+xs <- log(1000 * 2^(-2:3))
 
-y_log_obs_sd <- 0.1
+y_obs_sd <- 0.1
 
 # The four parameters of the logistic regression (f_1, f_2, f_3, f_4)
 # which control the log MFI through
-# f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (log(concentration) - f_4))) 
+# f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (x - f_4))) 
 f <- c(4,
        0.5,
        8,
@@ -99,30 +99,30 @@ df_bat <- df_bat %>%
          f_3 = f[[3]] + f_bat_effects[, 3],
          f_4 = f[[4]] + f_bat_effects[, 4])
 
-# Expand to one row per con (one for each concentration). Calculate y expected.
+# Expand to one row per con (one for each x). Calculate y expected.
 df_con <- df_bat %>%
-  expand_grid(concentration = concentrations, con = 1:num_con_per_bat) %>%
-  mutate(y_con_mean = exp(
-    f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (log(concentration) - f_4)))))
+  expand_grid(x = xs, con = 1:num_con_per_bat) %>%
+  mutate(y_con_mean = f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (x - f_4))))
 
 # Plot y expected by batch
 ggplot(df_con %>% 
          filter(con == 1)) +
-  geom_line(aes(concentration, y_con_mean, group = bat, col = as.factor(bat))) +
-  scale_x_log10(breaks = concentrations) +
+  geom_line(aes(exp(x), y_con_mean, group = bat, col = as.factor(bat))) +
+  scale_x_log10(breaks = exp(xs)) +
   scale_y_log10() +
   labs(x = "Concentration (e.g. pg/mL)",
        y = "Expected MFI",
-       col = "batch")
+       col = "batch") +
+  coord_cartesian(expand = F)
 
 # Draw observed y
 df_con <- df_con %>%
-  mutate(y_con = y_con_mean * exp(y_log_obs_sd * rnorm(nrow(.))))
+  mutate(y_con = y_con_mean + y_obs_sd * rnorm(nrow(.)))
 
 # Plot observed y
 ggplot(df_con) +
-  geom_point(aes(jitter(concentration), y_con, col = as.factor(bat))) +
-  scale_x_log10(breaks = concentrations) +
+  geom_point(aes(jitter(exp(x)), exp(y_con), col = as.factor(bat))) +
+  scale_x_log10(breaks = exp(xs)) +
   scale_y_log10() +
   labs(x = "Concentration",
        y = "Observed MFI",
@@ -134,22 +134,16 @@ stan_input_posterior <- list(
   num_bat = num_bat,
   num_obs_con = nrow(df_con),
   which_bat_con = df_con$bat,
-  y_log_con = log(df_con$y_con),
-  concentration_log_con = log(df_con$concentration),
+  y_con = df_con$y_con,
+  x_con = df_con$x,
   
-  f_lower = c(2, 0, 6,  log(min(concentrations))),
-  f_upper = c(6, 1, 10, log(max(concentrations))),
+  f_lower = c(2, 0, 6,  min(xs)),
+  f_upper = c(6, 1, 10, max(xs)),
   sigma_bat_f_lower = 0 * sigma_bat_f,
   sigma_bat_f_upper = 2 * sigma_bat_f,
-  y_log_obs_sd_lower = 0 * y_log_obs_sd,
-  y_log_obs_sd_upper = 2 * y_log_obs_sd,
+  y_obs_sd_lower = 0 * y_obs_sd,
+  y_obs_sd_upper = 2 * y_obs_sd,
   
-  #f_lower = c(3.9, 0.4,  7.5, 6.8),
-  #f_upper = c(4.1, 0.5, 8.5, 7),
-  #sigma_bat_f_lower = 0.9 * sigma_bat_f,
-  #sigma_bat_f_upper = 1.1 * sigma_bat_f,
-  #y_log_obs_sd_upper = 1.1 * y_log_obs_sd,
-  #y_log_obs_sd_lower = 0.9 * y_log_obs_sd,
   
   sample_posterior_not_prior = 1L
 )
@@ -158,7 +152,7 @@ stan_input_prior$sample_posterior_not_prior <- 0L
 
 params_to_ignore <- c(
   "f_bat_effects_unscaled",
-  "y_log_con_mean_per_obs"
+  "y_con_mean_per_obs"
 )
 
 # Compile the Stan code
@@ -204,7 +198,7 @@ df_fit <- df_fit_wide %>%
 # Plot pop-level params: prior, posterior and true value
 df_true_pop_params <- tribble(
   ~param, ~value,
-  "y_log_obs_sd", y_log_obs_sd,
+  "y_obs_sd", y_obs_sd,
   "f[1]", f[1],
   "f[2]", f[2],
   "f[3]", f[3],
@@ -245,37 +239,37 @@ df_fit %>%
   mutate(bat = as.integer(bat),
          f_index = as.integer(f_index)) %>%
   pivot_wider(names_from = f_index, names_prefix = "f_") %>%
-  expand_grid(concentration_log = seq(log(min(concentrations)),
-                                      log(max(concentrations)),
-                                      length.out = 20)) %>%
-  mutate(y_log = f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (concentration_log - f_4)))) %>%
+  expand_grid(x = seq(min(xs), max(xs), length.out = 20)) %>%
+  mutate(y = f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (x - f_4)))) %>%
   ggplot() +
-  geom_line(aes(concentration_log, y_log, group = sample)) +
+  geom_line(aes(x, y, group = sample)) +
   geom_line(data = df_bat %>%
-              expand_grid(concentration_log = seq(log(min(concentrations)),
-                                                  log(max(concentrations)),
-                                                  length.out = 20)) %>%
-              mutate(y_log = f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (concentration_log - f_4)))),
-            aes(concentration_log, y_log), col = "blue") +
+              expand_grid(x = seq(min(xs), max(xs), length.out = 20)) %>%
+              mutate(y = f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (x - f_4)))),
+            aes(x, y), col = "blue") +
   facet_wrap(~bat)
 
 # A posterior retrodictive check of model fit
 df_posterior_retrodictive <- df_fit %>%
   filter(density_type == "posterior") %>%
-  filter(startsWith(param, "y_log_con_sim[")) %>%
+  filter(startsWith(param, "y_con_sim[")) %>%
   tidyr::extract(param, 
                  into = "index", 
-                 regex = "y_log_con_sim\\[([0-9]+)\\]") %>%
+                 regex = "y_con_sim\\[([0-9]+)\\]") %>%
   mutate(index = as.integer(index)) %>%
   left_join(df_con %>%
-              select(bat, concentration) %>%
+              select(bat, x) %>%
               mutate(index = row_number()),
             by = "index")
 ggplot(df_posterior_retrodictive) +
-  geom_violin(aes(x = as.factor(concentration), y = value)) +
+  geom_violin(aes(x = as.factor(exp(x)), y = exp(value))) +
   geom_point(data = df_con, 
-             aes(as.factor(concentration), log(y_con)), 
+             aes(as.factor(exp(x)), exp(y_con)), 
              col = "blue") +
-  facet_wrap(~bat) 
-  
+  theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0)) +
+  scale_y_log10() +
+  facet_wrap(~bat) +
+  labs(x = "Concentration",
+       y = "MFI")
+
 
