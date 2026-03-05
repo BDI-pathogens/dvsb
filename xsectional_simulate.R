@@ -29,24 +29,24 @@ theme_set(theme_classic())
 
 # INPUT ----
 
-set.seed(123)
+set.seed(123456)
 
 # Unmodelled aspects of the data-generating process (things we condition on)
-num_plate <- 10
+num_plate <- 50
 num_rep_per_cal <- 2
 num_rep_per_sam <- 2
-num_sam_per_plate <- 20
+num_sam_per_plate <- 10
 xlogs <- log(c(0.5, 1.5, 4.5, 13, 40)) #c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cals
 
 y_obs_sd_cal_min <- 0.06
 y_obs_sd_cal_jump <- 0.15
-y_obs_sd_sam_min <- 0.1
-y_obs_sd_sam_jump <- 0.3
+y_obs_sd_sam_min <- 0.06
+y_obs_sd_sam_jump <- 0.15
 x_sam_neg_mu <- -2.9
 x_sam_neg_sd <- 1
 x_sam_pos_mu <- 0.7
 x_sam_pos_sd <- 1.3
-p_sam_pos <- 0.5
+p_pos <- 0.5
 
 # The four parameters of the logistic regression (f_1, f_2, f_3, f_4)
 # which calibrator the OD, y, through
@@ -80,12 +80,29 @@ stopifnot(all(diag(rho) == 1))
 # Each element in sigma_f_pred_vars is a 4-vector of standard deviations of the
 # elements of f associated with that predictor variable.
 f_pred_vars <- list(
-  #OP = c("chris", "anton"),
-  #LAB = c("ben", "gui", "lib")
+  #op_ = letters[1:10]  #c("chris", "anton"),
+  #lab_ = c("ben", "gui", "lib")
 )
 sigma_f_pred_vars <- list(
-  #OP = 2 * sigma_f_plate,
-  #LAB = 3 * sigma_f_plate
+  #op_ = 2 * sigma_f_plate
+  #lab_ = 3 * sigma_f_plate
+)
+
+# p_pos_pred_vars should either be an empty list, or a named list in which 
+# each element is a character vector of length at least 2 with no duplicates.
+# Each character vector consists of categories that systematically differ in
+# their p_pos values. 
+# We randomly assign each sample exactly one element from each character vector.
+# sigma_p_pos_pred_vars should be a list with the same names as f_pred_vars.
+# Each element in sigma_p_pos_pred_vars is a standard deviation of the
+# variability in p_pos (on a logit scale) associated with that predictor variable.
+p_pos_pred_vars <- list(
+  #letter = letters[1:5]
+  #int = as.character(1:4)
+)
+sigma_p_pos_pred_vars <- c(
+  #letter = 1
+  #int = 0.1
 )
 
 # SIMULATE ----
@@ -99,14 +116,29 @@ stopifnot(identical(sort(f_pred_vars_names),
 num_f_pred_vars <- length(f_pred_vars)
 predict_f <- num_f_pred_vars > 0L
 if (predict_f) {
+  if (num_plate < 2) stop("2+ plates are needed if plate covariates are used")
   for (name_ in f_pred_vars_names) {
     stopifnot(is.character(f_pred_vars[[name_]]))
     stopifnot(length(f_pred_vars[[name_]]) >= 2L)
     stopifnot(!anyDuplicated(f_pred_vars[[name_]]))
   }
 }
-num_cat_per_f_pred_var <- map_int(f_pred_vars, length)
-num_f_pred_var_cats <- sum(num_cat_per_f_pred_var)
+
+# Check p_pred_vars 
+num_sam_id <- num_plate * num_sam_per_plate
+p_pos_pred_vars_names <- names(p_pos_pred_vars)
+stopifnot(identical(sort(p_pos_pred_vars_names),
+                    sort(names(sigma_p_pos_pred_vars))))
+num_p_pos_pred_vars <- length(p_pos_pred_vars)
+predict_p_pos <- num_p_pos_pred_vars > 0L
+if (predict_p_pos) {
+  if (num_sam_id == 0) stop("You need some samples if sample positivity is predicted")
+  for (name_ in p_pos_pred_vars_names) {
+    stopifnot(is.character(p_pos_pred_vars[[name_]]))
+    stopifnot(length(p_pos_pred_vars[[name_]]) >= 2L)
+    stopifnot(!anyDuplicated(p_pos_pred_vars[[name_]]))
+  }
+}
 
 # Derived params
 y_obs_sd_cal_max <- y_obs_sd_cal_min + y_obs_sd_cal_jump
@@ -114,13 +146,25 @@ y_obs_sd_sam_max <- y_obs_sd_sam_min + y_obs_sd_sam_jump
 
 xs <- exp(xlogs)
 
-# Make a df with one row per plate
+# Make a df with one row per plate.
+# Sample each plate's f predictor variables.
+# Ensure that we don't randomly sample the same category for every plate.
+# Delete any unsampled categories.
 df_plate <- tibble(plate = 1:num_plate)
 for (f_pred_var in f_pred_vars_names) {
-  df_plate[[f_pred_var]] <- sample(f_pred_vars[[f_pred_var]],
-                                   size = num_plate,
-                                   replace = TRUE)
+  sampled_pred_vars <- character()
+  while(length(sampled_pred_vars) < 2) {
+    sampled_pred_vars <- sample(f_pred_vars[[f_pred_var]],
+                                size = num_plate,
+                                replace = TRUE)
+  } 
+  if (length(sampled_pred_vars) < length(f_pred_vars[[f_pred_var]])) {
+    f_pred_vars[[f_pred_var]] <- sort(unique(sampled_pred_vars))
+  } 
+  df_plate[[f_pred_var]] <- sampled_pred_vars
 }
+num_cat_per_f_pred_var <- map_int(f_pred_vars, length)
+num_f_pred_var_cats <- sum(num_cat_per_f_pred_var)
 
 # Draw plate-level variation in f
 Sigma_plate <- diag(sigma_f_plate) %*% rho %*% diag(sigma_f_plate)
@@ -134,6 +178,13 @@ for (f_pred_var in f_pred_vars_names) {
   Sigma_f_ <- diag(sigma_f_) %*% rho %*% diag(sigma_f_)
   num_cats <- length(f_pred_vars[[f_pred_var]])
   f_effects_ <- rmvnorm(num_cats, c(0, 0, 0, 0), Sigma_f_)
+  f_effects_col_means <- colMeans(f_effects_)
+  for (cat_num in 1:num_cats) {
+    f_effects_[cat_num, ] <- f_effects_[cat_num, ] - f_effects_col_means
+  }
+  # TODO: perhaps this ?
+  # If their mean is not zero, using our parameterisation we'll estimate the 
+  # central value and deviations from it wrongly
   rownames(f_effects_) <- f_pred_vars[[f_pred_var]]
   f_effects_by_pred_var[[f_pred_var]] <- f_effects_
   df_plate[[paste0("f_effect_", f_pred_var)]] <- map(
@@ -255,14 +306,61 @@ if (FALSE) {
   ggsave("~/foo_3.pdf", height = 8, width = 4)
 }
 
-# Allocate each unique sample to a plate, draw its x, and calculate its mean y
-# using that plate's f parameters...
-num_sam_id <- num_plate * num_sam_per_plate
+# Allocate each unique sample to a plate and draw its p_pos predictors.
+# Ensure that we don't randomly sample the same category for every sample.
+# Delete any unsampled categories.
 df_sam <- df_plate %>%
   slice(rep(row_number(), num_sam_per_plate)) %>%
   arrange(plate) %>%
-  mutate(id_sam = row_number(),
-         pos = runif(num_sam_id) < p_sam_pos,
+  mutate(id_sam = row_number())
+for (p_pos_pred_var in p_pos_pred_vars_names) {
+  
+  sampled_pred_vars <- character()
+  while(length(sampled_pred_vars) < 2) {
+    sampled_pred_vars <- sample(p_pos_pred_vars[[p_pos_pred_var]],
+                                size = num_sam_id,
+                                replace = TRUE)
+  } 
+  if (length(sampled_pred_vars) < length(p_pos_pred_vars[[p_pos_pred_var]])) {
+    p_pos_pred_vars[[p_pos_pred_var]] <- sort(unique(sampled_pred_vars))
+  } 
+  df_sam[[p_pos_pred_var]] <- sampled_pred_vars
+}
+num_cat_per_p_pos_pred_var <- map_int(p_pos_pred_vars, length)
+num_p_pos_pred_var_cats <- sum(num_cat_per_p_pos_pred_var)
+
+# Draw variation in p_pos due to p_pos_pred_vars
+p_pos_effects_by_pred_var <- list()
+p_pos_overall_by_pred_var <- list()
+for (p_pos_pred_var in p_pos_pred_vars_names) {
+  sigma_p_pos_ <- sigma_p_pos_pred_vars[[p_pos_pred_var]]
+  num_cats <- length(p_pos_pred_vars[[p_pos_pred_var]])
+  p_pos_effects_ <- rnorm(num_cats, 0, sigma_p_pos_)
+  p_pos_effects_ <- p_pos_effects_ - mean(p_pos_effects_)
+  # TODO: perhaps p_pos_effects_ <- p_pos_effects_ - mean(p_pos_effects_) ?
+  # If their mean is not zero, using our parameterisation we'll estimate the 
+  # central value and deviations from it wrongly
+  names(p_pos_effects_) <- p_pos_pred_vars[[p_pos_pred_var]]
+  p_pos_effects_by_pred_var[[p_pos_pred_var]] <- p_pos_effects_
+  p_pos_overall_by_pred_var[[p_pos_pred_var]] <- 
+    mastiff::logistic(mastiff::logit(p_pos) + p_pos_effects_)
+  df_sam[[paste0("p_pos_effect_", p_pos_pred_var)]] <- map_dbl(
+    df_sam[[p_pos_pred_var]], ~ p_pos_effects_[[.x]])
+}
+
+# For each sam: calculate its p_pos using its predictors, draw x using p_pos,
+# and calculate its mean y using that plate's f parameters...
+df_sam$p_pos <- mastiff::logit(p_pos)
+for (p_pos_pred_var in p_pos_pred_vars_names) {
+  df_sam$p_pos <- df_sam$p_pos +
+    df_sam[[paste0("p_pos_effect_", p_pos_pred_var)]]
+}
+df_sam$p_pos <- mastiff::logistic(df_sam$p_pos)
+
+# For each sam: draw x using p_pos, and calculate its mean y using its plate's
+# f parameters...
+df_sam <- df_sam %>%
+  mutate(pos = runif(num_sam_id) < p_pos,
          xlog = if_else(pos,
                         rnorm(num_sam_id, mean = x_sam_pos_mu, 
                               sd = x_sam_pos_sd),
@@ -324,7 +422,9 @@ stan_input_posterior <- list(
   y_sam = df_sam$y,
   x_cal = df_cal$x,
   num_f_pred_vars = num_f_pred_vars,
-  num_cat_per_f_pred_var = num_cat_per_f_pred_var,
+  num_cat_per_f_pred_var = num_cat_per_f_pred_var %>% as.array(),
+  num_p_pos_pred_vars = num_p_pos_pred_vars,
+  num_cat_per_p_pos_pred_var = num_cat_per_p_pos_pred_var %>% as.array(),
   sample_posterior_not_prior = 1L
 )
 

@@ -24,6 +24,9 @@ data {
   int<lower = 0> num_f_pred_vars;
   array[num_f_pred_vars] int<lower = 2> num_cat_per_f_pred_var;
   matrix<lower = 0, upper = 1>[num_plate, sum(num_cat_per_f_pred_var)] design_matrix_f;
+  int<lower = 0> num_p_pos_pred_vars;
+  array[num_p_pos_pred_vars] int<lower = 2> num_cat_per_p_pos_pred_var;
+  matrix<lower = 0, upper = 1>[num_sam_id, sum(num_cat_per_p_pos_pred_var)] design_matrix_p_pos;
 
   // Other things to keep fixed over a complete round of sampling: a binary
   // switch to control whether we sample from the prior or the posterior
@@ -35,6 +38,8 @@ data {
   row_vector[4] sigma_f_plate_upper;
   row_vector[4] sigma_f_pred_vars_lower;
   row_vector[4] sigma_f_pred_vars_upper;
+  real sigma_p_pos_pred_vars_lower;
+  real sigma_p_pos_pred_vars_upper;
   real y_obs_sd_cal_min_lower;
   real y_obs_sd_cal_min_upper;
   real y_obs_sd_cal_jump_lower;
@@ -53,15 +58,17 @@ data {
   real<lower = 0> x_sam_pos_sd_lower;
   real<lower = x_sam_pos_sd_lower> x_sam_pos_sd_upper;
 
-  real p_sam_pos_lower;
-  real p_sam_pos_upper;
+  real p_pos_lower;
+  real p_pos_upper;
   real rho_prior_eta;
   
 }
 
 transformed data {
+  
   array[num_plate] vector[4] zeros;
   for (i in 1:num_plate) zeros[i] = rep_vector(0, 4);
+  
   int tot_cat_per_f_pred_var = sum(num_cat_per_f_pred_var);
   array[tot_cat_per_f_pred_var] vector[4] zeros_for_f_pred_vars;
   for (i in 1:tot_cat_per_f_pred_var) zeros_for_f_pred_vars[i] = rep_vector(0, 4);
@@ -72,6 +79,10 @@ transformed data {
     sigma_f_pred_vars_lower_array[f_pred_var] = sigma_f_pred_vars_lower;
     sigma_f_pred_vars_upper_array[f_pred_var] = sigma_f_pred_vars_upper;
   }
+  
+  int tot_cat_per_p_pos_pred_var = sum(num_cat_per_p_pos_pred_var);
+  int predict_p_pos = 1 ? num_p_pos_pred_vars > 0 : 0;
+
 }
 
 parameters {
@@ -80,13 +91,15 @@ parameters {
   row_vector<lower = f_lower, upper = f_upper>[4] f;
   row_vector<lower = sigma_f_plate_lower, upper = sigma_f_plate_upper>[4] sigma_f_plate;
   array[num_f_pred_vars] row_vector<lower = sigma_f_pred_vars_lower_array,
-    upper = sigma_f_pred_vars_upper_array>[4] sigma_f_pred_vars;
+  upper = sigma_f_pred_vars_upper_array>[4] sigma_f_pred_vars;
+  array[num_p_pos_pred_vars] real<lower = sigma_p_pos_pred_vars_lower,
+  upper = sigma_p_pos_pred_vars_upper> sigma_p_pos_pred_vars;
   
   // Scalar params constrained only by lower and upper
   real<lower = x_sam_neg_mu_lower, upper = x_sam_neg_mu_upper> x_sam_neg_mu;
   real<lower = x_sam_neg_sd_lower, upper = x_sam_neg_sd_upper> x_sam_neg_sd;
   real<lower = x_sam_pos_sd_lower, upper = x_sam_pos_sd_upper> x_sam_pos_sd;
-  real<lower = p_sam_pos_lower,    upper = p_sam_pos_upper>    p_sam_pos;
+  real<lower = p_pos_lower,    upper = p_pos_upper>    p_pos;
   real<lower = y_obs_sd_cal_min_lower,  upper = y_obs_sd_cal_min_upper>  y_obs_sd_cal_min;
   real<lower = y_obs_sd_cal_jump_lower, upper = y_obs_sd_cal_jump_upper> y_obs_sd_cal_jump;
   real<lower = y_obs_sd_sam_min_lower,  upper = y_obs_sd_sam_min_upper>  y_obs_sd_sam_min;
@@ -101,12 +114,11 @@ parameters {
   array[num_plate] row_vector[4] f_plate_effects_unscaled;
   vector[num_sam_id] xlog_sam;
   array[tot_cat_per_f_pred_var] row_vector[4] f_effects_by_pred_var_cat_unscaled;
+  array[tot_cat_per_p_pos_pred_var] real p_pos_effects_by_pred_var_cat_unscaled;
 }
 
 transformed parameters{
   
-  real p_sam_pos_log = log(  p_sam_pos);
-  real p_sam_neg_log = log1m(p_sam_pos);
   real y_obs_sd_cal_max = y_obs_sd_cal_min + y_obs_sd_cal_jump;
   real y_obs_sd_sam_max = y_obs_sd_sam_min + y_obs_sd_sam_jump;
   vector[num_sam_id] x_sam = exp(xlog_sam);
@@ -132,13 +144,38 @@ transformed parameters{
     f_per_plate += design_matrix_f * f_effects_by_pred_var_cat;
   }
   
+  vector[tot_cat_per_p_pos_pred_var] p_pos_effects_by_pred_var_cat;
+  {
+    int cat_current = 1;
+    for (p_pos_pred_var in 1:num_p_pos_pred_vars) {
+      int num_cat_this_p_pos_pred_var = num_cat_per_p_pos_pred_var[p_pos_pred_var];
+      for (cat in cat_current:(cat_current + num_cat_this_p_pos_pred_var - 1)) {
+        p_pos_effects_by_pred_var_cat[cat] = p_pos_effects_by_pred_var_cat_unscaled[cat] * 
+        sigma_p_pos_pred_vars[p_pos_pred_var]; 
+      }
+      cat_current += num_cat_this_p_pos_pred_var;
+    }
+  }
+  
+  vector[num_sam_id] p_pos_log_per_sam_id;
+  vector[num_sam_id] p_neg_log_per_sam_id;
+  if (predict_p_pos) {
+    vector[num_sam_id] p_pos_per_sam_id = inv_logit(
+    rep_vector(logit(p_pos), num_sam_id) +
+    design_matrix_p_pos * p_pos_effects_by_pred_var_cat);
+    p_pos_log_per_sam_id = log(  p_pos_per_sam_id);
+    p_neg_log_per_sam_id = log1m(p_pos_per_sam_id);
+  } else {
+    p_pos_log_per_sam_id = rep_vector(log(  p_pos), num_sam_id);
+    p_neg_log_per_sam_id = rep_vector(log1m(p_pos), num_sam_id);
+  }
+  
   array[num_plate] real exp_f_1_mult_f_4_per_plate;
   for (plate in 1:num_plate) {
     exp_f_1_mult_f_4_per_plate[plate] =
       exp(f_per_plate[plate, 1] * f_per_plate[plate, 4]);
   }
 
-  
   vector[num_cal_tot] y_cal_mean_per_obs;
   vector[num_sam_tot] y_sam_mean_per_obs;
   profile("y_means") {
@@ -191,12 +228,12 @@ model {
   profile("mixture_model") {
   for (sam_id in 1:num_sam_id) {
     target += log_sum_exp(
-      p_sam_pos_log + normal_lpdf(xlog_sam[sam_id] | x_sam_pos_mu, x_sam_pos_sd),
-      p_sam_neg_log + normal_lpdf(xlog_sam[sam_id] | x_sam_neg_mu, x_sam_neg_sd));
+      p_pos_log_per_sam_id[sam_id] + normal_lpdf(xlog_sam[sam_id] | x_sam_pos_mu, x_sam_pos_sd),
+      p_neg_log_per_sam_id[sam_id] + normal_lpdf(xlog_sam[sam_id] | x_sam_neg_mu, x_sam_neg_sd));
   }
   }
   f_effects_by_pred_var_cat_unscaled ~ multi_normal(zeros_for_f_pred_vars, rho);
-  
+  p_pos_effects_by_pred_var_cat_unscaled ~ std_normal();
   
   // Likelihood
   profile("likelihood_cal") {
@@ -214,9 +251,9 @@ generated quantities {
   
   vector[num_sam_id] p_sam_is_pos;
   for (sam_id in 1:num_sam_id) {
-    real p_log = p_sam_pos_log +
+    real p_log = p_pos_log_per_sam_id[sam_id] +
     normal_lpdf(xlog_sam[sam_id] | x_sam_pos_mu, x_sam_pos_sd);
-    p_sam_is_pos[sam_id] = exp(p_log - log_sum_exp(p_log, p_sam_neg_log +
+    p_sam_is_pos[sam_id] = exp(p_log - log_sum_exp(p_log, p_neg_log_per_sam_id[sam_id] +
     normal_lpdf(xlog_sam[sam_id] | x_sam_neg_mu, x_sam_neg_sd)));
   }
   

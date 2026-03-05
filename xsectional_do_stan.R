@@ -4,11 +4,12 @@ options(warn = 2)
 
 # INPUT ABOUT STAN ----
 
-file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v12.stan"
+file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v13.stan"
 sample_prior_manually <- TRUE
 num_mc_chains <- 4
-num_mc_iterations_posterior <- 300
+num_mc_iterations_posterior <- 500
 num_mc_iterations_prior <- 2000
+use_cmdstanr <- TRUE
 
 # Upper and lower bounds for priors
 if (data_was_simulated) {
@@ -19,14 +20,15 @@ if (data_was_simulated) {
     "x_sam_pos_mu", x_sam_pos_mu - 1, x_sam_pos_mu + 1,
     "x_sam_neg_sd", 0, x_sam_neg_sd * 2,
     "x_sam_pos_sd", 0, x_sam_pos_sd * 2,
-    "p_sam_pos", 0, 1,
+    "p_pos", 0, 1,
     "y_obs_sd_cal_min",  0, 2 * y_obs_sd_cal_min,
     "y_obs_sd_cal_jump", 0, 2 * y_obs_sd_cal_jump,
     "y_obs_sd_sam_min",  0, 2 * y_obs_sd_sam_min,
-    "y_obs_sd_sam_jump", 0, 2 * y_obs_sd_sam_jump
+    "y_obs_sd_sam_jump", 0, 2 * y_obs_sd_sam_jump,
+    "sigma_p_pos_pred_vars", 0, 2 * max(sigma_p_pos_pred_vars)
   )
   df_priors_vectors <- tribble(
-    ~param, ~lower, ~upper, 
+    ~param, ~lower, ~upper,
     "sigma_f_plate", sigma_f_plate * 0.5, sigma_f_plate * 2,
     "f", f-0.5, f+0.5,
     "sigma_f_pred_vars", rep(0, 4), rep(0, 4)) # not needed if ! predict_f
@@ -41,11 +43,12 @@ if (data_was_simulated) {
     "x_sam_neg_sd", 0, 2,
     "x_sam_pos_sd", 0, 2.5, 
     "x_sam_pos_mu", -1, 3,
-    "p_sam_pos", 0, 1,
+    "p_pos", 0, 1,
     "y_obs_sd_cal_min", 0, 0.01,
     "y_obs_sd_cal_jump", 0.1, 0.4,
     "y_obs_sd_sam_min", 0, 0.03,
-    "y_obs_sd_sam_jump", 0.1, 1
+    "y_obs_sd_sam_jump", 0.1, 1,
+    "sigma_p_pos_pred_vars", 0, 2
   )
   df_priors_vectors <- tribble(
     ~param, ~lower, ~upper,
@@ -58,15 +61,6 @@ if (data_was_simulated) {
 
 # The eta parameter of the LKJ prior for Rho_bat
 rho_prior_eta <- 4
-
-use_cmdstanr <- FALSE
-if (use_cmdstanr) {
-  library(cmdstanr)
-} else {
-  library(rstan)
-  rstan_options(auto_write = TRUE)
-  options(mc.cores = parallel::detectCores())
-}
 
 # SYNCHRONISE SIMULATED AND REAL DATA PREVIOUS STEPS ----
 
@@ -95,7 +89,7 @@ if (predict_f) {
   design_matrix_f <- matrix(nrow = num_plate, ncol = 0)
 }
 
-# Count cats per pred var. Ensure the col names of design_matrix_f are as 
+# Count cats per f pred var. Ensure the col names of design_matrix_f are as 
 # expected.
 design_matrix_f_colnames_expected <-
   map(f_pred_vars_names, ~ paste0(.x, f_pred_vars[[.x]])) %>%
@@ -108,10 +102,51 @@ stopifnot(identical(colnames(design_matrix_f),
 stan_input_posterior$design_matrix_f <- design_matrix_f
 
 # Look-ups between int and string encodings
-df_f_pred_vars <- tibble(f_pred_var = f_pred_vars_names,
-                         f_pred_var_int = 1:num_f_pred_vars)
-df_f_pred_vars_cats <- tibble(f_pred_var_cat = design_matrix_f_colnames_expected,
-                              f_pred_var_cat_int = 1:num_f_pred_var_cats)
+if (predict_f) {
+  df_f_pred_vars <- tibble(f_pred_var = f_pred_vars_names,
+                           f_pred_var_int = 1:num_f_pred_vars)
+  df_f_pred_vars_cats <- tibble(f_pred_var_cat = design_matrix_f_colnames_expected,
+                                f_pred_var_cat_int = 1:num_f_pred_var_cats)
+}
+
+# 0-or-1 encode each cat of p_pos_pred_vars for every sample
+if (predict_p_pos) {
+  design_matrix_p_pos <- df_sam %>%
+    select(id_sam, all_of(p_pos_pred_vars_names)) %>%
+    distinct()
+  stopifnot(identical(design_matrix_p_pos$id_sam,
+                      1:nrow(design_matrix_p_pos)))
+  design_matrix_p_pos <- design_matrix_p_pos %>%
+    select(-id_sam) %>%
+    mutate(across(everything(), as.character)) %>%
+    mutate(across(everything(), as.factor)) %>%
+    {model.matrix(~ . - 1,
+                  data = .,
+                  contrasts.arg = lapply(.[, , drop = FALSE],
+                                         contrasts, contrasts = FALSE))}
+} else {
+  design_matrix_p_pos <- matrix(nrow = num_sam_id, ncol = 0)
+}
+
+# Count cats per p_pos pred var. Ensure the col names of design_matrix_p_pos are as 
+# expected.
+design_matrix_p_pos_colnames_expected <-
+  map(p_pos_pred_vars_names, ~ paste0(.x, p_pos_pred_vars[[.x]])) %>%
+  unlist
+stopifnot(identical(sort(colnames(design_matrix_p_pos)),
+                    sort(design_matrix_p_pos_colnames_expected)))
+design_matrix_p_pos <- design_matrix_p_pos[, design_matrix_p_pos_colnames_expected]
+stopifnot(identical(colnames(design_matrix_p_pos),
+                    design_matrix_p_pos_colnames_expected))
+stan_input_posterior$design_matrix_p_pos <- design_matrix_p_pos
+
+# Look-ups between int and string encoding
+if (predict_p_pos) {
+  df_p_pos_pred_vars <- tibble(p_pos_pred_var = p_pos_pred_vars_names,
+                               p_pos_pred_var_int = 1:num_p_pos_pred_vars)
+  df_p_pos_pred_vars_cats <- tibble(p_pos_pred_var_cat = design_matrix_p_pos_colnames_expected,
+                                    p_pos_pred_var_cat_int = 1:num_p_pos_pred_var_cats)
+}
 
 # Priors
 stan_input_posterior$rho_prior_eta <- rho_prior_eta
@@ -132,17 +167,26 @@ stan_input_prior$sample_posterior_not_prior <- 0L
 
 # RUN STAN ----
 
+if (use_cmdstanr) {
+  library(cmdstanr)
+} else {
+  library(rstan)
+  rstan_options(auto_write = TRUE)
+  options(mc.cores = parallel::detectCores())
+}
+
 params_to_ignore <- c(
   "f_plate_effects_unscaled",
   "y_cal_mean_per_obs",
-  "p_sam_pos_log",
-  "p_sam_neg_log",
   "y_cal_mean_per_obs",
   "y_sam_mean_per_obs",
   "y_obs_sd_cal",
   "y_obs_sd_sam",
   "f_effects_by_pred_var_cat_unscaled",
-  "exp_f_1_mult_f_4_per_plate"
+  "p_pos_effects_by_pred_var_cat_unscaled",
+  "exp_f_1_mult_f_4_per_plate",
+  "p_pos_log_per_sam_id",
+  "p_neg_log_per_sam_id"
 )
 
 # Compile the Stan code
@@ -209,7 +253,9 @@ if (sample_prior_manually) {
   # Combine df_priors_scalars and df_priors_vectors
   df_priors <- df_priors_scalars
   df_pri_vec_sampling <- df_priors_vectors %>% 
-    mutate(replicates_needed = if_else(param == "sigma_f_pred_vars", num_f_pred_vars, 1)) %>%
+    mutate(replicates_needed = case_when(
+      param == "sigma_f_pred_vars" ~ num_f_pred_vars,
+      TRUE ~ 1)) %>%
     uncount(replicates_needed) 
   names(df_pri_vec_sampling$lower[[1]]) <- paste0("sigma_f_plate[", 1:4, "]")
   names(df_pri_vec_sampling$lower[[2]]) <- paste0("f[", 1:4, "]")
@@ -235,6 +281,19 @@ if (sample_prior_manually) {
                           unnest_wider(everything()) %>%
                           pivot_longer(everything(), names_to = "param", values_to = "upper"),
                         by = "param"))
+  df_priors <- df_priors %>%
+    mutate(replicates_needed = case_when(
+      param == "sigma_p_pos_pred_vars" ~ num_p_pos_pred_vars,
+      TRUE ~ 1)) %>%
+    uncount(replicates_needed) 
+  if (predict_p_pos) {
+    df_priors <- bind_rows(
+      df_priors %>% 
+        filter(param != "sigma_p_pos_pred_vars"),
+      df_priors %>% 
+        filter(param == "sigma_p_pos_pred_vars") %>%
+        mutate(param = paste0(param, "[", row_number(), "]")))
+  }
   
   # Sample params with simple uniform distributions.
   # df_ps = a df with prior samples. Short name due to heavy usage.
@@ -310,6 +369,46 @@ if (sample_prior_manually) {
     }
   }
   
+  if (predict_p_pos) {
+    # Independently draw num_f_pred_var_cats 4-vectors with mean zero, then scale,
+    # mirroring these parts of the Stan code:
+    # p_pos_effects_by_pred_var_cat_unscaled ~ std_normal();
+    #...
+    #vector[tot_cat_per_p_pos_pred_var] p_pos_effects_by_pred_var_cat;
+    #{
+    #  int cat_current = 1;
+    #  for (p_pos_pred_var in 1:num_p_pos_pred_vars) {
+    #    int num_cat_this_p_pos_pred_var = num_cat_per_p_pos_pred_var[p_pos_pred_var];
+    #    for (cat in cat_current:(cat_current + num_cat_this_p_pos_pred_var - 1)) {
+    #      p_pos_effects_by_pred_var_cat[cat] = p_pos_effects_by_pred_var_cat_unscaled[cat] * 
+    #        sigma_p_pos_pred_vars[p_pos_pred_var]; 
+    #    }
+    #    cat_current += num_cat_this_p_pos_pred_var;
+    #  }
+    #}
+    p_pos_effects_by_pred_var_cat_samples <- # define unscaled, then scale
+      matrix(rnorm(n = num_mc_iterations_prior * num_p_pos_pred_var_cats),
+             nrow = num_mc_iterations_prior,
+             ncol = num_p_pos_pred_var_cats)
+    for (sample in 1:num_mc_iterations_prior) {
+      cat_current <- 1
+      for (p_pos_pred_var_int in 1:num_p_pos_pred_vars) {
+        num_cat_this_p_pos_pred_var = num_cat_per_p_pos_pred_var[p_pos_pred_var_int]
+        sigma_p_pos_pred_vars_ <- df_ps[[paste0(
+          "sigma_p_pos_pred_vars[", p_pos_pred_var_int, "]")]][[sample]]
+        cats <- cat_current:(cat_current + num_cat_this_p_pos_pred_var - 1)
+        p_pos_effects_by_pred_var_cat_samples[sample, cats] <-
+          p_pos_effects_by_pred_var_cat_samples[sample, cats] *
+          sigma_p_pos_pred_vars_
+        cat_current <- cat_current + num_cat_this_p_pos_pred_var
+      }
+    }
+    for (p_pos_pred_var_cat_int in 1:num_p_pos_pred_var_cats) {
+      df_ps[[paste0("p_pos_effects_by_pred_var_cat[", p_pos_pred_var_cat_int, "]" )]] <-
+        p_pos_effects_by_pred_var_cat_samples[, p_pos_pred_var_cat_int]
+    }
+  }
+  
 } else {
   df_ps <- samples_prior %>%
     as.data.frame() %>%
@@ -326,6 +425,7 @@ df_fit_wide <- bind_rows(samples_posterior %>%
   as_tibble()
 
 if (data_was_simulated) {
+  
   df_true_pop_params <- tribble(
     ~param, ~value,
     "f[1]", f[1],
@@ -346,7 +446,7 @@ if (data_was_simulated) {
     "x_sam_pos_sd", x_sam_pos_sd,
     "x_sam_neg_mu", x_sam_neg_mu,
     "x_sam_pos_mu", x_sam_pos_mu,
-    "p_sam_pos", p_sam_pos,
+    "p_pos", p_pos,
     "y_obs_sd_cal_min",  y_obs_sd_cal_min,
     "y_obs_sd_cal_jump", y_obs_sd_cal_jump,
     "y_obs_sd_sam_min",  y_obs_sd_sam_min,
@@ -382,6 +482,31 @@ if (data_was_simulated) {
                                         ",", which_f, "]")) %>%
                   select(param, value))
   }
+  
+  if (predict_p_pos) {
+    df_true_p_pos_effects_by_pred_var <- p_pos_effects_by_pred_var %>% 
+      map(function(mat) {mat %>%
+          as_tibble(.name_repair = "universal_quiet") %>%
+          mutate(cat = names(mat))}) %>% 
+      bind_rows(.id = "p_pos_pred_var") %>%
+      mutate(p_pos_pred_var_cat = paste0(p_pos_pred_var, cat)) %>% 
+      inner_join(df_p_pos_pred_vars_cats, by = "p_pos_pred_var_cat")
+    stopifnot(identical(sort(df_true_p_pos_effects_by_pred_var$p_pos_pred_var_cat),
+                        sort(design_matrix_p_pos_colnames_expected)))
+    df_true_p_pos_effects_by_pred_var <- df_true_p_pos_effects_by_pred_var %>%
+      mutate(param = paste0("p_pos_effects_by_pred_var_cat[", 
+                            p_pos_pred_var_cat_int, "]")) %>%
+      select(param, value)
+    df_true_sigma_p_pos_pred_vars <-
+      tibble(p_pos_pred_var = names(sigma_p_pos_pred_vars),
+             value = sigma_p_pos_pred_vars) %>%
+      inner_join(df_p_pos_pred_vars, by = "p_pos_pred_var") %>%
+      mutate(param = paste0("sigma_p_pos_pred_vars[", p_pos_pred_var_int, "]")) %>%
+      select(param, value)
+    df_true_pop_params <- df_true_pop_params %>%
+      bind_rows(df_true_p_pos_effects_by_pred_var,
+                df_true_sigma_p_pos_pred_vars)
+  }
 }
 
 # Rename params for interpretability
@@ -410,11 +535,51 @@ rename_params <- function(original_names) {
         TRUE ~ new
       ))
   }
+  if (predict_p_pos) {
+    df_param_names <- df_param_names %>%
+      tidyr::extract(orig, 
+                     into = "p_pos_pred_var_int", 
+                     regex = "sigma_p_pos_pred_vars\\[([0-9]+)\\]",
+                     remove = FALSE) %>%
+      tidyr::extract(orig, 
+                     into = "p_pos_pred_var_cat_int", 
+                     regex = "p_pos_effects_by_pred_var_cat\\[([0-9]+)\\]",
+                     remove = FALSE) %>%
+      mutate(p_pos_pred_var_int = as.integer(p_pos_pred_var_int),
+             p_pos_pred_var_cat_int = as.integer(p_pos_pred_var_cat_int)) %>%
+      left_join(df_p_pos_pred_vars, by = "p_pos_pred_var_int") %>%
+      left_join(df_p_pos_pred_vars_cats, by = "p_pos_pred_var_cat_int") %>% 
+      mutate(new = case_when(
+        !is.na(p_pos_pred_var_int) ~ paste0("sigma_p_pos_pred_vars_", p_pos_pred_var),
+        !is.na(p_pos_pred_var_cat_int) ~ paste0("p_pos_effect_", p_pos_pred_var_cat),
+        TRUE ~ new
+      ))
+  }
   df_param_names$new
 }
 colnames(df_fit_wide) <- rename_params(colnames(df_fit_wide))
 colnames(df_ps) <- rename_params(colnames(df_ps))
 if (data_was_simulated) df_true_pop_params$param <- rename_params(df_true_pop_params$param)
+
+# Define p_pos by group, from overall p_pos and p_pos effects
+if (predict_p_pos) {
+  for (p_pos_pred_var_cat in df_p_pos_pred_vars_cats$p_pos_pred_var_cat) {
+    df_fit_wide[[paste0("p_pos_for_", p_pos_pred_var_cat)]] <- mastiff::logistic(
+      mastiff::logit(df_fit_wide$p_pos) + df_fit_wide[[paste0("p_pos_effect_", p_pos_pred_var_cat)]])
+    df_ps[[paste0("p_pos_for_", p_pos_pred_var_cat)]] <- mastiff::logistic(
+      mastiff::logit(df_ps$p_pos) + df_ps[[paste0("p_pos_effect_", p_pos_pred_var_cat)]])
+  }
+  if (data_was_simulated) {
+    df_true_pop_params <- df_true_pop_params %>%
+      bind_rows(p_pos_overall_by_pred_var %>% 
+                  map(function(mat) {mat %>%
+                      as_tibble(.name_repair = "universal_quiet") %>%
+                      mutate(cat = names(mat))}) %>%
+                  bind_rows(.id = "p_pos_pred_var") %>%
+                  mutate(param = paste0("p_pos_for_", p_pos_pred_var, cat)) %>%
+                  select(param, value))
+  }
+}
 
 # PLOT STAN OUTPUT ----
 
@@ -423,12 +588,13 @@ p <- ggplot() +
   geom_histogram(data = df_fit_wide %>%
                    select(density_type, all_of(names(df_ps))) %>%
                    select(!matches("f_effect")) %>%
+                   select(!matches("p_pos_")) %>%
                    pivot_longer(-c("sample", "density_type"), names_to = "param"),
                  aes(value, fill = density_type, y = after_stat(density)),
                  alpha = 0.6,
                  position = "identity",
                  bins = 50) +
-  facet_wrap(~param, scales = "free", nrow = 5) +
+  facet_wrap(~param, scales = "free", nrow = 8) +
   scale_fill_brewer(palette = "Set1") +
   coord_cartesian(expand = FALSE) +
   labs(fill = "",
@@ -436,12 +602,35 @@ p <- ggplot() +
        y = "probability density")
 if (data_was_simulated) {
   p <- p + geom_vline(data = df_true_pop_params %>%
-                        filter(!str_detect(param, "f_effect")),
+                        filter(!str_detect(param, "f_effect"),
+                               !str_detect(param, "p_pos_")),
                       aes(xintercept = value))
 }
 p
+ggsave("~/enable/enable_posteriors.pdf", height = 10, width = 20)
 
-ggsave("~/enable/enable_posteriors.pdf", height = 8, width = 15)
+p <- ggplot() +
+  geom_histogram(data = df_fit_wide %>%
+                   select(density_type, sample, matches("p_pos_for_")) %>%
+                   pivot_longer(-c("sample", "density_type"), names_to = "param"),
+                 aes(value, fill = density_type, y = after_stat(density)),
+                 alpha = 0.6,
+                 position = "identity",
+                 bins = 50) +
+  facet_wrap(~param, scales = "free", nrow = 4) +
+  scale_fill_brewer(palette = "Set1") +
+  coord_cartesian(expand = FALSE) +
+  labs(fill = "",
+       x = "param value",
+       y = "probability density")
+if (data_was_simulated) {
+  p <- p + geom_vline(data = df_true_pop_params %>%
+                        filter(str_detect(param, "p_pos_for_")),
+                      aes(xintercept = value))
+}
+p
+ggsave("~/enable/enable_posteriors_p_pos_by_cluster.pdf", height = 20, width = 32)
+
 
 # Plot the posterior median & CI estimates for f_effects.
 # NB almost all CIs from country and lot_id overlap zero - suggests don't need
@@ -623,13 +812,13 @@ df_x_distributions <- df_fit_wide %>%
   filter(density_type == "posterior") %>%
   filter(sample %% 10 == 0) %>%
   select("sample", "x_sam_pos_alpha", "x_sam_pos_beta",
-         "x_sam_neg_alpha", "x_sam_neg_beta", "p_sam_pos") %>%
+         "x_sam_neg_alpha", "x_sam_neg_beta", "p_pos") %>%
   full_join(tibble(x = xs_plot),
             by = character()) %>%
   mutate(`P(x | pos)` = dgamma(x, shape = x_sam_pos_alpha, rate = x_sam_pos_beta),
          `P(x | neg)` = dgamma(x, shape = x_sam_neg_alpha, rate = x_sam_neg_beta),
-         `P(x)` = p_sam_pos * `P(x | pos)` + (1 - p_sam_pos) * `P(x | neg)`,
-         `P(pos | x)` = p_sam_pos * `P(x | pos)` / `P(x)`) %>%
+         `P(x)` = p_pos * `P(x | pos)` + (1 - p_pos) * `P(x | neg)`,
+         `P(pos | x)` = p_pos * `P(x | pos)` / `P(x)`) %>%
   select(sample, x, `P(x | pos)`, 
          `P(x | neg)`, `P(x)`, `P(pos | x)`) %>%
   pivot_longer(c("P(x | pos)", "P(x | neg)", "P(x)", "P(pos | x)"))
@@ -647,8 +836,8 @@ if (data_was_simulated) {
            xlog = log(x),
            `P(x | pos)` = dgamma(x, shape = x_sam_pos_alpha, rate = x_sam_pos_beta),
            `P(x | neg)` = dgamma(x, shape = x_sam_neg_alpha, rate = x_sam_neg_beta),
-           `P(x)` = p_sam_pos * `P(x | pos)` + (1 - p_sam_pos) * `P(x | neg)`,
-           `P(pos | x)` = p_sam_pos * `P(x | pos)` / `P(x)`) %>%
+           `P(x)` = p_pos * `P(x | pos)` + (1 - p_pos) * `P(x | neg)`,
+           `P(pos | x)` = p_pos * `P(x | pos)` / `P(x)`) %>%
     pivot_longer(-c("x", "xlog"))
   p <- p +
     geom_line(data = df_x_distributions_truth,
@@ -662,14 +851,14 @@ df_xlog_distributions <- df_fit_wide %>%
   filter(density_type == "posterior") %>%
   filter(sample %% 10 == 0) %>%
   select("sample", "x_sam_pos_mu", "x_sam_pos_sd",
-         "x_sam_neg_mu", "x_sam_neg_sd", "p_sam_pos") %>%
+         "x_sam_neg_mu", "x_sam_neg_sd", "p_pos") %>%
   full_join(tibble(xlog = xlogs_plot,
                    x = exp(xlog)),
             by = character()) %>%
   mutate(`P(xlog | pos)` = dnorm(xlog, mean = x_sam_pos_mu, sd = x_sam_pos_sd),
          `P(xlog | neg)` = dnorm(xlog, mean = x_sam_neg_mu, sd = x_sam_neg_sd),
-         `P(xlog)` = p_sam_pos * `P(xlog | pos)` + (1 - p_sam_pos) * `P(xlog | neg)`,
-         `P(pos | xlog)` = p_sam_pos * `P(xlog | pos)` / `P(xlog)`) %>%
+         `P(xlog)` = p_pos * `P(xlog | pos)` + (1 - p_pos) * `P(xlog | neg)`,
+         `P(pos | xlog)` = p_pos * `P(xlog | pos)` / `P(xlog)`) %>%
   select(sample, xlog, `P(xlog | pos)`, 
          `P(xlog | neg)`, `P(xlog)`, `P(pos | xlog)`) %>%
   pivot_longer(c("P(xlog | pos)", "P(xlog | neg)", "P(xlog)", "P(pos | xlog)"))
@@ -688,8 +877,8 @@ if (data_was_simulated) {
            x = exp(xlog),
            `P(xlog | pos)` = x * dgamma(x, shape = x_sam_pos_alpha, rate = x_sam_pos_beta),
            `P(xlog | neg)` = x * dgamma(x, shape = x_sam_neg_alpha, rate = x_sam_neg_beta),
-           `P(xlog)` = p_sam_pos * `P(xlog | pos)` + (1 - p_sam_pos) * `P(xlog | neg)`,
-           `P(pos | xlog)` = p_sam_pos * `P(xlog | pos)` / `P(xlog)`) %>%
+           `P(xlog)` = p_pos * `P(xlog | pos)` + (1 - p_pos) * `P(xlog | neg)`,
+           `P(pos | xlog)` = p_pos * `P(xlog | pos)` / `P(xlog)`) %>%
     pivot_longer(-c("x", "xlog"))
   p <- p +
     geom_line(data = df_x_distributions_truth,
@@ -703,7 +892,7 @@ df_plot_group <- df_cal %>%
   select(plate, plate_int) %>%
   distinct() %>%
   mutate(plot_group = 1 + (row_number() - 1) %/% group_size) 
-df_plot <- df_fit_wide %>% # TODO: this needed for full dataset, instead of df_fit, due to memory exhaustion
+df_plot <- df_fit_wide %>% # this needed for full dataset, instead of df_fit, due to memory exhaustion
   filter(density_type == "posterior") %>%
   filter(sample %% 10 == 0) %>%
   select(sample, starts_with("y_cal_sim[")) %>%
