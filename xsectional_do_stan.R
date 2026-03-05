@@ -2,20 +2,20 @@ data_was_simulated <- FALSE
 
 # STAN INPUT ----
 
-file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v7.stan"
+file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v8.stan"
 sample_prior_manually <- TRUE
 num_mc_chains <- 4
-num_mc_iterations_posterior <- 10
+num_mc_iterations_posterior <- 1000
 num_mc_iterations_prior <- 5000
 
 # Upper and lower bounds for priors
 if (data_was_simulated) {
   df_priors_scalars <- tribble(
     ~param, ~lower, ~upper,
-    "x_sam_neg_alpha", 0, x_sam_neg_alpha + 1,
-    "x_sam_pos_alpha_jump", 0, x_sam_pos_alpha_jump + 1,
-    "x_sam_pos_beta", 0, x_sam_pos_beta * 2,
-    "x_sam_neg_beta_jump", 0, x_sam_neg_beta_jump * 2,
+    "x_sam_neg_mu", 0, x_sam_neg_mu * 2,
+    "x_sam_neg_sd", 0, x_sam_neg_sd * 2,
+    "x_sam_pos_sd", NA, NA, # not used, but name it here for plotting convenience
+    "x_sam_pos_mu_jump", 0, x_sam_pos_mu_jump *2,
     "p_sam_pos", 0, 1,
     "y_obs_sd_min",  0, 2 * y_obs_sd_min,
     "y_obs_sd_jump", 0, 2 * y_obs_sd_jump
@@ -23,15 +23,15 @@ if (data_was_simulated) {
   df_priors_vectors <- tribble(
     ~param, ~lower, ~upper,
     "sigma_f_plate", sigma_f_plate * 0.5, sigma_f_plate * 2,
-    "f", f-1.5, f+1.5
+    "f", f-0.1, f+0.1
   )
 } else {
   df_priors_scalars <- tribble(
     ~param, ~lower, ~upper,
-    "x_sam_neg_alpha", 0.1, 6,
-    "x_sam_pos_alpha_jump", 0, 4,
-    "x_sam_pos_beta", 0.1, 6,
-    "x_sam_neg_beta_jump", 0, 50,
+    "x_sam_neg_mu", 0, 1,
+    "x_sam_neg_sd", 0, 1,
+    "x_sam_pos_sd", NA, NA, # not used, but name it here for plotting convenience
+    "x_sam_pos_mu_jump", 0, 10,
     "p_sam_pos", 0.1, 0.9,
     "y_obs_sd_min", 0, 0.01,
     "y_obs_sd_jump", 0.1, 0.3
@@ -39,7 +39,7 @@ if (data_was_simulated) {
   df_priors_vectors <- tribble(
     ~param, ~lower, ~upper,
     "sigma_f_plate", c(0, 0, 0, 0), c(0.15, 0.025, 1.2, 0.7),
-    "f", c(0.8, 0, 3, 2.2), c(1.1, 0.01, 3.8, 2.8)
+    "f", c(0.8, -0.05, 3, 2.2), c(1.1, 0.05, 3.8, 2.8)
   )
 }
 
@@ -195,12 +195,12 @@ if (sample_prior_manually) {
     }
   }
   df_prior_samples <- df_prior_samples %>%
-    mutate(x_sam_pos_alpha = x_sam_neg_alpha + x_sam_pos_alpha_jump,
-           x_sam_neg_beta = x_sam_pos_beta + x_sam_neg_beta_jump,
+    mutate(x_sam_pos_mu = x_sam_neg_mu + x_sam_pos_mu_jump,
            y_obs_sd_max = y_obs_sd_min + y_obs_sd_jump,
-           x_sam_pos_mu = x_sam_pos_alpha / x_sam_pos_beta,
-           x_sam_neg_mu = x_sam_neg_alpha / x_sam_neg_beta)
-  
+           x_sam_pos_sd_lower = x_sam_neg_sd * sqrt((x_sam_neg_mu + x_sam_pos_mu_jump) / x_sam_neg_mu),
+           x_sam_pos_sd_upper = x_sam_neg_sd * (x_sam_neg_mu + x_sam_pos_mu_jump) / x_sam_neg_mu,
+           x_sam_pos_sd = x_sam_pos_sd_lower + runif(nrow(df_prior_samples)) * (x_sam_pos_sd_upper - x_sam_pos_sd_lower)) %>%
+    select(-c("x_sam_pos_sd_lower", "x_sam_pos_sd_upper"))
 } else {
   df_prior_samples <- samples_prior %>%
     as.data.frame() %>%
@@ -237,13 +237,10 @@ if (data_was_simulated) {
     "Rho_plate[2,3]", Rho_plate[2,3],
     "Rho_plate[2,4]", Rho_plate[2,4],
     "Rho_plate[3,4]", Rho_plate[3,4],
-    "x_sam_neg_alpha", x_sam_neg_alpha,
-    "x_sam_pos_alpha", x_sam_pos_alpha,
-    "x_sam_pos_alpha_jump", x_sam_pos_alpha_jump,
-    "x_sam_neg_beta_jump", x_sam_neg_beta_jump,
-    "x_sam_neg_beta", x_sam_neg_beta,
-    "x_sam_pos_beta", x_sam_pos_beta,
+    "x_sam_neg_sd", x_sam_neg_sd,
+    "x_sam_pos_sd", x_sam_pos_sd,
     "x_sam_neg_mu", x_sam_neg_mu,
+    "x_sam_pos_mu_jump", x_sam_pos_mu_jump,
     "x_sam_pos_mu", x_sam_pos_mu,
     "p_sam_pos", p_sam_pos,
     "y_obs_sd_min", y_obs_sd_min,
@@ -267,7 +264,7 @@ p <- ggplot() +
   geom_histogram(data = df_fit_wide %>%
                    select(all_of(names(df_prior_samples))) %>%
                    pivot_longer(-c("sample", "density_type"), names_to = "param") %>%
-                   mutate(value = if_else(param %in% c("x_sam_pos_mu", "x_sam_neg_mu"),
+                   mutate(value = if_else(param %in% c("x_sam_pos_sd"),
                                           log10(value),
                                           value)),
                  aes(value, fill = density_type, y = after_stat(density)),
@@ -282,14 +279,14 @@ p <- ggplot() +
        y = "probability density")
 if (data_was_simulated) {
   p <- p + geom_vline(data = df_true_pop_params %>%
-                        mutate(value = if_else(param %in% c("x_sam_pos_mu", "x_sam_neg_mu"),
+                        mutate(value = if_else(param %in% c("x_sam_pos_sd"),
                                                log10(value),
                                                value)),
                       aes(xintercept = value))
 }
 p
 
-ggsave("~/enable_posteriors_v7.pdf", height = 8, width = 15)
+ggsave("~/enable_posteriors.pdf", height = 8, width = 15)
 
 # Compare true and estimated sample x 
 quantiles <- c(0.025, 0.5, 0.975)
@@ -515,7 +512,7 @@ if (data_was_simulated) {
 p
 
 # Posterior retrodictive check
-group_size <- 16
+group_size <- 15
 df_plot_group <- df_cal %>%
   select(plate, plate_int) %>%
   distinct() %>%
@@ -541,15 +538,15 @@ for (group in unique(df_plot_group$plot_group)) {
     filter(plot_group == group) %>%
     mutate(x = round(x, digits = 1)) %>%
     {print(ggplot(.) +
-             geom_violin(aes(factor(x), y_sim)) +
+             geom_violin(aes(x, y_sim, group = x)) +
              geom_point(data = df_cal %>% 
                           left_join(df_plot_group, by = "plate") %>%
                           filter(plot_group == group) %>%
                           mutate(x = round(x, digits = 1)),
-                        aes(factor(x), y), col = "blue") +
+                        aes(x, y), col = "blue") +
              facet_wrap(~plate, nrow = 3, scales = "free") +
              scale_x_discrete(drop = TRUE) +
-             labs(x = "log concentration",
+             labs(x = "concentration",
                   y = "absorbance")
     )}
 }
@@ -587,7 +584,7 @@ df_fit_wide %>%
   geom_density(aes(value, group = sample), alpha = 0.01) +
   coord_cartesian(expand = F) +
   scale_x_continuous(limits = c(-3, 1)) +
-  labs(x = "y redrawn",
+  labs(x = "log10(y)",
        y = "population distribution") +
   NULL 
 

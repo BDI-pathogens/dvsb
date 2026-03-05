@@ -2,6 +2,7 @@
 
 functions {
   real PL4(real x, real f_1, real f_2, real f_3, real exp_f_1_mult_f_4) {
+    if (x == 0) return f_2;
     //return f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4)));
     return f_2 + (f_3 - f_2) / (1 + x^(-f_1) * exp_f_1_mult_f_4);
   }
@@ -37,15 +38,13 @@ data {
   real y_obs_sd_jump_lower;
   real y_obs_sd_jump_upper;
   
-  real<lower = 0> x_sam_neg_alpha_lower;
-  real<lower = x_sam_neg_alpha_lower> x_sam_neg_alpha_upper;
-  real<lower = 0> x_sam_pos_alpha_jump_lower;
-  real<lower = x_sam_pos_alpha_jump_lower> x_sam_pos_alpha_jump_upper;
-  real<lower = 0> x_sam_pos_beta_lower;
-  real<lower = x_sam_pos_beta_lower> x_sam_pos_beta_upper;
-  real<lower = 0> x_sam_neg_beta_jump_lower;
-  real<lower = x_sam_neg_beta_jump_lower> x_sam_neg_beta_jump_upper;
-  
+  real<lower = 0> x_sam_neg_mu_lower;
+  real<lower = x_sam_neg_mu_lower> x_sam_neg_mu_upper;
+  real<lower = 0> x_sam_pos_mu_jump_lower;
+  real<lower = x_sam_pos_mu_jump_lower> x_sam_pos_mu_jump_upper;
+  real<lower = 0> x_sam_neg_sd_lower;
+  real<lower = x_sam_neg_sd_lower> x_sam_neg_sd_upper;
+
   real p_sam_pos_lower;
   real p_sam_pos_upper;
   real Rho_plate_prior_eta;
@@ -63,13 +62,14 @@ parameters {
   vector<lower = f_lower, upper = f_upper>[4] f;
   vector<lower = sigma_f_plate_lower, upper = sigma_f_plate_upper>[4] sigma_f_plate;
   
-  real<lower = x_sam_neg_alpha_lower, upper = x_sam_neg_alpha_upper> x_sam_neg_alpha;
-  real<lower = x_sam_pos_beta_lower, upper = x_sam_pos_beta_upper> x_sam_pos_beta;
-  real<lower = x_sam_neg_beta_jump_lower, upper = x_sam_neg_beta_jump_upper> x_sam_neg_beta_jump;
+  real<lower = x_sam_neg_mu_lower, upper = x_sam_neg_mu_upper> x_sam_neg_mu;
+  real<lower = x_sam_pos_mu_jump_lower, upper = x_sam_pos_mu_jump_upper> x_sam_pos_mu_jump;
+  real<lower = x_sam_neg_sd_lower, upper = x_sam_neg_sd_upper> x_sam_neg_sd;
+  real<lower = x_sam_neg_sd * sqrt((x_sam_neg_mu + x_sam_pos_mu_jump) / x_sam_neg_mu),
+  upper = x_sam_neg_sd * (x_sam_neg_mu + x_sam_pos_mu_jump) / x_sam_neg_mu> x_sam_pos_sd;
   real<lower = p_sam_pos_lower,    upper = p_sam_pos_upper>    p_sam_pos;
   real<lower = y_obs_sd_min_lower, upper = y_obs_sd_min_upper> y_obs_sd_min;
   real<lower = y_obs_sd_jump_lower, upper = y_obs_sd_jump_upper> y_obs_sd_jump;
-  real<lower = x_sam_pos_alpha_jump_lower, upper = x_sam_pos_alpha_jump_upper> x_sam_pos_alpha_jump;
   
   // Those with explicit priors declared
   corr_matrix[4] Rho_plate;
@@ -83,8 +83,11 @@ transformed parameters{
   real p_sam_neg_log = log1m(p_sam_pos);
   real y_obs_sd_max = y_obs_sd_min + y_obs_sd_jump;
   
-  real x_sam_pos_alpha = x_sam_neg_alpha + x_sam_pos_alpha_jump;
-  real x_sam_neg_beta  = x_sam_pos_beta  + x_sam_neg_beta_jump;
+  real x_sam_neg_beta  = x_sam_neg_mu / x_sam_neg_sd^2;
+  real x_sam_neg_alpha = x_sam_neg_beta * x_sam_neg_mu;
+  real x_sam_pos_mu = x_sam_neg_mu + x_sam_pos_mu_jump;
+  real x_sam_pos_beta  = x_sam_pos_mu / x_sam_pos_sd^2;
+  real x_sam_pos_alpha = x_sam_pos_beta * x_sam_pos_mu;
 
   array[num_plate] vector[4] f_per_plate;
   for (plate in 1:num_plate) {
@@ -141,6 +144,8 @@ transformed parameters{
 model {
   
   // Priors
+  x_sam_pos_sd ~ uniform(x_sam_neg_sd * sqrt((x_sam_neg_mu + x_sam_pos_mu_jump) / x_sam_neg_mu),
+  x_sam_neg_sd * (x_sam_neg_mu + x_sam_pos_mu_jump) / x_sam_neg_mu);
   Rho_plate ~ lkj_corr(Rho_plate_prior_eta);
   f_plate_effects_unscaled ~ multi_normal(zeros, Rho_plate);
   profile("mixture_model") {
@@ -189,9 +194,5 @@ generated quantities {
     p_sam_is_pos[sam_id] = exp(p_log - log_sum_exp(p_log, p_sam_neg_log +
     gamma_lpdf(x_sam[sam_id] | x_sam_neg_alpha, x_sam_neg_beta)));
   }
-  
-  real x_sam_pos_mu = x_sam_pos_alpha / x_sam_pos_beta;
-  real x_sam_neg_mu = x_sam_neg_alpha / x_sam_neg_beta;
-  
   
 }

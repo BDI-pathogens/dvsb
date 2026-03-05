@@ -39,24 +39,28 @@ student_df_obs <- 5
 num_plate <- 1
 num_rep_per_cal <- 2
 num_rep_per_sam <- 2
-num_sam_per_plate <- 10
+num_sam_per_plate <- 200
 xlogs <- log(c(0.5, 1.5, 4.5, 13, 40)) #c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cals
 
-y_obs_sd_min <- 0.0002
-y_obs_sd_jump <- 0.018
-x_sam_neg_alpha <- 1
-x_sam_pos_alpha_jump <- 1
-x_sam_pos_beta <- 2/3 # beta a.k.a. gamma a.k.a rate
-x_sam_neg_beta_jump <- 30
+y_obs_sd_min <- 0.006
+y_obs_sd_jump <- 0.015
+x_sam_neg_mu <- 0.033
+x_sam_neg_sd <- 0.033
+x_sam_pos_mu_jump <- 3
+x_sam_pos_sd <- 3 / sqrt(2)
+#x_sam_neg_alpha <- 1
+#x_sam_pos_alpha_jump <- 1
+#x_sam_pos_beta <- 2/3 # beta a.k.a. gamma a.k.a rate
+#x_sam_neg_beta_jump <- 30
 p_sam_pos <- 0.5
 
 # The four parameters of the logistic regression (f_1, f_2, f_3, f_4)
 # which calibrator the OD, y, through
 # f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4))) 
-f <- c(0.9,
-       0,
-       3.5,
-       2.5)
+f <- c(0.95,
+       0.01,
+       3.35,
+       2.45)
 
 #f_predictor_vars <- list(
 #  operator = c("chris", "lucie", "anton"),
@@ -66,10 +70,10 @@ f <- c(0.9,
 # The covariance matrix for the plate-level random effects on f, parameterised
 # by the square root of the diagonal entries and the dimensionless correlation
 # matrix.
-sigma_f_plate <- c(0.1,
-                   0.01,
-                   0.9,
-                   0.35)
+sigma_f_plate <- c(0.0065,
+                   0.0009,
+                   0.09,
+                   0.035)
 Rho_plate <- matrix(c(1, 0, 0, 0,
                       0, 1, 0, 0,
                       0, 0, 1, 0,
@@ -87,11 +91,13 @@ draw_student_or_norm <- function(n, student, student_df) {
 }
 
 # Derived params
-x_sam_neg_beta <- x_sam_pos_beta + x_sam_neg_beta_jump
-x_sam_pos_alpha <- x_sam_neg_alpha + x_sam_pos_alpha_jump
+
+x_sam_neg_beta  <- x_sam_neg_mu / x_sam_neg_sd^2
+x_sam_neg_alpha <- x_sam_neg_beta * x_sam_neg_mu
+x_sam_pos_mu <- x_sam_neg_mu + x_sam_pos_mu_jump
+x_sam_pos_beta <- x_sam_pos_mu / x_sam_pos_sd^2
+x_sam_pos_alpha <- x_sam_pos_beta * x_sam_pos_mu
 y_obs_sd_max <- y_obs_sd_min + y_obs_sd_jump
-x_sam_pos_mu <- x_sam_pos_alpha / x_sam_pos_beta
-x_sam_neg_mu <- x_sam_neg_alpha / x_sam_neg_beta
 
 xs <- exp(xlogs)
 
@@ -130,7 +136,7 @@ ggplot(df_cal %>%
 
 # Draw observed y
 df_cal <- df_cal %>%
-  mutate(y_obs_sd = PL4(xlog, f_1, y_obs_sd_min, y_obs_sd_min + y_obs_sd_jump, f_4),
+  mutate(y_obs_sd = PL4(xlog, f_1, y_obs_sd_min, y_obs_sd_max, f_4),
          y = y_mean + y_obs_sd *
            draw_student_or_norm(nrow(.), use_student_for_obs, student_df_obs))
 
@@ -232,14 +238,14 @@ df_sam <- df_sam %>%
   slice(rep(row_number(), num_rep_per_sam)) %>%
   arrange(id_sam) %>%
   mutate(which_sam = row_number(),
-         y_obs_sd = PL4(xlog, f_1, y_obs_sd_min, y_obs_sd_min + y_obs_sd_jump, f_4),
+         y_obs_sd = PL4(xlog, f_1, y_obs_sd_min, y_obs_sd_max, f_4),
          y = y_mean + y_obs_sd *
            draw_student_or_norm(num_sam_tot, use_student_for_obs, student_df_obs)) 
 
 ggplot(df_sam) +
   geom_histogram(aes(y)) +
-  scale_x_log10(limits = c(1e-3, 1e1)) +
-  coord_cartesian(expand = F)
+  scale_x_log10(limits = c(1e-2, 3), expand = c(0, 0))
+
 
 # Plot calibrators and samples by plate
 bind_rows(df_cal %>% mutate(label = "calibrator") ,
@@ -271,6 +277,7 @@ stan_input_posterior <- list(
   x_cal = df_cal$x,
   sample_posterior_not_prior = 1L
 )
+
 
 
 
