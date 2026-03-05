@@ -43,12 +43,14 @@ data {
   real y_obs_sd_jump_lower;
   real y_obs_sd_jump_upper;
   
-  real<lower = 0> x_sam_neg_mu_lower;
+  real x_sam_neg_mu_lower;
   real<lower = x_sam_neg_mu_lower> x_sam_neg_mu_upper;
-  real<lower = 0> x_sam_pos_mu_jump_lower;
-  real<lower = x_sam_pos_mu_jump_lower> x_sam_pos_mu_jump_upper;
+  real<lower = x_sam_neg_mu_lower> x_sam_pos_mu_lower;
+  real<lower = x_sam_pos_mu_lower> x_sam_pos_mu_upper;
   real<lower = 0> x_sam_neg_sd_lower;
   real<lower = x_sam_neg_sd_lower> x_sam_neg_sd_upper;
+  real<lower = 0> x_sam_pos_sd_lower;
+  real<lower = x_sam_pos_sd_lower> x_sam_pos_sd_upper;
 
   real p_sam_pos_lower;
   real p_sam_pos_upper;
@@ -81,18 +83,20 @@ parameters {
   
   // Scalar params constrained only by lower and upper
   real<lower = x_sam_neg_mu_lower, upper = x_sam_neg_mu_upper> x_sam_neg_mu;
-  real<lower = x_sam_pos_mu_jump_lower, upper = x_sam_pos_mu_jump_upper> x_sam_pos_mu_jump;
   real<lower = x_sam_neg_sd_lower, upper = x_sam_neg_sd_upper> x_sam_neg_sd;
-  real<lower = x_sam_neg_sd * sqrt((x_sam_neg_mu + x_sam_pos_mu_jump) / x_sam_neg_mu),
-  upper = x_sam_neg_sd * (x_sam_neg_mu + x_sam_pos_mu_jump) / x_sam_neg_mu> x_sam_pos_sd;
+  real<lower = x_sam_pos_sd_lower, upper = x_sam_pos_sd_upper> x_sam_pos_sd;
   real<lower = p_sam_pos_lower,    upper = p_sam_pos_upper>    p_sam_pos;
   real<lower = y_obs_sd_min_lower, upper = y_obs_sd_min_upper> y_obs_sd_min;
   real<lower = y_obs_sd_jump_lower, upper = y_obs_sd_jump_upper> y_obs_sd_jump;
   
+  // Enforce that x_sam_pos_mu > x_sam_neg_mu
+  real<lower = max([x_sam_pos_mu_lower, x_sam_neg_mu]), upper = x_sam_pos_mu_upper> x_sam_pos_mu;
+
+  
   // Those with explicit priors declared
   corr_matrix[4] rho;
   array[num_plate] row_vector[4] f_plate_effects_unscaled;
-  vector<lower = 0>[num_sam_id] x_sam;
+  vector[num_sam_id] xlog_sam;
   array[tot_cat_per_f_pred_var] row_vector[4] f_effects_by_pred_var_cat_unscaled;
 }
 
@@ -101,13 +105,8 @@ transformed parameters{
   real p_sam_pos_log = log(  p_sam_pos);
   real p_sam_neg_log = log1m(p_sam_pos);
   real y_obs_sd_max = y_obs_sd_min + y_obs_sd_jump;
-  
-  real x_sam_neg_beta  = x_sam_neg_mu / x_sam_neg_sd^2;
-  real x_sam_neg_alpha = x_sam_neg_beta * x_sam_neg_mu;
-  real x_sam_pos_mu = x_sam_neg_mu + x_sam_pos_mu_jump;
-  real x_sam_pos_beta  = x_sam_pos_mu / x_sam_pos_sd^2;
-  real x_sam_pos_alpha = x_sam_pos_beta * x_sam_pos_mu;
-  
+  vector[num_sam_id] x_sam = exp(xlog_sam);
+
   matrix[tot_cat_per_f_pred_var, 4] f_effects_by_pred_var_cat;
   {
     int cat_current = 1;
@@ -174,15 +173,14 @@ transformed parameters{
 model {
   
   // Priors
-  x_sam_pos_sd ~ uniform(x_sam_neg_sd * sqrt((x_sam_neg_mu + x_sam_pos_mu_jump) / x_sam_neg_mu),
-  x_sam_neg_sd * (x_sam_neg_mu + x_sam_pos_mu_jump) / x_sam_neg_mu);
+  x_sam_pos_mu ~ uniform(max([x_sam_pos_mu_lower, x_sam_neg_mu]), x_sam_pos_mu_upper);
   rho ~ lkj_corr(rho_prior_eta);
   f_plate_effects_unscaled ~ multi_normal(zeros, rho);
   profile("mixture_model") {
   for (sam_id in 1:num_sam_id) {
     target += log_sum_exp(
-      p_sam_pos_log + gamma_lpdf(x_sam[sam_id] | x_sam_pos_alpha, x_sam_pos_beta),
-      p_sam_neg_log + gamma_lpdf(x_sam[sam_id] | x_sam_neg_alpha, x_sam_neg_beta));
+      p_sam_pos_log + normal_lpdf(xlog_sam[sam_id] | x_sam_pos_mu, x_sam_pos_sd),
+      p_sam_neg_log + normal_lpdf(xlog_sam[sam_id] | x_sam_neg_mu, x_sam_neg_sd));
   }
   }
   f_effects_by_pred_var_cat_unscaled ~ multi_normal(zeros_for_f_pred_vars, rho);
@@ -221,9 +219,9 @@ generated quantities {
   vector[num_sam_id] p_sam_is_pos;
   for (sam_id in 1:num_sam_id) {
     real p_log = p_sam_pos_log +
-    gamma_lpdf(x_sam[sam_id] | x_sam_pos_alpha, x_sam_pos_beta);
+    normal_lpdf(xlog_sam[sam_id] | x_sam_pos_mu, x_sam_pos_sd);
     p_sam_is_pos[sam_id] = exp(p_log - log_sum_exp(p_log, p_sam_neg_log +
-    gamma_lpdf(x_sam[sam_id] | x_sam_neg_alpha, x_sam_neg_beta)));
+    normal_lpdf(xlog_sam[sam_id] | x_sam_neg_mu, x_sam_neg_sd)));
   }
   
 }

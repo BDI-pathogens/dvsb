@@ -36,22 +36,18 @@ use_student_for_obs <- FALSE
 student_df_obs <- 5
 
 # Unmodelled aspects of the data-generating process (things we condition on)
-num_plate <- 20
+num_plate <- 50
 num_rep_per_cal <- 2
 num_rep_per_sam <- 2
-num_sam_per_plate <- 0
+num_sam_per_plate <- 20
 xlogs <- log(c(0.5, 1.5, 4.5, 13, 40)) #c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cals
 
 y_obs_sd_min <- 0.006
 y_obs_sd_jump <- 0.015
-x_sam_neg_mu <- 0.033
-x_sam_neg_sd <- 0.033
-x_sam_pos_mu_jump <- 3
-x_sam_pos_sd <- 3 / sqrt(2)
-#x_sam_neg_alpha <- 1
-#x_sam_pos_alpha_jump <- 1
-#x_sam_pos_beta <- 2/3 # beta a.k.a. gamma a.k.a rate
-#x_sam_neg_beta_jump <- 30
+x_sam_neg_mu <- -2.9
+x_sam_neg_sd <- 1
+x_sam_pos_mu <- 0.7
+x_sam_pos_sd <- 1.3
 p_sam_pos <- 0.5
 
 # The four parameters of the logistic regression (f_1, f_2, f_3, f_4)
@@ -86,12 +82,12 @@ stopifnot(all(diag(rho) == 1))
 # Each element in sigma_f_pred_vars is a 4-vector of standard deviations of the
 # elements of f associated with that predictor variable.
 f_pred_vars <- list(
-  OP = c("chris", "anton"),
-  LAB = c("ben", "gui", "lib")
+  #OP = c("chris", "anton"),
+  #LAB = c("ben", "gui", "lib")
 )
 sigma_f_pred_vars <- list(
-  OP = 2 * sigma_f_plate,
-  LAB = 3 * sigma_f_plate
+  #OP = 2 * sigma_f_plate,
+  #LAB = 3 * sigma_f_plate
 )
 
 # SIMULATE ----
@@ -121,11 +117,6 @@ num_cat_per_f_pred_var <- map_int(f_pred_vars, length)
 num_f_pred_var_cats <- sum(num_cat_per_f_pred_var)
 
 # Derived params
-x_sam_neg_beta  <- x_sam_neg_mu / x_sam_neg_sd^2
-x_sam_neg_alpha <- x_sam_neg_beta * x_sam_neg_mu
-x_sam_pos_mu <- x_sam_neg_mu + x_sam_pos_mu_jump
-x_sam_pos_beta <- x_sam_pos_mu / x_sam_pos_sd^2
-x_sam_pos_alpha <- x_sam_pos_beta * x_sam_pos_mu
 y_obs_sd_max <- y_obs_sd_min + y_obs_sd_jump
 
 xs <- exp(xlogs)
@@ -280,12 +271,12 @@ df_sam <- df_plate %>%
   arrange(plate) %>%
   mutate(id_sam = row_number(),
          pos = runif(num_sam_id) < p_sam_pos,
-         x = if_else(pos,
-                     rgamma(num_sam_id, rate = x_sam_pos_beta, 
-                            shape = x_sam_pos_alpha),
-                     rgamma(num_sam_id, rate = x_sam_neg_beta, 
-                            shape = x_sam_neg_alpha)),
-         xlog = log(x),
+         xlog = if_else(pos,
+                        rnorm(num_sam_id, mean = x_sam_pos_mu, 
+                              sd = x_sam_pos_sd),
+                        rnorm(num_sam_id, mean = x_sam_neg_mu, 
+                              sd = x_sam_neg_sd)),
+         x = exp(xlog),
          y_mean = PL4(xlog, f_1, f_2, f_3, f_4))
 
 if (FALSE) {
