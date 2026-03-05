@@ -1,9 +1,9 @@
 // See the associated R file for explanations and definitions of abbreviations.
 
 functions {
-  real PL4(real x, real f_1, real f_2, real f_3, real f_4) {
+  real PL4(real x, real f_1, real f_2, real f_3, real exp_f_1_mult_f_4) {
     //return f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4)));
-    return f_2 + (f_3 - f_2) / (1 + x^(-f_1) * exp(f_1 * f_4));
+    return f_2 + (f_3 - f_2) / (1 + x^(-f_1) * exp_f_1_mult_f_4);
   }
 }
 
@@ -96,32 +96,43 @@ transformed parameters{
       f_plate_effects_unscaled[plate][4] * sigma_f_plate[4]
       ]';
   }
+  array[num_plate] real exp_f_1_mult_f_4_per_plate;
+  for (plate in 1:num_plate) {
+    exp_f_1_mult_f_4_per_plate[plate] =
+      exp(f_per_plate[plate][1] * f_per_plate[plate][4]);
+  }
+
   
   vector[num_cal_tot] y_cal_mean_per_obs;
+  vector[num_sam_tot] y_sam_mean_per_obs;
+  profile("y_means") {
   for (cal_rep in 1:num_cal_tot) {
     int plate = which_plate_cal[cal_rep];
     y_cal_mean_per_obs[cal_rep] =  PL4(x_cal[cal_rep],
-    f_per_plate[plate][1], f_per_plate[plate][2], f_per_plate[plate][3], f_per_plate[plate][4]);
+    f_per_plate[plate][1], f_per_plate[plate][2], f_per_plate[plate][3], 
+    exp_f_1_mult_f_4_per_plate[plate]);
   }
-  
-  vector[num_sam_tot] y_sam_mean_per_obs;
   for (sam_rep in 1:num_sam_tot) {
     int plate = which_plate_sam[sam_rep];
     y_sam_mean_per_obs[sam_rep] =  PL4(x_sam[which_id_sam[sam_rep]],
-    f_per_plate[plate][1], f_per_plate[plate][2], f_per_plate[plate][3], f_per_plate[plate][4]);
+    f_per_plate[plate][1], f_per_plate[plate][2], f_per_plate[plate][3], 
+    exp_f_1_mult_f_4_per_plate[plate]);
+  }
   }
   
   vector[num_cal_tot] y_obs_sd_cal;
+  vector[num_sam_tot] y_obs_sd_sam;
+  profile("y_sds") {
   for (cal_rep in 1:num_cal_tot) {
     int plate = which_plate_cal[cal_rep];
     y_obs_sd_cal[cal_rep] = PL4(x_cal[cal_rep], f_per_plate[plate][1],
-    y_obs_sd_min, y_obs_sd_max, f_per_plate[plate][4]);
+    y_obs_sd_min, y_obs_sd_max, exp_f_1_mult_f_4_per_plate[plate]);
   }
-  vector[num_sam_tot] y_obs_sd_sam;
   for (sam_rep in 1:num_sam_tot) {
     int plate = which_plate_sam[sam_rep];
     y_obs_sd_sam[sam_rep] = PL4(x_sam[which_id_sam[sam_rep]], f_per_plate[plate][1],
-    y_obs_sd_min, y_obs_sd_max, f_per_plate[plate][4]);
+    y_obs_sd_min, y_obs_sd_max, exp_f_1_mult_f_4_per_plate[plate]);
+  }
   }
   
 }
@@ -132,14 +143,17 @@ model {
   // Priors
   Rho_plate ~ lkj_corr(Rho_plate_prior_eta);
   f_plate_effects_unscaled ~ multi_normal(zeros, Rho_plate);
+  profile("mixture_model") {
   for (sam_id in 1:num_sam_id) {
     target += log_sum_exp(
       p_sam_pos_log + gamma_lpdf(x_sam[sam_id] | x_sam_pos_alpha, x_sam_pos_beta),
       p_sam_neg_log + gamma_lpdf(x_sam[sam_id] | x_sam_neg_alpha, x_sam_neg_beta));
   }
+  }
   
   
   // Likelihood
+  profile("likelihood") {
   if (sample_posterior_not_prior) {
     if (use_student_for_obs) {
       y_cal ~ student_t(rep_vector(student_df_obs, num_cal_tot), y_cal_mean_per_obs, y_obs_sd_cal);
@@ -148,6 +162,7 @@ model {
       y_cal ~ normal(y_cal_mean_per_obs, y_obs_sd_cal);
       y_sam ~ normal(y_sam_mean_per_obs, y_obs_sd_sam);
     }
+  }
   }
 } 
 
@@ -158,6 +173,13 @@ generated quantities {
     y_cal_sim = student_t_rng(rep_vector(student_df_obs, num_cal_tot), y_cal_mean_per_obs, y_obs_sd_cal);
   } else {
     y_cal_sim = normal_rng(y_cal_mean_per_obs, y_obs_sd_cal);
+  }
+  
+  array[num_sam_tot] real y_sam_sim;
+  if (use_student_for_obs) {
+    y_sam_sim = student_t_rng(rep_vector(student_df_obs, num_sam_tot), y_sam_mean_per_obs, y_obs_sd_sam);
+  } else {
+    y_sam_sim = normal_rng(y_sam_mean_per_obs, y_obs_sd_sam);
   }
   
   vector[num_sam_id] p_sam_is_pos;

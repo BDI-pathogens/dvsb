@@ -1,4 +1,59 @@
-data_was_simulated <- TRUE
+data_was_simulated <- FALSE
+
+# STAN INPUT ----
+
+file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v7.stan"
+sample_prior_manually <- TRUE
+num_mc_chains <- 4
+num_mc_iterations_posterior <- 10
+num_mc_iterations_prior <- 5000
+
+# Upper and lower bounds for priors
+if (data_was_simulated) {
+  df_priors_scalars <- tribble(
+    ~param, ~lower, ~upper,
+    "x_sam_neg_alpha", 0, x_sam_neg_alpha + 1,
+    "x_sam_pos_alpha_jump", 0, x_sam_pos_alpha_jump + 1,
+    "x_sam_pos_beta", 0, x_sam_pos_beta * 2,
+    "x_sam_neg_beta_jump", 0, x_sam_neg_beta_jump * 2,
+    "p_sam_pos", 0, 1,
+    "y_obs_sd_min",  0, 2 * y_obs_sd_min,
+    "y_obs_sd_jump", 0, 2 * y_obs_sd_jump
+  )
+  df_priors_vectors <- tribble(
+    ~param, ~lower, ~upper,
+    "sigma_f_plate", sigma_f_plate * 0.5, sigma_f_plate * 2,
+    "f", f-1.5, f+1.5
+  )
+} else {
+  df_priors_scalars <- tribble(
+    ~param, ~lower, ~upper,
+    "x_sam_neg_alpha", 0.1, 6,
+    "x_sam_pos_alpha_jump", 0, 4,
+    "x_sam_pos_beta", 0.1, 6,
+    "x_sam_neg_beta_jump", 0, 50,
+    "p_sam_pos", 0.1, 0.9,
+    "y_obs_sd_min", 0, 0.01,
+    "y_obs_sd_jump", 0.1, 0.3
+  )
+  df_priors_vectors <- tribble(
+    ~param, ~lower, ~upper,
+    "sigma_f_plate", c(0, 0, 0, 0), c(0.15, 0.025, 1.2, 0.7),
+    "f", c(0.8, 0, 3, 2.2), c(1.1, 0.01, 3.8, 2.8)
+  )
+}
+
+# The eta parameter of the LKJ prior for Rho_bat
+Rho_plate_prior_eta <- 2
+
+use_cmdstanr <- FALSE
+if (use_cmdstanr) {
+  library(cmdstanr)
+} else {
+  library(rstan)
+  rstan_options(auto_write = TRUE)
+  options(mc.cores = parallel::detectCores())
+}
 
 # SYNCHRONISE SIMULATED AND REAL DATA PREVIOUS STEPS ----
 
@@ -10,6 +65,24 @@ if (data_was_simulated) {
     f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4)))
   }
 }
+
+# FINISH PREPARING STAN INPUT: PRIORS ----
+
+stan_input_posterior$Rho_plate_prior_eta <- Rho_plate_prior_eta
+for (row in 1:nrow(df_priors_scalars)) {
+  stan_input_posterior[[paste0(df_priors_scalars$param[[row]], "_lower")]] <-
+    df_priors_scalars$lower[[row]]
+  stan_input_posterior[[paste0(df_priors_scalars$param[[row]], "_upper")]] <-
+    df_priors_scalars$upper[[row]]
+}
+for (row in 1:nrow(df_priors_vectors)) {
+  stan_input_posterior[[paste0(df_priors_vectors$param[[row]], "_lower")]] <-
+    df_priors_vectors$lower[[row]]
+  stan_input_posterior[[paste0(df_priors_vectors$param[[row]], "_upper")]] <-
+    df_priors_vectors$upper[[row]]
+}
+stan_input_prior <- stan_input_posterior
+stan_input_prior$sample_posterior_not_prior <- 0L
 
 # RUN STAN ----
 
@@ -25,33 +98,60 @@ params_to_ignore <- c(
 )
 
 # Compile the Stan code
-model_compiled <- stan_model(file_input_stan)
+if (use_cmdstanr) {
+  model_compiled <- cmdstan_model(file_input_stan)
+} else {
+  model_compiled <- stan_model(file_input_stan)
+}
 
 # Run the Stan code
 start_time <- Sys.time()
 cat("Started running Stan at")
 print(start_time)
 max_treedepth <- 12
-samples_posterior <- sampling(model_compiled,
-                              data = stan_input_posterior,
-                              iter = num_mc_iterations_posterior,
+if (use_cmdstanr) {
+  samples_posterior <- model_compiled$sample(
+    data = stan_input_posterior,
+    iter_warmup = num_mc_iterations_posterior / 2,
+    iter_sampling = num_mc_iterations_posterior / 2,
+    chains = num_mc_chains,
+    max_treedepth = max_treedepth,
+    parallel_chains = num_mc_chains
+  )
+  if (! sample_prior_manually) {
+    samples_prior <- model_compiled$sample(
+      data = stan_input_prior,
+      iter_warmup = num_mc_iterations_posterior / 2,
+      iter_sampling = num_mc_iterations_posterior / 2,
+      chains = num_mc_chains,
+      max_treedepth = max_treedepth,
+      parallel_chains = num_mc_chains
+    )
+  }
+} else {
+  samples_posterior <- sampling(model_compiled,
+                                data = stan_input_posterior,
+                                iter = num_mc_iterations_posterior,
+                                chains = num_mc_chains,
+                                control = list(max_treedepth = max_treedepth),
+                                pars = params_to_ignore,
+                                include = FALSE)
+  if (! sample_prior_manually) {
+    samples_prior <- sampling(model_compiled,
+                              data = stan_input_prior,
+                              iter = num_mc_iterations_prior,
                               chains = num_mc_chains,
                               control = list(max_treedepth = max_treedepth),
                               pars = params_to_ignore,
                               include = FALSE)
-if (! sample_prior_manually) {
-  samples_prior <- sampling(model_compiled,
-                            data = stan_input_prior,
-                            iter = num_mc_iterations_prior,
-                            chains = num_mc_chains,
-                            control = list(max_treedepth = max_treedepth),
-                            pars = params_to_ignore,
-                            include = FALSE)
+  }
 }
 end_time <- Sys.time()
 cat("Finished running Stan at")
 print(end_time)
 print(end_time - start_time)
+
+#samples_posterior$profiles()
 
 # WRANGLE STAN OUTPUT ----
 
@@ -59,48 +159,48 @@ print(end_time - start_time)
 if (sample_prior_manually) {
   
   # Combine df_priors_scalars and df_priors_vectors
-df_priors <- df_priors_scalars
-names(df_priors_vectors$lower[[1]]) <- paste0("sigma_f_plate[", 1:4, "]")
-names(df_priors_vectors$upper[[1]]) <- paste0("sigma_f_plate[", 1:4, "]")
-names(df_priors_vectors$lower[[2]]) <- paste0("f[", 1:4, "]")
-names(df_priors_vectors$upper[[2]]) <- paste0("f[", 1:4, "]")
-
-df_priors <- df_priors %>%
-  bind_rows(full_join(df_priors_vectors %>% 
-            select(param, lower) %>%
-            pivot_wider(names_from = param, values_from = lower) %>%
-            unnest_wider(c("sigma_f_plate", "f")) %>%
-            pivot_longer(everything(), names_to = "param", values_to = "lower"),
-          df_priors_vectors %>% 
-            select(param, upper) %>%
-            pivot_wider(names_from = param, values_from = upper) %>%
-            unnest_wider(c("sigma_f_plate", "f")) %>%
-            pivot_longer(everything(), names_to = "param", values_to = "upper"),
-          by = "param"))
-
-# Sample params with simple uniform distributions
-N <- num_mc_iterations_prior
-df_prior_samples <- tibble(sample = 1:N)
-for (row in 1:nrow(df_priors)) {
-  df_prior_samples[[df_priors$param[[row]]]] <-
-    runif(N, df_priors$lower[[row]], df_priors$upper[[row]])
-}
-
-# Sample other params
-Rho_plate_samples <- rethinking::rlkjcorr(N, 4, eta = Rho_plate_prior_eta)
-for (i in 1:3) {
-  for (j in seq(i+1, length.out = 4-i)) {
-    df_prior_samples[[paste0("Rho_plate[", i, ",", j, "]")]] <- 
-      purrr::map_dbl(1:N, ~ Rho_plate_samples[.x, i, j])
+  df_priors <- df_priors_scalars
+  names(df_priors_vectors$lower[[1]]) <- paste0("sigma_f_plate[", 1:4, "]")
+  names(df_priors_vectors$upper[[1]]) <- paste0("sigma_f_plate[", 1:4, "]")
+  names(df_priors_vectors$lower[[2]]) <- paste0("f[", 1:4, "]")
+  names(df_priors_vectors$upper[[2]]) <- paste0("f[", 1:4, "]")
+  
+  df_priors <- df_priors %>%
+    bind_rows(full_join(df_priors_vectors %>% 
+                          select(param, lower) %>%
+                          pivot_wider(names_from = param, values_from = lower) %>%
+                          unnest_wider(c("sigma_f_plate", "f")) %>%
+                          pivot_longer(everything(), names_to = "param", values_to = "lower"),
+                        df_priors_vectors %>% 
+                          select(param, upper) %>%
+                          pivot_wider(names_from = param, values_from = upper) %>%
+                          unnest_wider(c("sigma_f_plate", "f")) %>%
+                          pivot_longer(everything(), names_to = "param", values_to = "upper"),
+                        by = "param"))
+  
+  # Sample params with simple uniform distributions
+  N <- num_mc_iterations_prior
+  df_prior_samples <- tibble(sample = 1:N)
+  for (row in 1:nrow(df_priors)) {
+    df_prior_samples[[df_priors$param[[row]]]] <-
+      runif(N, df_priors$lower[[row]], df_priors$upper[[row]])
   }
-}
-df_prior_samples <- df_prior_samples %>%
-  mutate(x_sam_pos_alpha = x_sam_neg_alpha + x_sam_pos_alpha_jump,
-         x_sam_neg_beta = x_sam_pos_beta + x_sam_neg_beta_jump,
-         y_obs_sd_max = y_obs_sd_min + y_obs_sd_jump,
-         x_sam_pos_mu = x_sam_pos_alpha / x_sam_pos_beta,
-         x_sam_neg_mu = x_sam_neg_alpha / x_sam_neg_beta)
-
+  
+  # Sample other params
+  Rho_plate_samples <- rethinking::rlkjcorr(N, 4, eta = Rho_plate_prior_eta)
+  for (i in 1:3) {
+    for (j in seq(i+1, length.out = 4-i)) {
+      df_prior_samples[[paste0("Rho_plate[", i, ",", j, "]")]] <- 
+        purrr::map_dbl(1:N, ~ Rho_plate_samples[.x, i, j])
+    }
+  }
+  df_prior_samples <- df_prior_samples %>%
+    mutate(x_sam_pos_alpha = x_sam_neg_alpha + x_sam_pos_alpha_jump,
+           x_sam_neg_beta = x_sam_pos_beta + x_sam_neg_beta_jump,
+           y_obs_sd_max = y_obs_sd_min + y_obs_sd_jump,
+           x_sam_pos_mu = x_sam_pos_alpha / x_sam_pos_beta,
+           x_sam_neg_mu = x_sam_neg_alpha / x_sam_neg_beta)
+  
 } else {
   df_prior_samples <- samples_prior %>%
     as.data.frame() %>%
@@ -121,35 +221,35 @@ df_fit <- df_fit_wide %>%
 
 # Plot pop-level params: prior, posterior and true value
 if (data_was_simulated) {
-df_true_pop_params <- tribble(
-  ~param, ~value,
-  "f[1]", f[1],
-  "f[2]", f[2],
-  "f[3]", f[3],
-  "f[4]", f[4],
-  "sigma_f_plate[1]", sigma_f_plate[1],
-  "sigma_f_plate[2]", sigma_f_plate[2],
-  "sigma_f_plate[3]", sigma_f_plate[3],
-  "sigma_f_plate[4]", sigma_f_plate[4],
-  "Rho_plate[1,2]", Rho_plate[1,2],
-  "Rho_plate[1,3]", Rho_plate[1,3],
-  "Rho_plate[1,4]", Rho_plate[1,4],
-  "Rho_plate[2,3]", Rho_plate[2,3],
-  "Rho_plate[2,4]", Rho_plate[2,4],
-  "Rho_plate[3,4]", Rho_plate[3,4],
-  "x_sam_neg_alpha", x_sam_neg_alpha,
-  "x_sam_pos_alpha", x_sam_pos_alpha,
-  "x_sam_pos_alpha_jump", x_sam_pos_alpha_jump,
-  "x_sam_neg_beta_jump", x_sam_neg_beta_jump,
-  "x_sam_neg_beta", x_sam_neg_beta,
-  "x_sam_pos_beta", x_sam_pos_beta,
-  "x_sam_neg_mu", x_sam_neg_mu,
-  "x_sam_pos_mu", x_sam_pos_mu,
-  "p_sam_pos", p_sam_pos,
-  "y_obs_sd_min", y_obs_sd_min,
-  "y_obs_sd_jump", y_obs_sd_jump,
-  "y_obs_sd_max", y_obs_sd_max
-)
+  df_true_pop_params <- tribble(
+    ~param, ~value,
+    "f[1]", f[1],
+    "f[2]", f[2],
+    "f[3]", f[3],
+    "f[4]", f[4],
+    "sigma_f_plate[1]", sigma_f_plate[1],
+    "sigma_f_plate[2]", sigma_f_plate[2],
+    "sigma_f_plate[3]", sigma_f_plate[3],
+    "sigma_f_plate[4]", sigma_f_plate[4],
+    "Rho_plate[1,2]", Rho_plate[1,2],
+    "Rho_plate[1,3]", Rho_plate[1,3],
+    "Rho_plate[1,4]", Rho_plate[1,4],
+    "Rho_plate[2,3]", Rho_plate[2,3],
+    "Rho_plate[2,4]", Rho_plate[2,4],
+    "Rho_plate[3,4]", Rho_plate[3,4],
+    "x_sam_neg_alpha", x_sam_neg_alpha,
+    "x_sam_pos_alpha", x_sam_pos_alpha,
+    "x_sam_pos_alpha_jump", x_sam_pos_alpha_jump,
+    "x_sam_neg_beta_jump", x_sam_neg_beta_jump,
+    "x_sam_neg_beta", x_sam_neg_beta,
+    "x_sam_pos_beta", x_sam_pos_beta,
+    "x_sam_neg_mu", x_sam_neg_mu,
+    "x_sam_pos_mu", x_sam_pos_mu,
+    "p_sam_pos", p_sam_pos,
+    "y_obs_sd_min", y_obs_sd_min,
+    "y_obs_sd_jump", y_obs_sd_jump,
+    "y_obs_sd_max", y_obs_sd_max
+  )
 }
 
 # PLOT STAN OUTPUT ----
@@ -162,17 +262,19 @@ df_true_pop_params <- tribble(
 #                        params_desired = names(vec_true_pop_params),
 #                        skip_stanfit_to_dt = TRUE)
 
+# Plot prior vs posterior for all main params
 p <- ggplot() +
-  geom_histogram(data = df_fit %>%
-                   filter(param %in% names(df_prior_samples)) %>%
+  geom_histogram(data = df_fit_wide %>%
+                   select(all_of(names(df_prior_samples))) %>%
+                   pivot_longer(-c("sample", "density_type"), names_to = "param") %>%
                    mutate(value = if_else(param %in% c("x_sam_pos_mu", "x_sam_neg_mu"),
-                                          log(value),
+                                          log10(value),
                                           value)),
                  aes(value, fill = density_type, y = after_stat(density)),
                  alpha = 0.6,
                  position = "identity",
                  bins = 50) +
-  facet_wrap(~param, scales = "free", nrow = 5) +
+  facet_wrap(~param, scales = "free", nrow = 4) +
   scale_fill_brewer(palette = "Set1") +
   coord_cartesian(expand = FALSE) +
   labs(fill = "",
@@ -181,18 +283,21 @@ p <- ggplot() +
 if (data_was_simulated) {
   p <- p + geom_vline(data = df_true_pop_params %>%
                         mutate(value = if_else(param %in% c("x_sam_pos_mu", "x_sam_neg_mu"),
-                                               log(value),
+                                               log10(value),
                                                value)),
                       aes(xintercept = value))
 }
 p
 
+ggsave("~/enable_posteriors_v7.pdf", height = 8, width = 15)
+
 # Compare true and estimated sample x 
 quantiles <- c(0.025, 0.5, 0.975)
-df_sam_x <- df_fit %>%
+df_sam_x <- df_fit_wide %>%
   filter(density_type == "posterior") %>%
   select(-density_type) %>%
-  filter(startsWith(param, "x_sam[")) %>%
+  select(sample, starts_with("x_sam[")) %>%
+  pivot_longer(-sample, names_to = "param") %>%
   tidyr::extract(param, 
                  into = "id_sam", 
                  regex = "x_sam\\[([0-9]+)\\]") %>%
@@ -202,29 +307,30 @@ df_sam_x <- df_fit %>%
           quantile = quantiles) %>%
   pivot_wider(names_from = quantile, names_prefix = "x_q_")
 if (data_was_simulated) {
-df_sam_x %>%
-  left_join(df_sam %>%
-              select(id_sam, x) %>%
-              distinct(),
-            by = "id_sam") %>%
-  filter(id_sam %% 15 == 0) %>%
-  ggplot() +
-  geom_errorbar(aes(x, ymin = x_q_0.025, ymax = x_q_0.975)) +
-  geom_point(aes(x, x_q_0.5)) +
-  geom_abline() +
-  scale_x_log10(breaks = xs) +
-  scale_y_log10(breaks = xs) +
-  labs(x = "True Ab",
-       y = "Estimated Ab")
-ggsave("~/foo_8.pdf", height = 3.3, width = 3.3)
+  df_sam_x %>%
+    left_join(df_sam %>%
+                select(id_sam, x) %>%
+                distinct(),
+              by = "id_sam") %>%
+    filter(id_sam %% 15 == 0) %>%
+    ggplot() +
+    geom_errorbar(aes(x, ymin = x_q_0.025, ymax = x_q_0.975)) +
+    geom_point(aes(x, x_q_0.5)) +
+    geom_abline() +
+    scale_x_log10(breaks = xs) +
+    scale_y_log10(breaks = xs) +
+    labs(x = "True Ab",
+         y = "Estimated Ab")
+  ggsave("~/foo_8.pdf", height = 3.3, width = 3.3)
 }
 
 # Classification plot
 quantiles <- c(0.025, 0.5, 0.975)
-df_prob_pos <- df_fit %>%
+df_prob_pos <- df_fit_wide %>%
   filter(density_type == "posterior") %>%
   select(-density_type) %>%
-  filter(startsWith(param, "p_sam_is_pos[")) %>%
+  select(sample, starts_with("p_sam_is_pos[")) %>%
+  pivot_longer(-sample, names_to = "param") %>%
   tidyr::extract(param, 
                  into = "id_sam", 
                  regex = "p_sam_is_pos\\[([0-9]+)\\]") %>%
@@ -234,25 +340,25 @@ df_prob_pos <- df_fit %>%
           quantile = quantiles) %>%
   pivot_wider(names_from = quantile, names_prefix = "prob_pos_q_")
 if (data_was_simulated) {
-inner_join(df_prob_pos,
-           df_sam %>% summarise(.by = id_sam, pos = unique(pos)), 
-           by = "id_sam") %>%
-  mutate(pos = if_else(pos, "pos", "neg")) %>%
-  ggplot() +
-  #geom_violin(aes(pos, prob_pos_q_0.5)) +
-  #geom_sina(aes(pos, prob_pos_q_0.5)) +
-  #geom_point(aes(jitter(as.numeric(pos)), prob_pos_q_0.5)) +
-  geom_histogram(aes(prob_pos_q_0.5, fill = pos), #y = after_stat(density))
-                 position = "identity",
-                 alpha = 0.6,
-                 bins = 30) +
-  labs(y = "Number of samples",
-       #x = "Estimated probability of being positive (posterior median)",
-       x = "Probability sample is positive",
-       fill = "Truth:") +
-  coord_cartesian(expand = FALSE) +
-  scale_x_continuous(limits = c(NA, NA))
-ggsave("~/foo_5.pdf", height = 2.7, width = 3.5)
+  inner_join(df_prob_pos,
+             df_sam %>% summarise(.by = id_sam, pos = unique(pos)), 
+             by = "id_sam") %>%
+    mutate(pos = if_else(pos, "pos", "neg")) %>%
+    ggplot() +
+    #geom_violin(aes(pos, prob_pos_q_0.5)) +
+    #geom_sina(aes(pos, prob_pos_q_0.5)) +
+    #geom_point(aes(jitter(as.numeric(pos)), prob_pos_q_0.5)) +
+    geom_histogram(aes(prob_pos_q_0.5, fill = pos), #y = after_stat(density))
+                   position = "identity",
+                   alpha = 0.6,
+                   bins = 30) +
+    labs(y = "Number of samples",
+         #x = "Estimated probability of being positive (posterior median)",
+         x = "Probability sample is positive",
+         fill = "Truth:") +
+    coord_cartesian(expand = FALSE) +
+    scale_x_continuous(limits = c(NA, NA))
+  ggsave("~/foo_5.pdf", height = 2.7, width = 3.5)
 }
 
 # Compare prob positivity vs OD
@@ -286,9 +392,11 @@ ggsave("~/foo_7.pdf", height = 3.3, width = 3.3)
 
 # The posteriors for the 4PL function by plate
 xlog_range <- seq(log(0.4), log(40), length.out = 20)
-df_4pl <- df_fit %>%
+df_4pl <- df_fit_wide %>%
   filter(density_type == "posterior") %>%
-  filter(startsWith(param, "f_per_plate[")) %>%
+  select(-density_type) %>%
+  select(sample, starts_with("f_per_plate[")) %>%
+  pivot_longer(-sample, names_to = "param") %>%
   tidyr::extract(param, 
                  into = c("plate_int", "f_index"), 
                  regex = "f_per_plate\\[([0-9]+),([0-9]+)\\]") %>%
@@ -299,10 +407,10 @@ df_4pl <- df_fit %>%
   expand_grid(xlog = xlog_range) %>%
   mutate(x = exp(xlog)) %>%
   mutate(y = PL4(xlog, f_1, f_2, f_3, f_4))
-plate_ints_to_plot <- 1:5
+plate_ints_to_plot <- 1:25
 p <- ggplot(df_4pl %>%
-         filter(plate_int %in% plate_ints_to_plot) %>%
-         filter(sample %% 10 == 0)) +
+              filter(plate_int %in% plate_ints_to_plot) %>%
+              filter(sample %% 10 == 0)) +
   geom_line(aes(x, y, group = sample), alpha = 0.1) +
   geom_point(data = df_cal %>%
                filter(plate_int %in% plate_ints_to_plot),
@@ -326,7 +434,7 @@ ggsave("~/foo_6.pdf", height = 3.3, width = 3.3)
 
 
 # Plot P(x | pos), P(x | neg), P(x), P(pos | x)
-xs_plot <- seq(from = 0, to = 10,
+xs_plot <- seq(from = 0, to = 4,
                length.out = 500)
 df_x_distributions <- df_fit_wide %>%
   filter(density_type == "posterior") %>%
@@ -346,8 +454,8 @@ p <- ggplot() +
   geom_line(data = df_x_distributions,
             aes(x = x, y = value, group = sample), alpha = 0.15) +
   facet_wrap(vars(name), scales = "free_y", ncol = 1) +
-  labs(x = "x",
-       y = "y") +
+  labs(x = "x = Ab concentration",
+       y = "") +
   #scale_x_continuous(expand = c(0, 0), limits = c(NA, 2.5)) +
   scale_y_continuous(expand = c(0, 0), limits = c(NA, NA))
 if (data_was_simulated) {
@@ -386,8 +494,8 @@ p <- ggplot() +
   geom_line(data = df_xlog_distributions,
             aes(x = xlog, y = value, group = sample), alpha = 0.15) +
   facet_wrap(vars(name), scales = "free_y", ncol = 1) +
-  labs(x = "x",
-       y = "y") +
+  labs(x = "xlog = log_e(Ab concentration)",
+       y = "") +
   #scale_x_log10(expand = c(0, 0), limits = c(NA, NA)) +
   scale_x_continuous(expand = c(0, 0), limits = c(NA, NA)) +
   scale_y_continuous(expand = c(0, 0), limits = c(NA, NA))
@@ -407,7 +515,7 @@ if (data_was_simulated) {
 p
 
 # Posterior retrodictive check
-group_size <- 4
+group_size <- 16
 df_plot_group <- df_cal %>%
   select(plate, plate_int) %>%
   distinct() %>%
@@ -466,6 +574,22 @@ df_fit_wide %>%
 ggsave("~/enable_PopDistributionOfX_LogScale.pdf", height = 6, width = 6)
 
 
+# Plot the posterior distribution of the population level distribution of 
+# stochastically redrawn x_sam 
+df_fit_wide %>%
+  filter(sample %% 20 == 0) %>%
+  filter(density_type == "posterior") %>%
+  select(sample, starts_with("y_sam_sim[")) %>%
+  pivot_longer(-c("sample"), names_to = "param") %>%
+  mutate(value = log10(value)) %>%
+  ggplot() +
+  geom_histogram(data = df_sam, aes(x = log10(y), y = after_stat(density))) +
+  geom_density(aes(value, group = sample), alpha = 0.01) +
+  coord_cartesian(expand = F) +
+  scale_x_continuous(limits = c(-3, 1)) +
+  labs(x = "y redrawn",
+       y = "population distribution") +
+  NULL 
 
 
 
@@ -473,5 +597,4 @@ ggsave("~/enable_PopDistributionOfX_LogScale.pdf", height = 6, width = 6)
 
 
 
-  
 

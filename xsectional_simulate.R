@@ -24,36 +24,26 @@
 
 library(tidyverse)
 library(mvtnorm)
-library(rstan)
 library(ggforce)
-rstan_options(auto_write = TRUE)
-options(mc.cores = parallel::detectCores())
 theme_set(theme_classic())
 
 # INPUT ----
 
 set.seed(123)
 
-# Stan things
-file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v6.stan"
-sample_prior_manually <- TRUE
-num_mc_chains <- 4
-num_mc_iterations_posterior <- 500
-num_mc_iterations_prior <- 5000
-
 # Switch between normal and student t distributions
-use_student_for_obs <- TRUE
+use_student_for_obs <- FALSE
 student_df_obs <- 5
 
 # Unmodelled aspects of the data-generating process (things we condition on)
-num_plate <- 100
+num_plate <- 1
 num_rep_per_cal <- 2
 num_rep_per_sam <- 2
-num_sam_per_plate <- 20
+num_sam_per_plate <- 10
 xlogs <- log(c(0.5, 1.5, 4.5, 13, 40)) #c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cals
 
-y_obs_sd_min <- 0.001
-y_obs_sd_jump <- 0.016
+y_obs_sd_min <- 0.0002
+y_obs_sd_jump <- 0.018
 x_sam_neg_alpha <- 1
 x_sam_pos_alpha_jump <- 1
 x_sam_pos_beta <- 2/3 # beta a.k.a. gamma a.k.a rate
@@ -63,7 +53,7 @@ p_sam_pos <- 0.5
 # The four parameters of the logistic regression (f_1, f_2, f_3, f_4)
 # which calibrator the OD, y, through
 # f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4))) 
-f <- c(0.8,
+f <- c(0.9,
        0,
        3.5,
        2.5)
@@ -76,10 +66,10 @@ f <- c(0.8,
 # The covariance matrix for the plate-level random effects on f, parameterised
 # by the square root of the diagonal entries and the dimensionless correlation
 # matrix.
-sigma_f_plate <- c(0.01,
-                   0.005,
+sigma_f_plate <- c(0.1,
                    0.01,
-                   0.03)
+                   0.9,
+                   0.35)
 Rho_plate <- matrix(c(1, 0, 0, 0,
                       0, 1, 0, 0,
                       0, 0, 1, 0,
@@ -87,26 +77,6 @@ Rho_plate <- matrix(c(1, 0, 0, 0,
                     4, 4, byrow = TRUE)
 stopifnot(isSymmetric(Rho_plate))
 stopifnot(all(diag(Rho_plate) == 1))
-
-# Upper and lower bounds for priors
-df_priors_scalars <- tribble(
-  ~param, ~lower, ~upper,
-  "x_sam_neg_alpha", 0, x_sam_neg_alpha + 1,
-  "x_sam_pos_alpha_jump", 0, x_sam_pos_alpha_jump + 1,
-  "x_sam_pos_beta", 0, x_sam_pos_beta * 2,
-  "x_sam_neg_beta_jump", 0, x_sam_neg_beta_jump * 2,
-  "p_sam_pos", 0, 1,
-  "y_obs_sd_min",  0, 2 * y_obs_sd_min,
-  "y_obs_sd_jump", 0, 2 * y_obs_sd_jump
-)
-df_priors_vectors <- tribble(
-  ~param, ~lower, ~upper,
-  "sigma_f_plate", sigma_f_plate * 0.5, sigma_f_plate * 2,
-  "f", f-1.5, f+1.5
-)
-
-# The eta parameter of the LKJ prior for Rho_plate
-Rho_plate_prior_eta <- 2
 
 # SIMULATE ----
 
@@ -284,7 +254,7 @@ bind_rows(df_cal %>% mutate(label = "calibrator") ,
   theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0)) 
 ggsave("~/lassa_serology_cross-sectional_data.pdf", height = 9, width = 12)  
 
-# PREPARE FOR STAN ----
+# PREPARE DATA FOR STAN ----
 
 stan_input_posterior <- list(
   use_student_for_obs = as.integer(use_student_for_obs),
@@ -299,24 +269,8 @@ stan_input_posterior <- list(
   y_cal = df_cal$y,
   y_sam = df_sam$y,
   x_cal = df_cal$x,
-  Rho_plate_prior_eta = Rho_plate_prior_eta,
   sample_posterior_not_prior = 1L
 )
-for (row in 1:nrow(df_priors_scalars)) {
-  stan_input_posterior[[paste0(df_priors_scalars$param[[row]], "_lower")]] <-
-    df_priors_scalars$lower[[row]]
-  stan_input_posterior[[paste0(df_priors_scalars$param[[row]], "_upper")]] <-
-    df_priors_scalars$upper[[row]]
-}
-for (row in 1:nrow(df_priors_vectors)) {
-  stan_input_posterior[[paste0(df_priors_vectors$param[[row]], "_lower")]] <-
-    df_priors_vectors$lower[[row]]
-  stan_input_posterior[[paste0(df_priors_vectors$param[[row]], "_upper")]] <-
-    df_priors_vectors$upper[[row]]
-}
-
-stan_input_prior <- stan_input_posterior
-stan_input_prior$sample_posterior_not_prior <- 0L
 
 
 
