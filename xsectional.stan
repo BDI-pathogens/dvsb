@@ -33,8 +33,10 @@ data {
   vector[4] f_upper;
   vector[4] sigma_bat_f_lower;
   vector[4] sigma_bat_f_upper;
-  real y_obs_sd_lower;
-  real y_obs_sd_upper;
+  real y_obs_sd_min_lower;
+  real y_obs_sd_min_upper;
+  real y_obs_sd_jump_lower;
+  real y_obs_sd_jump_upper;
   real x_sam_neg_mu_lower;
   real x_sam_neg_mu_upper;
   real x_sam_pos_mu_lower;
@@ -52,6 +54,7 @@ data {
 transformed data {
   array[num_bat] vector[4] zeros;
   for (i in 1:num_bat) zeros[i] = rep_vector(0, 4);
+  vector[num_con_tot] x_exp_con = exp(x_con);
 }
 
 parameters {
@@ -59,12 +62,13 @@ parameters {
   // Those constrained only by lower and upper
   vector<lower = f_lower, upper = f_upper>[4] f;
   vector<lower = sigma_bat_f_lower, upper = sigma_bat_f_upper>[4] sigma_bat_f;
-  
-  real<lower = y_obs_sd_lower, upper = y_obs_sd_upper> y_obs_sd;
+
   real<lower = x_sam_neg_mu_lower, upper = x_sam_neg_mu_upper> x_sam_neg_mu;
   real<lower = x_sam_neg_sd_lower, upper = x_sam_neg_sd_upper> x_sam_neg_sd;
   real<lower = x_sam_pos_sd_lower, upper = x_sam_pos_sd_upper> x_sam_pos_sd;
   real<lower = p_sam_pos_lower,    upper = p_sam_pos_upper>    p_sam_pos;
+  real<lower = y_obs_sd_min_lower, upper = y_obs_sd_min_upper> y_obs_sd_min;
+  real<lower = y_obs_sd_jump_lower, upper = y_obs_sd_jump_upper> y_obs_sd_jump;
 
   // Enforce that x_sam_pos_mu > x_sam_neg_mu
   real<lower = max([x_sam_pos_mu_lower, x_sam_neg_mu]), upper = x_sam_pos_mu_upper> x_sam_pos_mu;
@@ -79,6 +83,9 @@ transformed parameters{
   
   real p_sam_pos_log = log(  p_sam_pos);
   real p_sam_neg_log = log1m(p_sam_pos);
+  vector[num_sam_id] x_exp_sam = exp(x_sam);
+  real y_obs_sd_max = y_obs_sd_min + y_obs_sd_jump;
+
   
   array[num_bat] vector[4] f_per_bat;
   for (bat in 1:num_bat) {
@@ -103,6 +110,19 @@ transformed parameters{
     int bat = which_bat_sam[sam_rep];
     y_sam_mean_per_obs[sam_rep] =  PL4(x_sam[which_id_sam[sam_rep]],
     f_per_bat[bat][1], f_per_bat[bat][2], f_per_bat[bat][3], f_per_bat[bat][4]);
+  }
+  
+  vector[num_con_tot] y_obs_sd_con;
+  for (con_rep in 1:num_con_tot) {
+    int bat = which_bat_con[con_rep];
+    y_obs_sd_con[con_rep] = PL4(x_con[con_rep], f_per_bat[bat][1],
+      y_obs_sd_min, y_obs_sd_max, f_per_bat[bat][4]);
+  }
+  vector[num_sam_tot] y_obs_sd_sam;
+  for (sam_rep in 1:num_sam_tot) {
+    int bat = which_bat_sam[sam_rep];
+    y_obs_sd_sam[sam_rep] = PL4(x_sam[which_id_sam[sam_rep]], f_per_bat[bat][1],
+      y_obs_sd_min, y_obs_sd_max, f_per_bat[bat][4]);
   }
 
 }
@@ -131,11 +151,11 @@ model {
   // Likelihood
   if (sample_posterior_not_prior) {
     if (use_student_for_obs) {
-      y_con ~ student_t(student_df_obs, y_con_mean_per_obs, y_obs_sd);
-      y_sam ~ student_t(student_df_obs, y_sam_mean_per_obs, y_obs_sd);
+      y_con ~ student_t(rep_vector(student_df_obs, num_con_tot), y_con_mean_per_obs, y_obs_sd_con);
+      y_sam ~ student_t(rep_vector(student_df_obs, num_sam_tot), y_sam_mean_per_obs, y_obs_sd_sam);
     } else {
-      y_con ~ normal(y_con_mean_per_obs, y_obs_sd);
-      y_sam ~ normal(y_sam_mean_per_obs, y_obs_sd);
+      y_con ~ normal(y_con_mean_per_obs, y_obs_sd_con);
+      y_sam ~ normal(y_sam_mean_per_obs, y_obs_sd_sam);
     }
   }
 } 
@@ -144,9 +164,9 @@ generated quantities {
   
   array[num_con_tot] real y_con_sim;
   if (use_student_for_obs) {
-    y_con_sim = student_t_rng(student_df_obs, y_con_mean_per_obs, y_obs_sd);
+    y_con_sim = student_t_rng(rep_vector(student_df_obs, num_con_tot), y_con_mean_per_obs, y_obs_sd_con);
   } else {
-    y_con_sim = normal_rng(y_con_mean_per_obs, y_obs_sd);
+    y_con_sim = normal_rng(y_con_mean_per_obs, y_obs_sd_con);
   }
   
   vector[num_sam_id] p_sam_is_pos;

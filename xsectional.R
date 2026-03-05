@@ -36,7 +36,7 @@ theme_set(theme_classic())
 set.seed(123)
 
 # Stan things
-file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/lassa_serology_model_crosssectional_v3_outliers.stan"
+file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/lassa_serology_model_crosssectional_v4.stan"
 sample_prior_manually <- TRUE
 num_mc_chains <- 4
 num_mc_iterations_posterior <- 500
@@ -44,39 +44,42 @@ num_mc_iterations_prior <- 5000
 
 # Switch between normal and student t distributions
 use_student_for_x   <- FALSE
-use_student_for_obs <- TRUE
+use_student_for_obs <- FALSE
 student_df_x   <- 4
 student_df_obs <- 5
 
 # Unmodelled aspects of the data-generating process (things we condition on)
-num_bat <- 200
+num_bat <- 50
 num_rep_per_con <- 2
 num_rep_per_sam <- 2
-num_sam_per_bat <- 20
-xs <- c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cons
+num_sam_per_bat <- 10
+xs <- log(c(0.5, 1.5, 4.5, 13, 40)) # concentrations of cons
 
-y_obs_sd <- 0.55
+y_obs_sd_min <- 0.0002
+y_obs_sd_jump <- 0.018
 x_sam_neg_mu <- 0.4
 x_sam_pos_mu <- 2.6
 x_sam_neg_sd <- 0.25
 x_sam_pos_sd <- 0.25
-p_sam_pos <- 0.25
+p_sam_pos <- 0.5
 
 # The four parameters of the logistic regression (f_1, f_2, f_3, f_4)
 # which control the OD, y, through
 # f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (x - f_4))) 
-f <- c(0.8,
+f <- c(0.9,
        0,
        3.5,
        2.5)
+
+
 
 # The covariance matrix for the batch-level random effects on f, parameterised
 # by the square root of the diagonal entries and the dimensionless correlation
 # matrix.
 sigma_bat_f <- c(0.1,
-                 0.05,
-                 0.1,
-                 0.3)
+                 0.01,
+                 0.9,
+                 0.35)
 Rho_bat <- matrix(c(1, 0, 0, 0,
                     0, 1, 0, 0,
                     0, 0, 1, 0,
@@ -88,12 +91,13 @@ stopifnot(all(diag(Rho_bat) == 1))
 # Upper and lower bounds for priors
 df_priors_scalars <- tribble(
   ~param, ~lower, ~upper,
-  "y_obs_sd", y_obs_sd * 0.5, y_obs_sd * 1.3,
   "x_sam_neg_mu", x_sam_neg_mu - 1, x_sam_neg_mu + 1,
   "x_sam_pos_mu", x_sam_pos_mu - 1, x_sam_pos_mu + 1,
   "x_sam_neg_sd", x_sam_neg_sd * 0.1, x_sam_neg_sd * 2,
   "x_sam_pos_sd", x_sam_pos_sd * 0.1, x_sam_pos_sd * 2,
   "p_sam_pos", 0, 1,
+  "y_obs_sd_min",  0, 2 * y_obs_sd_min,
+  "y_obs_sd_jump", 0, 2 * y_obs_sd_jump
 )
 df_priors_vectors <- tribble(
   ~param, ~lower, ~upper,
@@ -124,11 +128,15 @@ df_bat <- df_bat %>%
          f_3 = f[[3]] + f_bat_effects[, 3],
          f_4 = f[[4]] + f_bat_effects[, 4])
 
+PL4 <- function(x, f_1, f_2, f_3, f_4) {
+  f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (x - f_4)))
+}
+
 # Expand to one row per con (one for each x). Calculate y expected.
 df_con <- df_bat %>%
   expand_grid(x = xs, con = 1:num_rep_per_con) %>%
   mutate(which_con = row_number(),
-         y_mean = f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (x - f_4))))
+         y_mean = PL4(x, f_1, f_2, f_3, f_4))
 
 # Plot y expected by batch
 ggplot(df_con %>% 
@@ -144,7 +152,8 @@ ggplot(df_con %>%
 
 # Draw observed y
 df_con <- df_con %>%
-  mutate(y = y_mean + y_obs_sd *
+  mutate(y_obs_sd = PL4(x, f_1, y_obs_sd_min, y_obs_sd_min + y_obs_sd_jump, f_4),
+         y = y_mean + y_obs_sd *
            draw_student_or_norm(nrow(.), use_student_for_obs, student_df_obs))
 
 # Plot observed y
@@ -154,6 +163,13 @@ ggplot(df_con) +
   labs(x = "Concentration",
        y = "OD",
        col = "batch")
+ggplot(df_con %>% filter(bat <= 25)) +
+  geom_point(aes(exp(x), y)) +
+  scale_x_log10(breaks = exp(xs)) +
+  labs(x = "Concentration",
+       y = "OD",
+       col = "batch") +
+  facet_wrap(~bat)
 
 # Calculate indepent ML 4PL curves per batch and add to the plot
 if (FALSE) {
@@ -170,7 +186,7 @@ if (FALSE) {
     inner_join(df_bat, by = "bat") %>%
     expand_grid(x = seq(min(xs), max(xs), length.out = 100)) %>%
     mutate(`independent\nmax-likelihood` = theta_1 + (theta_4 - theta_1) / (1 + (x / theta_2)^theta_3),
-           truth = f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (x - f_4)))) %>%
+           truth = PL4(x, f_1, f_2, f_3, f_4)) %>%
     pivot_longer(c("truth", "independent\nmax-likelihood"), names_to = "y", values_to = "value") %>%
     mutate(y = factor(y, levels = c("truth", "independent\nmax-likelihood")))
   ggplot() +
@@ -217,21 +233,18 @@ df_sam <- df_bat %>%
          x = if_else(pos,
                      x_sam_pos_mu + x_sam_pos_sd * x,
                      x_sam_neg_mu + x_sam_neg_sd * x),
-         y_mean = f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (x - f_4))))
+         y_mean = PL4(x, f_1, f_2, f_3, f_4))
 
-ggplot(df_sam %>% mutate(x = pmax(x, 5.1),
-                         x = pmin(x, 8.3))) +
-  geom_histogram(aes(exp(x)), fill = "grey") +
-  scale_x_log10(breaks = exp(xs)) +
-  coord_cartesian(expand = F) +
-  labs(x = "x = Ab concentration",
-       y = "Number of samples") 
-ggsave("~/foo_4.pdf", height = 4, width = 5)
-
-
-
-
-
+if (FALSE) {
+  ggplot(df_sam %>% mutate(x = pmax(x, 5.1),
+                           x = pmin(x, 8.3))) +
+    geom_histogram(aes(exp(x)), fill = "grey") +
+    scale_x_log10(breaks = exp(xs)) +
+    coord_cartesian(expand = F) +
+    labs(x = "x = Ab concentration",
+         y = "Number of samples") 
+  ggsave("~/foo_4.pdf", height = 4, width = 5)
+}
 
 # ... then create the desired number of reps of each sample, and draw their ys
 num_sam_tot <- num_sam_id * num_rep_per_sam
@@ -239,6 +252,7 @@ df_sam <- df_sam %>%
   slice(rep(row_number(), num_rep_per_sam)) %>%
   arrange(id_sam) %>%
   mutate(which_sam = row_number(),
+         y_obs_sd = PL4(x, f_1, y_obs_sd_min, y_obs_sd_min + y_obs_sd_jump, f_4),
          y = y_mean + y_obs_sd *
            draw_student_or_norm(num_sam_tot, use_student_for_obs, student_df_obs)) 
 
@@ -340,6 +354,7 @@ if (sample_prior_manually) {
   names(df_priors_vectors$upper[[1]]) <- paste0("sigma_bat_f[", 1:4, "]")
   names(df_priors_vectors$lower[[2]]) <- paste0("f[", 1:4, "]")
   names(df_priors_vectors$upper[[2]]) <- paste0("f[", 1:4, "]")
+  
   df_priors <- df_priors %>%
     bind_rows(full_join(df_priors_vectors %>% 
                           select(param, lower) %>%
@@ -398,7 +413,6 @@ df_fit <- df_fit_wide %>%
 # Plot pop-level params: prior, posterior and true value
 df_true_pop_params <- tribble(
   ~param, ~value,
-  "y_obs_sd", y_obs_sd,
   "f[1]", f[1],
   "f[2]", f[2],
   "f[3]", f[3],
@@ -417,7 +431,9 @@ df_true_pop_params <- tribble(
   "x_sam_pos_mu", x_sam_pos_mu,
   "x_sam_neg_sd", x_sam_neg_sd,
   "x_sam_pos_sd", x_sam_pos_sd,
-  "p_sam_pos", p_sam_pos
+  "p_sam_pos", p_sam_pos,
+  "y_obs_sd_min", y_obs_sd_min,
+  "y_obs_sd_jump", y_obs_sd_jump
 )
 
 # PLOT STAN OUTPUT ----
@@ -532,7 +548,7 @@ df_4pl <- df_fit %>%
          f_index = as.integer(f_index)) %>%
   pivot_wider(names_from = f_index, names_prefix = "f_") %>%
   expand_grid(x = seq(min(xs), max(xs), length.out = 20)) %>%
-  mutate(y = f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (x - f_4))))
+  mutate(y = PL4(x, f_1, f_2, f_3, f_4))
 bats_to_plot <- c(34,36,35,1)
 ggplot(df_4pl %>%
          filter(bat %in% bats_to_plot) %>%
@@ -541,7 +557,7 @@ ggplot(df_4pl %>%
   geom_line(data = df_bat %>%
               filter(bat %in% bats_to_plot) %>%
               expand_grid(x = seq(min(xs), max(xs), length.out = 20)) %>%
-              mutate(y = f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (x - f_4)))),
+              mutate(y = PL4(x, f_1, f_2, f_3, f_4)),
             aes(exp(x), y), col = "blue", linewidth = 1) +
   geom_point(data = df_con %>%
                filter(bat %in% bats_to_plot),
@@ -634,13 +650,14 @@ df_posterior_retrodictive <- df_fit %>%
   left_join(df_con %>%
               select(bat, x, which_con),
             by = "which_con")
-ggplot(df_posterior_retrodictive) +
+bats_to_plot <- 41:50
+ggplot(df_posterior_retrodictive %>% filter(bat %in% bats_to_plot)) +
   geom_violin(aes(x = as.factor(exp(x)), y = value)) +
-  geom_point(data = df_con, 
+  geom_point(data = df_con %>% filter(bat %in% bats_to_plot), 
              aes(as.factor(exp(x)), y), 
              col = "blue") +
   theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0)) +
-  facet_wrap(~bat) +
+  facet_wrap(~bat, scales = "free") +
   labs(x = "Concentration",
        y = "OD")
 
