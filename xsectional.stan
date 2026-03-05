@@ -1,24 +1,24 @@
 // See the associated R file for explanations and definitions of abbreviations.
 
 functions {
-  real PL4(real x_exp, real f_1, real f_2, real f_3, real f_4) {
-    //return f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (x_log - f_4)));
-    return f_2 + (f_3 - f_2) / (1 + x_exp^(-f_1) * exp(f_1 * f_4));
+  real PL4(real x, real f_1, real f_2, real f_3, real f_4) {
+    //return f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4)));
+    return f_2 + (f_3 - f_2) / (1 + x^(-f_1) * exp(f_1 * f_4));
   }
 }
 
 
 data {
   // Actual data
-  int<lower = 1> num_bat;
-  int<lower = num_bat> num_con_tot;
+  int<lower = 1> num_plate;
+  int<lower = num_plate> num_cal_tot;
   int<lower = 0> num_sam_id;
   int<lower = num_sam_id> num_sam_tot;
-  array[num_con_tot] int<lower = 1, upper = num_bat> which_bat_con;
-  array[num_sam_tot] int<lower = 1, upper = num_bat> which_bat_sam;
+  array[num_cal_tot] int<lower = 1, upper = num_plate> which_plate_cal;
+  array[num_sam_tot] int<lower = 1, upper = num_plate> which_plate_sam;
   array[num_sam_tot] int<lower = 1, upper = num_sam_id> which_id_sam;
-  vector[num_con_tot] y_con;
-  vector[num_con_tot] x_con;
+  vector[num_cal_tot] y_cal;
+  vector<lower = 0>[num_cal_tot] x_cal;
   vector[num_sam_tot] y_sam;
   
   // Other things to keep fixed over a complete round of sampling: a binary
@@ -30,52 +30,51 @@ data {
   real<lower = 0> student_df_obs;
   vector[4] f_lower;
   vector[4] f_upper;
-  vector[4] sigma_bat_f_lower;
-  vector[4] sigma_bat_f_upper;
+  vector[4] sigma_f_plate_lower;
+  vector[4] sigma_f_plate_upper;
   real y_obs_sd_min_lower;
   real y_obs_sd_min_upper;
   real y_obs_sd_jump_lower;
   real y_obs_sd_jump_upper;
   
-  real<lower = 0> x_exp_sam_neg_alpha_lower;
-  real<lower = x_exp_sam_neg_alpha_lower> x_exp_sam_neg_alpha_upper;
-  real<lower = 0> x_exp_sam_pos_alpha_jump_lower;
-  real<lower = x_exp_sam_pos_alpha_jump_lower> x_exp_sam_pos_alpha_jump_upper;
-  real<lower = 0> x_exp_sam_pos_beta_lower;
-  real<lower = x_exp_sam_pos_beta_lower> x_exp_sam_pos_beta_upper;
-  real<lower = 0> x_exp_sam_neg_beta_jump_lower;
-  real<lower = x_exp_sam_neg_beta_jump_lower> x_exp_sam_neg_beta_jump_upper;
+  real<lower = 0> x_sam_neg_alpha_lower;
+  real<lower = x_sam_neg_alpha_lower> x_sam_neg_alpha_upper;
+  real<lower = 0> x_sam_pos_alpha_jump_lower;
+  real<lower = x_sam_pos_alpha_jump_lower> x_sam_pos_alpha_jump_upper;
+  real<lower = 0> x_sam_pos_beta_lower;
+  real<lower = x_sam_pos_beta_lower> x_sam_pos_beta_upper;
+  real<lower = 0> x_sam_neg_beta_jump_lower;
+  real<lower = x_sam_neg_beta_jump_lower> x_sam_neg_beta_jump_upper;
   
   real p_sam_pos_lower;
   real p_sam_pos_upper;
-  real Rho_bat_prior_eta;
+  real Rho_plate_prior_eta;
   
 }
 
 transformed data {
-  array[num_bat] vector[4] zeros;
-  for (i in 1:num_bat) zeros[i] = rep_vector(0, 4);
-  vector[num_con_tot] x_exp_con = exp(x_con);
+  array[num_plate] vector[4] zeros;
+  for (i in 1:num_plate) zeros[i] = rep_vector(0, 4);
 }
 
 parameters {
   
   // Those constrained only by lower and upper
   vector<lower = f_lower, upper = f_upper>[4] f;
-  vector<lower = sigma_bat_f_lower, upper = sigma_bat_f_upper>[4] sigma_bat_f;
+  vector<lower = sigma_f_plate_lower, upper = sigma_f_plate_upper>[4] sigma_f_plate;
   
-  real<lower = x_exp_sam_neg_alpha_lower, upper = x_exp_sam_neg_alpha_upper> x_exp_sam_neg_alpha;
-  real<lower = x_exp_sam_pos_beta_lower, upper = x_exp_sam_pos_beta_upper> x_exp_sam_pos_beta;
-  real<lower = x_exp_sam_neg_beta_jump_lower, upper = x_exp_sam_neg_beta_jump_upper> x_exp_sam_neg_beta_jump;
+  real<lower = x_sam_neg_alpha_lower, upper = x_sam_neg_alpha_upper> x_sam_neg_alpha;
+  real<lower = x_sam_pos_beta_lower, upper = x_sam_pos_beta_upper> x_sam_pos_beta;
+  real<lower = x_sam_neg_beta_jump_lower, upper = x_sam_neg_beta_jump_upper> x_sam_neg_beta_jump;
   real<lower = p_sam_pos_lower,    upper = p_sam_pos_upper>    p_sam_pos;
   real<lower = y_obs_sd_min_lower, upper = y_obs_sd_min_upper> y_obs_sd_min;
   real<lower = y_obs_sd_jump_lower, upper = y_obs_sd_jump_upper> y_obs_sd_jump;
-  real<lower = x_exp_sam_pos_alpha_jump_lower, upper = x_exp_sam_pos_alpha_jump_upper> x_exp_sam_pos_alpha_jump;
+  real<lower = x_sam_pos_alpha_jump_lower, upper = x_sam_pos_alpha_jump_upper> x_sam_pos_alpha_jump;
   
   // Those with explicit priors declared
-  corr_matrix[4] Rho_bat;
-  array[num_bat] vector[4] f_bat_effects_unscaled;
-  vector<lower = 0>[num_sam_id] x_exp_sam;
+  corr_matrix[4] Rho_plate;
+  array[num_plate] vector[4] f_plate_effects_unscaled;
+  vector<lower = 0>[num_sam_id] x_sam;
 }
 
 transformed parameters{
@@ -84,45 +83,45 @@ transformed parameters{
   real p_sam_neg_log = log1m(p_sam_pos);
   real y_obs_sd_max = y_obs_sd_min + y_obs_sd_jump;
   
-  real x_exp_sam_pos_alpha = x_exp_sam_neg_alpha + x_exp_sam_pos_alpha_jump;
-  real x_exp_sam_neg_beta  = x_exp_sam_pos_beta  + x_exp_sam_neg_beta_jump;
+  real x_sam_pos_alpha = x_sam_neg_alpha + x_sam_pos_alpha_jump;
+  real x_sam_neg_beta  = x_sam_pos_beta  + x_sam_neg_beta_jump;
 
-  array[num_bat] vector[4] f_per_bat;
-  for (bat in 1:num_bat) {
-    f_per_bat[bat] = f +
+  array[num_plate] vector[4] f_per_plate;
+  for (plate in 1:num_plate) {
+    f_per_plate[plate] = f +
     [
-      f_bat_effects_unscaled[bat][1] * sigma_bat_f[1],
-      f_bat_effects_unscaled[bat][2] * sigma_bat_f[2],
-      f_bat_effects_unscaled[bat][3] * sigma_bat_f[3],
-      f_bat_effects_unscaled[bat][4] * sigma_bat_f[4]
+      f_plate_effects_unscaled[plate][1] * sigma_f_plate[1],
+      f_plate_effects_unscaled[plate][2] * sigma_f_plate[2],
+      f_plate_effects_unscaled[plate][3] * sigma_f_plate[3],
+      f_plate_effects_unscaled[plate][4] * sigma_f_plate[4]
       ]';
   }
   
-  vector[num_con_tot] y_con_mean_per_obs;
-  for (con_rep in 1:num_con_tot) {
-    int bat = which_bat_con[con_rep];
-    y_con_mean_per_obs[con_rep] =  PL4(x_exp_con[con_rep],
-    f_per_bat[bat][1], f_per_bat[bat][2], f_per_bat[bat][3], f_per_bat[bat][4]);
+  vector[num_cal_tot] y_cal_mean_per_obs;
+  for (cal_rep in 1:num_cal_tot) {
+    int plate = which_plate_cal[cal_rep];
+    y_cal_mean_per_obs[cal_rep] =  PL4(x_cal[cal_rep],
+    f_per_plate[plate][1], f_per_plate[plate][2], f_per_plate[plate][3], f_per_plate[plate][4]);
   }
   
   vector[num_sam_tot] y_sam_mean_per_obs;
   for (sam_rep in 1:num_sam_tot) {
-    int bat = which_bat_sam[sam_rep];
-    y_sam_mean_per_obs[sam_rep] =  PL4(x_exp_sam[which_id_sam[sam_rep]],
-    f_per_bat[bat][1], f_per_bat[bat][2], f_per_bat[bat][3], f_per_bat[bat][4]);
+    int plate = which_plate_sam[sam_rep];
+    y_sam_mean_per_obs[sam_rep] =  PL4(x_sam[which_id_sam[sam_rep]],
+    f_per_plate[plate][1], f_per_plate[plate][2], f_per_plate[plate][3], f_per_plate[plate][4]);
   }
   
-  vector[num_con_tot] y_obs_sd_con;
-  for (con_rep in 1:num_con_tot) {
-    int bat = which_bat_con[con_rep];
-    y_obs_sd_con[con_rep] = PL4(x_exp_con[con_rep], f_per_bat[bat][1],
-    y_obs_sd_min, y_obs_sd_max, f_per_bat[bat][4]);
+  vector[num_cal_tot] y_obs_sd_cal;
+  for (cal_rep in 1:num_cal_tot) {
+    int plate = which_plate_cal[cal_rep];
+    y_obs_sd_cal[cal_rep] = PL4(x_cal[cal_rep], f_per_plate[plate][1],
+    y_obs_sd_min, y_obs_sd_max, f_per_plate[plate][4]);
   }
   vector[num_sam_tot] y_obs_sd_sam;
   for (sam_rep in 1:num_sam_tot) {
-    int bat = which_bat_sam[sam_rep];
-    y_obs_sd_sam[sam_rep] = PL4(x_exp_sam[which_id_sam[sam_rep]], f_per_bat[bat][1],
-    y_obs_sd_min, y_obs_sd_max, f_per_bat[bat][4]);
+    int plate = which_plate_sam[sam_rep];
+    y_obs_sd_sam[sam_rep] = PL4(x_sam[which_id_sam[sam_rep]], f_per_plate[plate][1],
+    y_obs_sd_min, y_obs_sd_max, f_per_plate[plate][4]);
   }
   
 }
@@ -131,22 +130,22 @@ transformed parameters{
 model {
   
   // Priors
-  Rho_bat ~ lkj_corr(Rho_bat_prior_eta);
-  f_bat_effects_unscaled ~ multi_normal(zeros, Rho_bat);
+  Rho_plate ~ lkj_corr(Rho_plate_prior_eta);
+  f_plate_effects_unscaled ~ multi_normal(zeros, Rho_plate);
   for (sam_id in 1:num_sam_id) {
     target += log_sum_exp(
-      p_sam_pos_log + gamma_lpdf(x_exp_sam[sam_id] | x_exp_sam_pos_alpha, x_exp_sam_pos_beta),
-      p_sam_neg_log + gamma_lpdf(x_exp_sam[sam_id] | x_exp_sam_neg_alpha, x_exp_sam_neg_beta));
+      p_sam_pos_log + gamma_lpdf(x_sam[sam_id] | x_sam_pos_alpha, x_sam_pos_beta),
+      p_sam_neg_log + gamma_lpdf(x_sam[sam_id] | x_sam_neg_alpha, x_sam_neg_beta));
   }
   
   
   // Likelihood
   if (sample_posterior_not_prior) {
     if (use_student_for_obs) {
-      y_con ~ student_t(rep_vector(student_df_obs, num_con_tot), y_con_mean_per_obs, y_obs_sd_con);
+      y_cal ~ student_t(rep_vector(student_df_obs, num_cal_tot), y_cal_mean_per_obs, y_obs_sd_cal);
       y_sam ~ student_t(rep_vector(student_df_obs, num_sam_tot), y_sam_mean_per_obs, y_obs_sd_sam);
     } else {
-      y_con ~ normal(y_con_mean_per_obs, y_obs_sd_con);
+      y_cal ~ normal(y_cal_mean_per_obs, y_obs_sd_cal);
       y_sam ~ normal(y_sam_mean_per_obs, y_obs_sd_sam);
     }
   }
@@ -154,23 +153,23 @@ model {
 
 generated quantities {
   
-  array[num_con_tot] real y_con_sim;
+  array[num_cal_tot] real y_cal_sim;
   if (use_student_for_obs) {
-    y_con_sim = student_t_rng(rep_vector(student_df_obs, num_con_tot), y_con_mean_per_obs, y_obs_sd_con);
+    y_cal_sim = student_t_rng(rep_vector(student_df_obs, num_cal_tot), y_cal_mean_per_obs, y_obs_sd_cal);
   } else {
-    y_con_sim = normal_rng(y_con_mean_per_obs, y_obs_sd_con);
+    y_cal_sim = normal_rng(y_cal_mean_per_obs, y_obs_sd_cal);
   }
   
   vector[num_sam_id] p_sam_is_pos;
   for (sam_id in 1:num_sam_id) {
     real p_log = p_sam_pos_log +
-    gamma_lpdf(x_exp_sam[sam_id] | x_exp_sam_pos_alpha, x_exp_sam_pos_beta);
+    gamma_lpdf(x_sam[sam_id] | x_sam_pos_alpha, x_sam_pos_beta);
     p_sam_is_pos[sam_id] = exp(p_log - log_sum_exp(p_log, p_sam_neg_log +
-    gamma_lpdf(x_exp_sam[sam_id] | x_exp_sam_neg_alpha, x_exp_sam_neg_beta)));
+    gamma_lpdf(x_sam[sam_id] | x_sam_neg_alpha, x_sam_neg_beta)));
   }
   
-  real x_exp_sam_pos_mu = x_exp_sam_pos_alpha / x_exp_sam_pos_beta;
-  real x_exp_sam_neg_mu = x_exp_sam_neg_alpha / x_exp_sam_neg_beta;
+  real x_sam_pos_mu = x_sam_pos_alpha / x_sam_pos_beta;
+  real x_sam_neg_mu = x_sam_neg_alpha / x_sam_neg_beta;
   
   
 }
