@@ -2,8 +2,8 @@ library(data.table)
 library(tidyverse)
 theme_set(theme_classic())
 
-data_was_simulated <- FALSE
-read_posterior_from_file <- TRUE
+data_was_simulated <- TRUE
+read_posterior_from_file <- FALSE
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run-202510141258-*-97b346.csv") # first run with Anton's code debugged
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-10-27-18h07m40_chain*.csv") # v19 on data 2025-10-27
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-10-29-16h26m52_chain*.csv") # v19 on data 2025-10-27 with 15 of my dodgy plates excluded and longer chains
@@ -15,8 +15,8 @@ files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-25-18
 
 # INPUT ABOUT STAN ----
 
-file_input_stan <- "~/code_serology_model/Xsectional_v20.stan"
-dir_stan <- "/Users/cwymant/.cmdstan/cmdstan-2.37.0/"
+file_input_stan <- "~/repos/dvsb/xsectional.stan"
+dir_stan <- "~/.cmdstan/cmdstan-2.37.0/"
 sample_prior_manually <- FALSE
 num_mc_chains <- 5
 num_mc_iterations_posterior <- 1500 # per chain, half of them warmup
@@ -285,7 +285,7 @@ params_to_ignore <- c(
   # actually interesting, but memory is limited:
   #"xlog_sam",
   #"y_sam_sim_conditional", 
-  "p_sam_is_pos", 
+  #"p_sam_is_pos", 
   #"y_sam_loglik_per_obs",
   "xlog_sam_sim_unconditional"
 )
@@ -881,174 +881,8 @@ if (data_was_simulated) {
     bins = 50)
 }
 p
-ggsave("~/enable/enable_posteriors.pdf", height = 12, width = 18)
 
-ggplot() +
-  geom_histogram(aes(value, fill = density_type, y = after_stat(density)),
-                 alpha = 0.6,
-                 position = "identity",
-                 bins = 100) +
-  facet_wrap(~param, scales = "free", nrow = 4) +
-  scale_fill_brewer(palette = "Set1") +
-  coord_cartesian(expand = FALSE) +
-  labs(fill = "",
-       x = "param value",
-       y = "probability density")
-
-
-df_fit_wide_postandprior %>%
-  filter(density_type == "posterior") %>%
-  select(sample, matches("mu_pos_for_"), matches("mu_neg_for_")) %>%
-  pivot_longer(-c("sample"), names_to = "param") %>%
-  tidyr::extract(param,
-                 into = c("param", "site"), 
-                 regex = "(mu_[a-z]+)_for_site_(.*)") %>%
-  pivot_wider(names_from = param) %>%
-  ggplot() + 
-  geom_bin_2d(aes(mu_neg, mu_pos, fill = after_stat(density)), bins = 60) +
-  facet_wrap(~site, nrow = 2) +
-  geom_abline() +
-  labs(x = "mean log Ab for seronegatives",
-       y = "mean log Ab for seropositives",
-       fill = "posterior\ndensity")
-ggsave("~/enable/enable_mixture_random_effects_multimodal.pdf", height = 4, width = 8)
-
-df_fit_wide_postandprior %>%
-  mutate(diff = mu_pos - mu_neg) %>%
-  ggplot() +
-  facet_wrap(~density_type) +
-  #geom_bin_2d(aes(diff, mu_pos_effect_site_BEN)) +
-  #geom_abline(slope = -0.5) +
-  geom_bin_2d(aes(diff, mu_neg_effect_site_BEN)) +
-  geom_abline(slope = 0.5) +
-  NULL
-
-df_fit_wide_postandprior %>%
-  ggplot() +
-  facet_wrap(~density_type) +
-  geom_bin_2d(aes(mu_pos_for_site_BEN, mu_neg_for_site_BEN)) +
-  geom_abline() +
-  NULL
-
-
-p <- ggplot() +
-  geom_histogram(data = df_fit_wide_postandprior %>%
-                   select(density_type, sample, matches("p_pos_for_")) %>%
-                   pivot_longer(-c("sample", "density_type"), names_to = "param"),
-                 aes(value, fill = density_type, y = after_stat(density)),
-                 alpha = 0.6,
-                 position = "identity",
-                 bins = 50) +
-  facet_wrap(~param, scales = "free", nrow = 4) +
-  scale_fill_brewer(palette = "Set1") +
-  coord_cartesian(expand = FALSE) +
-  labs(fill = "",
-       x = "param value",
-       y = "probability density")
-if (data_was_simulated) {
-  p <- p + geom_vline(data = df_true_pop_params %>%
-                        filter(str_detect(param, "p_pos_for_")),
-                      aes(xintercept = value))
-}
-p
-ggsave("~/enable/enable_posteriors_p_pos_by_cluster.pdf", height = 20, width = 32)
-
-p <- ggplot() +
-  geom_histogram(data = df_fit_wide_postandprior %>%
-                   select(density_type, sample, matches("p_pos_effect_")) %>%
-                   pivot_longer(-c("sample", "density_type"), names_to = "param"),
-                 aes(value, fill = density_type, y = after_stat(density)),
-                 alpha = 0.6,
-                 position = "identity",
-                 bins = 50) +
-  facet_wrap(~param, scales = "free", nrow = 4) +
-  scale_fill_brewer(palette = "Set1") +
-  coord_cartesian(expand = FALSE) +
-  labs(fill = "",
-       x = "param value",
-       y = "probability density")
-if (data_was_simulated) {
-  p <- p + geom_vline(data = df_true_pop_params %>%
-                        filter(str_detect(param, "p_pos_effect_")),
-                      aes(xintercept = value))
-}
-p
-
-p <- ggplot() +
-  geom_violin(data = df_fit_wide_postonly %>%
-                select(matches("p_pos_effect_age_group_")) %>%
-                pivot_longer(everything(), names_to = "param") %>%
-                mutate(param = str_remove_all(param, "^p_pos_effect_age_group_"),
-                       param = factor(param, levels = c(
-                         "2-5y", "6-10y", "11-17y", "18-50y", ">50y"))),
-              aes(param, value)) +
-  geom_hline(yintercept = 0) +
-  scale_fill_brewer(palette = "Set1") +
-  coord_cartesian(expand = FALSE) +
-  labs(fill = "",
-       x = "Age group",
-       y = "Increase in log odds of being positive")
-p
-ggsave("~/enable/enable_positivity_predictors_age.pdf", height = 4, width = 6)  
-
-p <- ggplot() +
-  geom_violin(data = df_fit_wide_postonly %>%
-                select(matches("p_pos_effect_job_")) %>%
-                pivot_longer(everything(), names_to = "param") %>%
-                mutate(param = str_remove_all(param, "^p_pos_effect_job_")),
-              aes(param, value)) +
-  geom_hline(yintercept = 0) +
-  scale_fill_brewer(palette = "Set1") +
-  coord_cartesian(expand = FALSE) +
-  labs(fill = "",
-       x = "",
-       y = "Increase in log odds of being positive")
-p
-ggsave("~/enable/enable_positivity_predictors_job.pdf", height = 4, width = 6)  
-
-
-p <- ggplot() +
-  geom_violin(data = df_fit_wide_postonly %>%
-                select(matches("p_pos_effect_country_")) %>%
-                pivot_longer(everything(), names_to = "param") %>%
-                mutate(param = str_remove_all(param, "^p_pos_effect_country_")),
-              aes(param, value)) +
-  geom_hline(yintercept = 0) +
-  scale_fill_brewer(palette = "Set1") +
-  coord_cartesian(expand = FALSE) +
-  labs(fill = "",
-       x = "",
-       y = "Increase in log odds of being positive")
-p
-ggsave("~/enable/enable_positivity_predictors_country.pdf", height = 4, width = 6)  
-
-# Plot the posterior median & CI estimates for f_effects.
-# NB almost all CIs from country and lot_id overlap zero - suggests don't need
-# to model this variation. 
-quantiles <- c(0.025, 0.5, 0.975)
-df_fit_wide_postonly %>%
-  select(sample, , contains("f_effect[")) %>%
-  pivot_longer(-sample, names_to = "param") %>%
-  group_by(param) %>%
-  reframe(value = quantile(value, probs = quantiles),
-          quantile = quantiles) %>%
-  pivot_wider(names_from = quantile, names_prefix = "q_") %>%
-  tidyr::extract(param, remove = FALSE,
-                 into = "which_f", 
-                 regex = "f_effect\\[([0-9]+)\\]") %>%
-  tidyr::extract(param, 
-                 into = "param", 
-                 regex = "f_effect\\[[0-9]+\\]_(.+)") %>%
-  ggplot() +
-  geom_point(aes(param, q_0.5)) +
-  geom_errorbar(aes(param, ymin = q_0.025, ymax = q_0.975)) +
-  geom_hline(yintercept = 0) +
-  facet_wrap(~which_f, ncol = 1, scales = "free_y") +
-  labs(x = "Plate category",
-       y = "Effect on 4 parameters of Ab<->OD logistic function") +
-  theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0))
-ggsave("~/enable/enable_f_effects_of_lab_and_lot.pdf", height = 8, width = 8)  
-
+ 
 # Compare true and estimated sample x 
 quantiles <- c(0.025, 0.5, 0.975)
 df_sam_x <- df_fit_wide_postonly %>%
@@ -1068,7 +902,6 @@ if (data_was_simulated) {
                 select(id_sam, xlog) %>%
                 distinct(),
               by = "id_sam") %>%
-    filter(id_sam %% 15 == 0) %>%
     ggplot() +
     geom_errorbar(aes(xlog, ymin = x_q_0.025, ymax = x_q_0.975)) +
     geom_point(aes(xlog, x_q_0.5)) +
@@ -1077,7 +910,6 @@ if (data_was_simulated) {
     #scale_y_log10(breaks = xs) +
     labs(x = "True Ab",
          y = "Estimated Ab")
-  ggsave("~/foo_8.pdf", height = 3.3, width = 3.3)
 }
 
 # Classification plot
@@ -1112,7 +944,6 @@ if (data_was_simulated) {
          fill = "Truth:") +
     coord_cartesian(expand = FALSE) +
     scale_x_continuous(limits = c(NA, NA))
-  ggsave("~/foo_5.pdf", height = 2.7, width = 3.5)
 }
 
 # Compare prob positivity vs OD
@@ -1130,21 +961,17 @@ inner_join(df_sam_x, df_prob_pos, by = "id_sam") %>%
   geom_point(aes(x_q_0.5, prob_pos_q_0.5)) +
   labs(x = "Estimated concentration",
        y = "Estimated probability of being positive") +
-  facet_wrap(~site) +
   scale_x_log10()
 
 # Plot cal data by plate  
-plate_ints_to_plot <- 1:4
 ggplot() +
-  geom_point(data = df_cal %>%
-               filter(plate_int %in% plate_ints_to_plot),
+  geom_point(data = df_cal,
              aes(x, y)) +
   facet_wrap(~plate) +
   scale_x_log10() +
   labs(x = "x = Ab concentration",
        y = "y = OD") +
   theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0)) 
-ggsave("~/foo_7.pdf", height = 3.3, width = 3.3)
 
 # The posteriors for the 4PL function by plate
 xlog_range <- seq(log(0.002), log(40), length.out = 50)
@@ -1162,13 +989,10 @@ df_4pl <- df_fit_wide_postonly %>%
   expand_grid(xlog = xlog_range) %>%
   mutate(x = exp(xlog)) %>%
   mutate(y = PL4(xlog, f_1, f_2, f_3, f_4))
-plate_ints_to_plot <- 1:12
 p <- ggplot(df_4pl %>%
-              filter(plate_int %in% plate_ints_to_plot) %>%
               filter(sample %% 10 == 0)) +
   geom_line(aes(x, y, group = sample), alpha = 0.1) +
-  geom_point(data = df_cal %>%
-               filter(plate_int %in% plate_ints_to_plot),
+  geom_point(data = df_cal,
              aes(x, y), col = "blue") +
   facet_wrap(~plate, nrow = 3) +
   scale_x_log10() +
@@ -1178,14 +1002,12 @@ p <- ggplot(df_4pl %>%
 if (data_was_simulated) {
   p <- p + 
     geom_line(data = df_plate %>%
-                filter(plate_int %in% plate_ints_to_plot) %>%
                 expand_grid(xlog = xlog_range) %>%
                 mutate(x = exp(xlog)) %>%
                 mutate(y = PL4(xlog, f_1, f_2, f_3, f_4)),
               aes(x, y), col = "blue", linewidth = 1)
 }
 p
-ggsave("~/enable/enable_calibrator_posterior_curves.pdf", height = 4.5, width = 6)
 
 # Plot P(x | pos), P(x | neg), P(x), P(pos | x) again but now with logx
 xlogs_plot <- log(10) * -90:60 / 30
@@ -1216,7 +1038,7 @@ if (data_was_simulated) {
   df_x_distributions_truth <-
     tibble(xlog = xlogs_plot,
            x = exp(xlog),
-           `P(xlog | pos)` = x * dgamma(x, shape = x_sam_pos_alpha, rate = x_sam_pos_beta),
+           `P(xlog | pos)` = x * dgamma(x, shape = x_sam_pos_alpha, rate = x_sam_pos_beta), # TODO: fix!
            `P(xlog | neg)` = x * dgamma(x, shape = x_sam_neg_alpha, rate = x_sam_neg_beta),
            `P(xlog)` = p_pos * `P(xlog | pos)` + (1 - p_pos) * `P(xlog | neg)`,
            `P(pos | xlog)` = p_pos * `P(xlog | pos)` / `P(xlog)`) %>%
@@ -1226,7 +1048,6 @@ if (data_was_simulated) {
               aes(x = xlog, y = value), colour = "blue") 
 }
 p
-ggsave("~/enable/enable_parametric_prob_pos.pdf", height = 5, width = 6)
 
 # Same as last plot but stratified by group, assuming the same pred var - site - 
 # was used for all five x mix paramsm 
@@ -1260,47 +1081,6 @@ p <- ggplot() +
   scale_x_continuous(expand = c(0, 0), limits = c(NA, NA)) +
   scale_y_continuous(expand = c(0, 0), limits = c(NA, NA))
 p
-ggsave("~/enable/enable_parametric_prob_pos_by_site.pdf", height = 6, width = 10.5)
-
-# Posterior retrodictive check
-group_size <- 15
-df_plot_group <- df_cal %>%
-  select(plate, plate_int) %>%
-  distinct() %>%
-  mutate(plot_group = 1 + (row_number() - 1) %/% group_size) 
-df_plot <- df_fit_wide_postonly %>% 
-  filter(sample %% 10 == 0) %>%
-  select(sample, starts_with("y_cal_sim[")) %>%
-  pivot_longer(-c("sample"), names_to = "param") %>%
-  rename(y_sim = value) %>%
-  tidyr::extract(param, 
-                 into = c("cal_rep"), 
-                 regex = "y_cal_sim\\[([0-9]+)\\]") %>%
-  mutate(cal_rep = as.integer(cal_rep)) %>%
-  left_join(df_cal %>% select(plate, x) %>% mutate(cal_rep = row_number()),
-            by = "cal_rep") %>%
-  left_join(df_plot_group, by = "plate")
-pdf("~/enable/enable_y_dependent_noise.pdf",
-    width = 18.5, height = 10.5)
-for (group in unique(df_plot_group$plot_group)) {
-  cat("Now doing page ", group, " of ", max(df_plot_group$plot_group), "\n")
-  df_plot %>%
-    filter(plot_group == group) %>%
-    mutate(x = round(x, digits = 1)) %>%
-    {print(ggplot(.) +
-             geom_violin(aes(x, y_sim, group = x)) +
-             geom_point(data = df_cal %>% 
-                          left_join(df_plot_group, by = "plate") %>%
-                          filter(plot_group == group) %>%
-                          mutate(x = round(x, digits = 1)),
-                        aes(x, y), col = "blue") +
-             facet_wrap(~plate, nrow = 3, scales = "free") +
-             scale_x_discrete(drop = TRUE) +
-             labs(x = "concentration",
-                  y = "absorbance")
-    )}
-}
-dev.off()
 
 # Plot the posterior distribution of the population level distribution of point
 # estimates of x_sam and the posterior distribution of the parametric
@@ -1326,27 +1106,6 @@ df_fit_wide_postonly %>%
   #geom_line(data = df_gamma_, aes(x, p), col = "blue") +
   #geom_density(data = df_x_sam_point, aes(x), col = "blue") +
   NULL 
-ggsave("~/enable/enable_PopDistributionOfX_LogScale.pdf", height = 4, width = 6.5)
-
-df_x_sam_point <- df_fit_wide_postonly %>%
-  select(starts_with("x_sam[")) %>%
-  map(median) %>%
-  as_tibble() %>%
-  pivot_longer(everything(), names_to = "param", values_to = "x") %>%
-  mutate(x = exp(x)) %>%
-  tidyr::extract(param, 
-                 into = c("which_sam_rep"), 
-                 regex = "x_sam\\[([0-9]+)\\]") %>%
-  mutate(which_sam_rep = as.integer(which_sam_rep)) %>%
-  left_join(df_sam %>% 
-              select(sample_id, id_sam, which_sam_rep),
-            by = "which_sam_rep")
-df_x_sam_point %>%
-  summarise(.by = c("id_sam", "sample_id"),
-            x = if_else(all(is.infinite(x)),
-                        Inf,
-                        mean(x[is.finite(x)]))) %>%
-  write_csv("~/enable/enable/enable_SampleX_empirical_v9.csv")
 
 # Plot the posterior distribution of the population level distribution of 
 # stochastically redrawn y_sam_sim_conditional 
@@ -1365,7 +1124,6 @@ df_fit_wide_postonly %>%
   labs(x = "log10(OD value)",
        y = "probability density") +
   NULL 
-ggsave("~/enable/enable_PopDistributionOfODs.pdf", height = 4, width = 6.5)
 
 # Plot the posterior distribution of the population level distribution of 
 # stochastically redrawn y_sam_sim_unconditional 
@@ -1379,22 +1137,17 @@ df_fit_wide_postonly %>%
   mutate(which_sam_rep = as.integer(which_sam_rep)) %>%
   left_join(df_sam, by = "which_sam_rep") %>%
   mutate(value = log10(value)) %>%
-  mutate(age_group_2 = cut(age, breaks = c(1, 3, 5, 7, 10, 14, 18, 25, 35, 50, Inf))) %>%
   ggplot() +
   geom_density(aes(value, group = sample), alpha = 0.01) +
-  geom_histogram(data = df_sam %>%
-                   mutate(age_group_2 = cut(age, breaks = c(1, 3, 5, 7, 10, 14, 18, 25, 35, 50, Inf))), 
+  geom_histogram(data = df_sam, 
                  aes(x = log10(y), y = after_stat(density)),
                  col = "blue", fill = NA,
                  bins = 60) +
   coord_cartesian(expand = F) +
   scale_x_continuous(limits = c(-3, 1)) +
-  #facet_wrap(~cluster_, scales = "free_y") + # TODO: <--- vary facet factor
-  facet_grid(site_ ~ age_group_, scales = "free_y") +
   labs(x = "log10(OD value)",
        y = "probability density") +
   NULL 
-ggsave("~/enable/enable_mixture_random_effects_model_fit_job.pdf", height = 5, width = 10)
 
 
 
