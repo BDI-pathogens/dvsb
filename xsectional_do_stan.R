@@ -2,7 +2,7 @@ library(data.table)
 library(tidyverse)
 theme_set(theme_classic())
 
-data_was_simulated <- FALSE
+data_was_simulated <- TRUE
 read_posterior_from_file <- FALSE
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run-202510141258-*-97b346.csv") # first run with Anton's code debugged
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-10-27-18h07m40_chain*.csv") # v19 on data 2025-10-27
@@ -18,8 +18,8 @@ files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-25-18
 file_input_stan <- "~/repos/dvsb/xsectional.stan"
 dir_stan <- "~/.cmdstan/cmdstan-2.37.0/"
 num_mc_chains <- 5
-num_mc_iterations_posterior <- 1500 # per chain, half of them warmup
-num_mc_iterations_prior <- 20000
+num_mc_iterations_posterior <- 500 # per chain, half of them warmup
+num_mc_iterations_prior <- 10000
 # one of: "rstan", "cmdstanr", "cmdstan". cmdstan uses cmdstanr for prior sampling.
 stan_method <- "cmdstan" 
 file_stan_temp <- "/Users/cwymant/foo.json" # for writing the data for cmdstan
@@ -829,8 +829,8 @@ if (data_was_simulated) {
   df_x_distributions_truth <-
     tibble(xlog = xlogs_plot,
            x = exp(xlog),
-           `P(xlog | pos)` = x * dgamma(x, shape = x_sam_pos_alpha, rate = x_sam_pos_beta), # TODO: fix!
-           `P(xlog | neg)` = x * dgamma(x, shape = x_sam_neg_alpha, rate = x_sam_neg_beta),
+           `P(xlog | pos)` = dnorm(xlog, mean = mu_pos, sd = sd_pos),
+           `P(xlog | neg)` = dnorm(xlog, mean = mu_neg, sd = sd_neg),
            `P(xlog)` = p_pos * `P(xlog | pos)` + (1 - p_pos) * `P(xlog | neg)`,
            `P(pos | xlog)` = p_pos * `P(xlog | pos)` / `P(xlog)`) %>%
     pivot_longer(-c("x", "xlog"))
