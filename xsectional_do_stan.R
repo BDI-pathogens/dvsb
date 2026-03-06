@@ -3,15 +3,19 @@ library(tidyverse)
 theme_set(theme_classic())
 
 data_was_simulated <- FALSE
-read_posterior_from_file <- FALSE
+read_posterior_from_file <- TRUE
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run-202510141258-*-97b346.csv") # first run with Anton's code debugged
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-10-27-18h07m40_chain*.csv") # v19 on data 2025-10-27
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-10-29-16h26m52_chain*.csv") # v19 on data 2025-10-27 with 15 of my dodgy plates excluded and longer chains
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-03-22h29m50_chain*.csv") # v19 on all data
+#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-13-21h38m27_chain*.csv") # v19 on all data with 1500 iter, with sex as p_pos predictor, slow but OK convergence 
+files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-25-18h44m40_chain*.csv") # v20 with age as a predictor for all 5 params, with cluster and site and job for p_pos
+
+#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-12-03-10h28m49_chain*.csv") # first restriction to baseline only in some time(!), v20 with age as a predictor for all 5 params, with site and job for p_pos
 
 # INPUT ABOUT STAN ----
 
-file_input_stan <- "~/code_serology_model/Xsectional_v19.stan"
+file_input_stan <- "~/code_serology_model/Xsectional_v20.stan"
 dir_stan <- "/Users/cwymant/.cmdstan/cmdstan-2.37.0/"
 sample_prior_manually <- FALSE
 num_mc_chains <- 5
@@ -279,7 +283,7 @@ params_to_ignore <- c(
   ".iteration",
   ".draw",
   # actually interesting, but memory is limited:
-  "xlog_sam",
+  #"xlog_sam",
   #"y_sam_sim_conditional", 
   "p_sam_is_pos", 
   #"y_sam_loglik_per_obs",
@@ -387,7 +391,7 @@ if (read_posterior_from_file || stan_method == "cmdstan") {
   df_fit_wide_postonly <- map(files_out_stan, function(file_){
     print(Sys.time())
     cat("Now reading file", file_, "\n")
-    df_ <- data.table::fread(cmd = paste("grep -v '^#'", file_), nThread = 6)
+    df_ <- data.table::fread(cmd = paste("grep -v '^#'", file_))
     keep_col <- rep(TRUE, ncol(df_))
     for (param in params_to_ignore) {
       keep_based_on_this_param <- 
@@ -396,7 +400,7 @@ if (read_posterior_from_file || stan_method == "cmdstan") {
       keep_col <- keep_col & keep_based_on_this_param
     }
     df_ <- df_[, ..keep_col]
-    df_ <- df_[seq(1, .N, by = 2)] # TODO: keep every other row?
+    df_ <- df_[seq(1, .N, by = 2)] # Keep every other row for memory management
     df_
   }) %>% data.table::rbindlist()
   
@@ -835,6 +839,13 @@ if (data_was_simulated) {
   )
 }
 
+if ("p_pos_for_sex_Male"   %in% names(df_fit_wide_postandprior) &&
+    "p_pos_for_sex_Female" %in% names(df_fit_wide_postandprior)) {
+  df_fit_wide_postandprior$p_pos_for_sex_Male_min_Female <-
+    df_fit_wide_postandprior$p_pos_for_sex_Male -
+    df_fit_wide_postandprior$p_pos_for_sex_Female
+}
+
 # PLOT STAN OUTPUT ----
 
 param_names_pop <- colnames(df_fit_wide_postandprior)
@@ -864,14 +875,13 @@ if (data_was_simulated) {
     prior_samples     = df_fit_wide_postandprior %>% select(-sample) %>% filter(density_type == "prior"),
     params_desired = params_desired,
     #transforms = list_for_log_transform,
-    lower = -5,
-    #upper = 5,
+    #lower = -0.03,
+    #upper = 0.03,
     skip_stanfit_to_dt = TRUE,
     bins = 50)
 }
 p
-ggsave("~/enable/enable_posteriors.pdf", height = 8, width = 9.4)
-
+ggsave("~/enable/enable_posteriors.pdf", height = 12, width = 18)
 
 ggplot() +
   geom_histogram(aes(value, fill = density_type, y = after_stat(density)),
@@ -1369,17 +1379,22 @@ df_fit_wide_postonly %>%
   mutate(which_sam_rep = as.integer(which_sam_rep)) %>%
   left_join(df_sam, by = "which_sam_rep") %>%
   mutate(value = log10(value)) %>%
+  mutate(age_group_2 = cut(age, breaks = c(1, 3, 5, 7, 10, 14, 18, 25, 35, 50, Inf))) %>%
   ggplot() +
   geom_density(aes(value, group = sample), alpha = 0.01) +
-  geom_histogram(data = df_sam, 
+  geom_histogram(data = df_sam %>%
+                   mutate(age_group_2 = cut(age, breaks = c(1, 3, 5, 7, 10, 14, 18, 25, 35, 50, Inf))), 
                  aes(x = log10(y), y = after_stat(density)),
                  col = "blue", fill = NA,
                  bins = 60) +
   coord_cartesian(expand = F) +
   scale_x_continuous(limits = c(-3, 1)) +
-  facet_wrap(~job_, scales = "free_y", nrow = 2) +
+  #facet_wrap(~cluster_, scales = "free_y") + # TODO: <--- vary facet factor
+  facet_grid(site_ ~ age_group_, scales = "free_y") +
   labs(x = "log10(OD value)",
        y = "probability density") +
   NULL 
 ggsave("~/enable/enable_mixture_random_effects_model_fit_job.pdf", height = 5, width = 10)
+
+
 
