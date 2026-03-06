@@ -1,25 +1,24 @@
 library(data.table)
+library(tidyverse)
 theme_set(theme_classic())
 
-data_was_simulated <- TRUE
+data_was_simulated <- FALSE
 read_posterior_from_file <- FALSE
-#files_out_stan <- Sys.glob("~/enable/samples_full_run-202509231402-*-34f4eb.csv") # all calibration only, including all blanks to identify which are outliers
-#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run-202509240958-*-8dbbf0.csv") # non-baseline, mixture observation without p_sam_rep_is_blank and with y_sim excluding blank possibility, after removing some outliers
-#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run-202510072125-*-3e7356.csv") # with site effects on x mix
-#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run-202510090853-*-7abd6f.csv") # re-including latest outliers, site effects on p_pos only
-files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run-202510141258-*-97b346.csv") # first run with Anton's code debugged
-#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-10-20-14h20m09_chain*.csv") # testing cmdstan output
+#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run-202510141258-*-97b346.csv") # first run with Anton's code debugged
+#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-10-27-18h07m40_chain*.csv") # v19 on data 2025-10-27
+#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-10-29-16h26m52_chain*.csv") # v19 on data 2025-10-27 with 15 of my dodgy plates excluded and longer chains
+#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-03-22h29m50_chain*.csv") # v19 on all data
 
 # INPUT ABOUT STAN ----
 
-file_input_stan <- "~/code_serology_model/Xsectional_v18.stan"
+file_input_stan <- "~/code_serology_model/Xsectional_v19.stan"
 dir_stan <- "/Users/cwymant/.cmdstan/cmdstan-2.37.0/"
 sample_prior_manually <- FALSE
 num_mc_chains <- 5
-num_mc_iterations_posterior <- 2000 # per chain, half of them warmup
-num_mc_iterations_prior <- 30000
+num_mc_iterations_posterior <- 1500 # per chain, half of them warmup
+num_mc_iterations_prior <- 20000
 # one of: "rstan", "cmdstanr", "cmdstan". cmdstan uses cmdstanr for manual prior sampling.
-stan_method <- "cmdstanr" 
+stan_method <- "cmdstan" 
 file_stan_temp <- "/Users/cwymant/foo.json" # for writing the data for cmdstan
 file_out_stan_basename <- "/Users/cwymant/enable/samples_full_run_"
 
@@ -295,9 +294,7 @@ if (stan_method == "cmdstanr") {
   rstan::rstan_options(auto_write = TRUE)
   options(mc.cores = parallel::detectCores())
   model_compiled <- rstan::stan_model(file_input_stan)
-} else if (stan_method == "cmdstan") {
-  model_compiled <- cmdstanr::cmdstan_model(file_input_stan)
-} else {
+} else if (stan_method != "cmdstan") {
   stop(paste("Unknown value", stan_method, "specified for stan_method"))
 }
 
@@ -306,6 +303,8 @@ if (stan_method == "cmdstanr") {
 if (! read_posterior_from_file) {
   
   start_time <- Sys.time()
+  cat("Started running Stan at")
+  print(start_time)
   
   if (stan_method == "cmdstanr") {
     samples_posterior <- model_compiled$sample(
@@ -348,15 +347,18 @@ if (! read_posterior_from_file) {
     files_out_stan_summary <- paste0(file_out_stan_basename, time, "_summary.csv")
     files_out_stan_profile <- paste0(file_out_stan_basename, time, "_profiles.csv")
     files_out_r_image <- paste0(file_out_stan_basename, time, ".RData")
-    system(paste0(file_stan_exe,
-                  " method=sample",
-                  " num_chains=", num_mc_chains,
-                  " num_warmup=", round(num_mc_iterations_posterior / 2),
-                  " num_samples=", round(num_mc_iterations_posterior / 2),
-                  " num_threads=", num_mc_chains,
-                  " data file=", file_stan_temp, 
-                  " output file=", paste(files_out_stan, collapse = ","),
-                  " profile_file=", files_out_stan_profile))
+    command <- paste0(file_stan_exe,
+                      " method=sample",
+                      " num_chains=", num_mc_chains,
+                      " num_warmup=", round(num_mc_iterations_posterior / 2),
+                      " num_samples=", round(num_mc_iterations_posterior / 2),
+                      " num_threads=", num_mc_chains,
+                      " data file=", file_stan_temp, 
+                      " output file=", paste(files_out_stan, collapse = ","),
+                      " profile_file=", files_out_stan_profile)
+    print("Running this command:")
+    print(command)
+    system(command)
     system(paste0(dir_stan, "/bin/stansummary ", files_out_stan,
                   " --percentiles 50",
                   " --csv_filename ", files_out_stan_summary))
@@ -385,7 +387,7 @@ if (read_posterior_from_file || stan_method == "cmdstan") {
   df_fit_wide_postonly <- map(files_out_stan, function(file_){
     print(Sys.time())
     cat("Now reading file", file_, "\n")
-    df_ <- data.table::fread(cmd = paste("grep -v '^#'", file_), nThread = 4)
+    df_ <- data.table::fread(cmd = paste("grep -v '^#'", file_), nThread = 6)
     keep_col <- rep(TRUE, ncol(df_))
     for (param in params_to_ignore) {
       keep_based_on_this_param <- 
@@ -394,6 +396,7 @@ if (read_posterior_from_file || stan_method == "cmdstan") {
       keep_col <- keep_col & keep_based_on_this_param
     }
     df_ <- df_[, ..keep_col]
+    df_ <- df_[seq(1, .N, by = 2)] # TODO: keep every other row?
     df_
   }) %>% data.table::rbindlist()
   
@@ -407,6 +410,7 @@ if (read_posterior_from_file || stan_method == "cmdstan") {
 if (! sample_prior_manually) {
   
   if (stan_method %in% c("cmdstanr", "cmdstan")) {
+    model_compiled <- cmdstanr::cmdstan_model(file_input_stan)
     df_ps <- model_compiled$sample(
       data = stan_input_prior,
       iter_warmup = num_mc_iterations_prior / 2,
@@ -834,38 +838,53 @@ if (data_was_simulated) {
 # PLOT STAN OUTPUT ----
 
 param_names_pop <- colnames(df_fit_wide_postandprior)
+param_names_pop <- param_names_pop[param_names_pop != "sample"]
 
-# Plot prior vs posterior for all main params, except f_effects
-p <- ggplot() +
-  geom_histogram(data = df_fit_wide_postandprior %>%
-                   select(!matches("f_effect")) %>%
-                   #select(!matches("p_pos_")) %>%
-                   #select(!matches("_jump")) %>%
-                   pivot_longer(-c("sample", "density_type"), names_to = "param"),
-                 aes(value, fill = density_type, y = after_stat(density)),
-                 alpha = 0.6,
-                 position = "identity",
-                 bins = 50) +
-  facet_wrap(~param, scales = "free", nrow = 8) +
-  scale_fill_brewer(palette = "Set1") +
-  coord_cartesian(expand = FALSE) +
-  labs(fill = "",
-       x = "param value",
-       y = "probability density") +
-  theme(strip.text.x = element_text(size = 7))
+regex_for_params_to_plot <- ""
+params_desired <- param_names_pop[grepl(regex_for_params_to_plot, param_names_pop)]
+params_for_log_transform <- c() # params_desired[grepl("sd_", params_desired)]
+list_for_log_transform <- list()
+for (param in params_for_log_transform) list_for_log_transform[[param]] <- log
 if (data_was_simulated) {
-  p <- p + geom_vline(data = df_true_pop_params %>%
-                        filter(!str_detect(param, "f_effect")),
-                      aes(xintercept = value))
+  true_params_to_plot <- df_true_pop_params[grepl(regex_for_params_to_plot,
+                                                  df_true_pop_params$param),]$value
+  names(true_params_to_plot) <- df_true_pop_params[grepl(regex_for_params_to_plot,
+                                                         df_true_pop_params$param),]$param
+  p <- mastiff::plot_posterior(
+    posterior_samples = df_fit_wide_postandprior %>% select(-sample) %>% filter(density_type == "posterior"),
+    prior_samples     = df_fit_wide_postandprior %>% select(-sample) %>% filter(density_type == "prior"),
+    params_desired = params_desired,
+    #transforms = list_for_log_transform,
+    true_param_values = true_params_to_plot,
+    skip_stanfit_to_dt = TRUE,
+    bins = 200)
+} else {
+  p <- mastiff::plot_posterior(
+    posterior_samples = df_fit_wide_postandprior %>% select(-sample) %>% filter(density_type == "posterior"),
+    prior_samples     = df_fit_wide_postandprior %>% select(-sample) %>% filter(density_type == "prior"),
+    params_desired = params_desired,
+    #transforms = list_for_log_transform,
+    lower = -5,
+    #upper = 5,
+    skip_stanfit_to_dt = TRUE,
+    bins = 50)
 }
 p
 ggsave("~/enable/enable_posteriors.pdf", height = 8, width = 9.4)
 
-mastiff::plot_posterior(
-  posterior_samples = df_fit_wide_postandprior %>% filter(density_type == "posterior"),
-  prior_samples = df_fit_wide_postandprior %>% filter(density_type == "prior"),
-  params_desired = param_names_pop[grepl("sigma", param_names_pop)],
-  skip_stanfit_to_dt = TRUE)
+
+ggplot() +
+  geom_histogram(aes(value, fill = density_type, y = after_stat(density)),
+                 alpha = 0.6,
+                 position = "identity",
+                 bins = 100) +
+  facet_wrap(~param, scales = "free", nrow = 4) +
+  scale_fill_brewer(palette = "Set1") +
+  coord_cartesian(expand = FALSE) +
+  labs(fill = "",
+       x = "param value",
+       y = "probability density")
+
 
 df_fit_wide_postandprior %>%
   filter(density_type == "posterior") %>%
@@ -1101,6 +1120,7 @@ inner_join(df_sam_x, df_prob_pos, by = "id_sam") %>%
   geom_point(aes(x_q_0.5, prob_pos_q_0.5)) +
   labs(x = "Estimated concentration",
        y = "Estimated probability of being positive") +
+  facet_wrap(~site) +
   scale_x_log10()
 
 # Plot cal data by plate  
@@ -1200,6 +1220,7 @@ ggsave("~/enable/enable_parametric_prob_pos.pdf", height = 5, width = 6)
 
 # Same as last plot but stratified by group, assuming the same pred var - site - 
 # was used for all five x mix paramsm 
+xlogs_plot <- log(10) * -90:60 / 30
 df_xlog_distributions_site <- df_fit_wide_postandprior %>%
   filter(density_type == "posterior") %>%
   select(sample, matches("_for_"), matches("mu_neg_for_")) %>%
@@ -1356,9 +1377,9 @@ df_fit_wide_postonly %>%
                  bins = 60) +
   coord_cartesian(expand = F) +
   scale_x_continuous(limits = c(-3, 1)) +
-  facet_wrap(~x_mix_group, scales = "free_y", nrow = 2) +
+  facet_wrap(~job_, scales = "free_y", nrow = 2) +
   labs(x = "log10(OD value)",
        y = "probability density") +
   NULL 
-ggsave("~/enable/enable_mixture_random_effects_model_fit.pdf", height = 5, width = 10)
+ggsave("~/enable/enable_mixture_random_effects_model_fit_job.pdf", height = 5, width = 10)
 

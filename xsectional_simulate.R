@@ -107,20 +107,22 @@ for (x_mix_pred_var_ in x_mix_params) {
 # sigma_p_pos_pred_vars should be a list with the same names as f_pred_vars.
 # Each element in sigma_p_pos_pred_vars is a standard deviation of the
 # variability in p_pos (on a logit scale) associated with that predictor variable.
-#x_mix_pred_vars$p_pos <- list(letter_p_pos = letters[1:5])
-#x_mix_pred_vars_sds$p_pos <- c(letter_p_pos = 1)
-x_mix_pred_vars$mu_neg <- list(letter = letters[1:4],
-                               int = as.character(1:4))
-x_mix_pred_vars_sds$mu_neg <- c(letter = 1,
-                                int = 0.1)
-x_mix_pred_vars$mu_pos <- list(letter = letters[1:4],
-                               int = as.character(1:4))
-x_mix_pred_vars_sds$mu_pos <- c(letter = 0.1,
-                                int = 1)
-#x_mix_pred_vars$sd_neg <- list(letter_sd_neg = LETTERS[1:3])
-#x_mix_pred_vars_sds$sd_neg <- c(letter_sd_neg = 0.6)
-#x_mix_pred_vars$sd_pos <- list(letter_sd_pos = LETTERS[1:3])
-#x_mix_pred_vars_sds$sd_pos <- c(letter_sd_pos = 0.6)
+x_mix_pred_vars$p_pos <- list(letter = letters[1:7],
+                              int = as.character(1:7),
+                              foo = c("bar", "spam"),
+                              age = c("0-9", "10-19", "20+"))
+x_mix_pred_vars_sds$p_pos <- c(letter = 1,
+                               int = 1,
+                               foo = 1,
+                               age = 1)
+x_mix_pred_vars$mu_neg <- list(letter = letters[1:7])
+x_mix_pred_vars_sds$mu_neg <- c(letter = 1)
+x_mix_pred_vars$mu_pos <- list(letter = letters[1:7])
+x_mix_pred_vars_sds$mu_pos <- c(letter = 1)
+x_mix_pred_vars$sd_neg <- list(letter = letters[1:7])
+x_mix_pred_vars_sds$sd_neg <- c(letter = 1)
+x_mix_pred_vars$sd_pos <- list(letter = letters[1:7])
+x_mix_pred_vars_sds$sd_pos <- c(letter = 1)
 
 # INPUT CHECKS ----
 
