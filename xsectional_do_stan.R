@@ -17,11 +17,10 @@ files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-25-18
 
 file_input_stan <- "~/repos/dvsb/xsectional.stan"
 dir_stan <- "~/.cmdstan/cmdstan-2.37.0/"
-sample_prior_manually <- FALSE
 num_mc_chains <- 5
 num_mc_iterations_posterior <- 1500 # per chain, half of them warmup
 num_mc_iterations_prior <- 20000
-# one of: "rstan", "cmdstanr", "cmdstan". cmdstan uses cmdstanr for manual prior sampling.
+# one of: "rstan", "cmdstanr", "cmdstan". cmdstan uses cmdstanr for prior sampling.
 stan_method <- "cmdstan" 
 file_stan_temp <- "/Users/cwymant/foo.json" # for writing the data for cmdstan
 file_out_stan_basename <- "/Users/cwymant/enable/samples_full_run_"
@@ -90,8 +89,6 @@ if (data_was_simulated) {
 rho_prior_eta <- 1
 
 # SYNCHRONISE SIMULATED AND REAL DATA PREVIOUS STEPS ----
-
-if (sample_prior_manually) stop("sample_prior_manually not available till truncated normals for random effects implemented")
 
 if (data_was_simulated) {
   df_plate$plate_int <- df_plate$plate
@@ -409,235 +406,45 @@ if (read_posterior_from_file || stan_method == "cmdstan") {
   #  mastiff::rename_params_cmdstanfile_to_rstan(colnames(df_fit_wide_postonly))
 }
 
-# GET THE PRIOR FROM STAN IF DESIRED ----
+# GET THE PRIOR FROM STAN ----
 
-if (! sample_prior_manually) {
-  
-  if (stan_method %in% c("cmdstanr", "cmdstan")) {
-    model_compiled <- cmdstanr::cmdstan_model(file_input_stan)
-    df_ps <- model_compiled$sample(
-      data = stan_input_prior,
-      iter_warmup = num_mc_iterations_prior / 2,
-      iter_sampling = num_mc_iterations_prior / 2,
-      chains = num_mc_chains,
-      max_treedepth = max_treedepth,
-      parallel_chains = num_mc_chains
-    )
-    df_ps <- df_ps$draws(format = "draws_df")
-    setDT(df_ps)
-    keep_col <- rep(TRUE, ncol(df_ps))
-    for (param in params_to_ignore) {
-      keep_based_on_this_param <- 
-        colnames(df_ps) != param &
-        ! startsWith(colnames(df_ps), paste0(param, ".")) &
-        ! startsWith(colnames(df_ps), paste0(param, "[")) 
-      keep_col <- keep_col & keep_based_on_this_param
-    }
-    df_ps <- df_ps[, ..keep_col]
-  } else if (stan_method == "rstan") {
-    df_ps <- sampling(model_compiled,
-                      data = stan_input_prior,
-                      iter = num_mc_iterations_prior,
-                      chains = num_mc_chains,
-                      control = list(max_treedepth = max_treedepth),
-                      pars = params_to_ignore,
-                      include = FALSE)
-    df_ps <- as.data.frame(df_ps)
-    setDT(df_ps)
-  } else {
-    stop(paste("Unknown value", stan_method, "specified for stan_method"))
-  }
-  df_ps[, sample := 1:nrow(df_ps)]
-  df_ps[, density_type := "prior"]
-}
-
-# GET THE PRIOR MANUALLY IF DESIRED ----
-
-# Ugly code to sample from the prior manually. Sorry programming.
-if (sample_prior_manually) {
-  
-  # Combine df_priors_scalars and df_priors_vectors
-  df_priors <- df_priors_scalars
-  df_pri_vec_sampling <- df_priors_vectors %>% 
-    mutate(replicates_needed = case_when(
-      param == "sigma_f_pred_vars" ~ num_f_pred_vars,
-      TRUE ~ 1)) %>%
-    uncount(replicates_needed) 
-  names(df_pri_vec_sampling$lower[[1]]) <- paste0("sigma_f_plate[", 1:4, "]")
-  names(df_pri_vec_sampling$lower[[2]]) <- paste0("f[", 1:4, "]")
-  if (predict_f) {
-    for (which_f_pred_var in 1:num_f_pred_vars) {
-      names(df_pri_vec_sampling$lower[[2 + which_f_pred_var]]) <-
-        paste0("sigma_f_pred_vars[", which_f_pred_var, ",", 1:4, "]")
-    }
-  }
-  for (row in 1:nrow(df_pri_vec_sampling)) {
-    names(df_pri_vec_sampling$upper[[row]]) <- names(df_pri_vec_sampling$lower[[row]])
-  }
-  df_pri_vec_sampling$param <- 1:nrow(df_pri_vec_sampling) # anything unique
-  df_priors <- df_priors %>%
-    bind_rows(full_join(df_pri_vec_sampling %>% 
-                          select(param, lower) %>%
-                          pivot_wider(names_from = param, values_from = lower) %>%
-                          unnest_wider(everything()) %>%
-                          pivot_longer(everything(), names_to = "param", values_to = "lower"),
-                        df_pri_vec_sampling %>% 
-                          select(param, upper) %>%
-                          pivot_wider(names_from = param, values_from = upper) %>%
-                          unnest_wider(everything()) %>%
-                          pivot_longer(everything(), names_to = "param", values_to = "upper"),
-                        by = "param"))
-  df_priors <- df_priors %>%
-    mutate(replicates_needed = case_when(
-      param == "sigma_p_pos_pred_vars"  ~ x_mix_pred_vars_nums[["p_pos"]],
-      param == "sigma_mu_pos_pred_vars" ~ x_mix_pred_vars_nums[["mu_pos"]],
-      param == "sigma_sd_pos_pred_vars" ~ x_mix_pred_vars_nums[["sd_pos"]],
-      param == "sigma_mu_neg_pred_vars" ~ x_mix_pred_vars_nums[["mu_neg"]],
-      param == "sigma_sd_neg_pred_vars" ~ x_mix_pred_vars_nums[["sd_neg"]],
-      TRUE ~ 1)) %>%
-    uncount(replicates_needed) 
-  df_priors <- bind_rows(
-    df_priors %>% 
-      filter(! param %in% c("sigma_p_pos_pred_vars",
-                            "sigma_mu_pos_pred_vars",
-                            "sigma_sd_pos_pred_vars",
-                            "sigma_mu_neg_pred_vars",
-                            "sigma_sd_neg_pred_vars")),
-    df_priors %>% 
-      filter(param == "sigma_p_pos_pred_vars") %>%
-      mutate(param = paste0(param, "[", row_number(), "]")),
-    df_priors %>% 
-      filter(param == "sigma_mu_pos_pred_vars") %>%
-      mutate(param = paste0(param, "[", row_number(), "]")),
-    df_priors %>% 
-      filter(param == "sigma_sd_pos_pred_vars") %>%
-      mutate(param = paste0(param, "[", row_number(), "]")),
-    df_priors %>% 
-      filter(param == "sigma_mu_neg_pred_vars") %>%
-      mutate(param = paste0(param, "[", row_number(), "]")),
-    df_priors %>% 
-      filter(param == "sigma_sd_neg_pred_vars") %>%
-      mutate(param = paste0(param, "[", row_number(), "]")))
-  
-  # Sample params with simple uniform distributions.
-  # df_ps = a df with prior samples. Short name due to heavy usage.
-  N <- num_mc_iterations_prior
-  df_ps <- tibble(sample = 1:N)
-  for (row in 1:nrow(df_priors)) {
-    df_ps[[df_priors$param[[row]]]] <-
-      runif(N, df_priors$lower[[row]], df_priors$upper[[row]])
-  }
-  
-  # Sample other params
-  rho_samples <- rethinking::rlkjcorr(N, 4, eta = rho_prior_eta)
-  for (i in 1:3) {
-    for (j in seq(i+1, length.out = 4-i)) {
-      df_ps[[paste0("rho[", i, ",", j, "]")]] <- 
-        purrr::map_dbl(1:N, ~ rho_samples[.x, i, j])
-    }
-  }
-  df_ps <- df_ps %>%
-    mutate(y_obs_sd_cal_max = y_obs_sd_cal_min + y_obs_sd_cal_jump,
-           y_obs_sd_sam_max = y_obs_sd_sam_min + y_obs_sd_sam_jump)
-  mu_pos_lower <- df_priors %>% filter(param == "mu_pos") %>% pull(lower)
-  mu_pos_upper <- df_priors %>% filter(param == "mu_pos") %>% pull(upper)
-  df_ps <- df_ps %>%
-    mutate(mu_pos = runif(N,
-                          pmax(mu_pos_lower, mu_neg),
-                          mu_pos_upper),
-           density_type = "prior")
-  
-  if (predict_f) {
-    # Independently draw num_f_pred_var_cats 4-vectors with mean zero, then scale,
-    # mirroring these parts of the Stan code:
-    # f_effects_by_pred_var_unscaled ~ multi_normal(zeros_for_f_pred_vars, rho);
-    #...
-    #int cat_current = 1;
-    #for (f_pred_var in 1:num_f_pred_vars) {
-    #  int num_cat_this_f_pred_var = num_cat_per_f_pred_var[f_pred_var];
-    #  for (cat in cat_current:(cat_current + num_cat_this_f_pred_var - 1)) {
-    #    f_effects_by_pred_var[cat, ] = f_effects_by_pred_var_unscaled[cat] .* 
-    #      sigma_f_pred_vars[f_pred_var];
-    #  }
-    #  cat_current += num_cat_this_f_pred_var;
-    #}
-    f_effects_by_pred_var_samples <- 
-      array(dim = c(num_mc_iterations_prior, num_f_pred_var_cats, 4))
-    for (sample in 1:num_mc_iterations_prior) {
-      rho_ <- matrix(
-        c(1, df_ps$`rho[1,2]`[[sample]], df_ps$`rho[1,3]`[[sample]], df_ps$`rho[1,4]`[[sample]],
-          df_ps$`rho[1,2]`[[sample]], 1, df_ps$`rho[2,3]`[[sample]], df_ps$`rho[2,4]`[[sample]],
-          df_ps$`rho[1,3]`[[sample]], df_ps$`rho[2,3]`[[sample]], 1, df_ps$`rho[3,4]`[[sample]],
-          df_ps$`rho[1,4]`[[sample]], df_ps$`rho[2,4]`[[sample]], df_ps$`rho[3,4]`[[sample]], 1),
-        4, 4, byrow = TRUE)
-      f_effects_by_pred_var_ <- rmvnorm(num_f_pred_var_cats, c(0, 0, 0, 0), rho_)
-      cat_current <- 1
-      for (f_pred_var_int in 1:num_f_pred_vars) {
-        num_cat_this_f_pred_var = num_cat_per_f_pred_var[f_pred_var_int]
-        sigma_f_pred_vars_ <- df_ps[sample, paste0(
-          "sigma_f_pred_vars[", f_pred_var_int, ",", 1:4, "]")] %>% unlist
-        for (cat in cat_current:(cat_current + num_cat_this_f_pred_var - 1)) {
-          f_effects_by_pred_var_[cat, ] = f_effects_by_pred_var_[cat, ] * 
-            sigma_f_pred_vars_
-        }
-        cat_current <- cat_current + num_cat_this_f_pred_var
-      }
-      f_effects_by_pred_var_samples[sample, , ] <- f_effects_by_pred_var_
-    }
-    for (f_pred_var_cat_int in 1:num_f_pred_var_cats) {
-      for (which_f in 1:4) {
-        df_ps[[paste0("f_effects_by_pred_var_cat[", f_pred_var_cat_int, ",",
-                      which_f, "]" )]] <-
-          f_effects_by_pred_var_samples[ , f_pred_var_cat_int, which_f]
-      }
-    }
-  }
-  
-  for (param in x_mix_params) {
-    if (x_mix_pred_vars_nums[[param]] == 0) next
-    
-    # Independently draw standard normals for each cat of each pred var, 
-    # then scale, mirroring this parts of the Stan code e.g. when param=p_pos:
-    # p_pos_effects_by_pred_var_cat_unscaled ~ std_normal();
-    #...
-    #vector[tot_cat_per_p_pos_pred_var] p_pos_effects_by_pred_var_cat;
-    #{
-    #  int cat_current = 1;
-    #  for (p_pos_pred_var in 1:num_p_pos_pred_vars) {
-    #    int num_cat_this_p_pos_pred_var = num_cat_per_p_pos_pred_var[p_pos_pred_var];
-    #    for (cat in cat_current:(cat_current + num_cat_this_p_pos_pred_var - 1)) {
-    #      p_pos_effects_by_pred_var_cat[cat] = p_pos_effects_by_pred_var_cat_unscaled[cat] * 
-    #        sigma_p_pos_pred_vars[p_pos_pred_var]; 
-    #    }
-    #    cat_current += num_cat_this_p_pos_pred_var;
-    #  }
-    #}
-    effects_by_pred_var_cat_samples_unscaled <- # define unscaled, then scale
-      matrix(rnorm(n = num_mc_iterations_prior * x_mix_pred_vars_num_cats_tots[[param]]),
-             nrow = num_mc_iterations_prior,
-             ncol = x_mix_pred_vars_num_cats_tots[[param]])
-    effects_by_pred_var_cat_samples <- 
-      matrix(nrow = num_mc_iterations_prior,
-             ncol = x_mix_pred_vars_num_cats_tots[[param]])
-    cat_current <- 1
-    for (pred_var_int in 1:x_mix_pred_vars_nums[[param]]) {
-      num_cat_this_pred_var <- x_mix_pred_vars_num_cats[[param]][pred_var_int]
-      sigma_pred_vars_ <- df_ps[[paste0(
-        "sigma_", param, "_pred_vars[", pred_var_int, "]")]]
-      for (cat in cat_current:(cat_current + num_cat_this_pred_var - 1)) {
-        effects_by_pred_var_cat_samples[, cat] <-
-          effects_by_pred_var_cat_samples_unscaled[, cat] * sigma_pred_vars_  
-      }
-      cat_current <- cat_current + num_cat_this_pred_var
-    }
-    for (pred_var_cat_int in 1:x_mix_pred_vars_num_cats_tots[[param]]) {
-      df_ps[[paste0(param, "_effects_by_pred_var_cat[", pred_var_cat_int, "]" )]] <-
-        effects_by_pred_var_cat_samples[, pred_var_cat_int]
-    }
-  }
+if (stan_method %in% c("cmdstanr", "cmdstan")) {
+  model_compiled <- cmdstanr::cmdstan_model(file_input_stan)
+  df_ps <- model_compiled$sample(
+    data = stan_input_prior,
+    iter_warmup = num_mc_iterations_prior / 2,
+    iter_sampling = num_mc_iterations_prior / 2,
+    chains = num_mc_chains,
+    max_treedepth = max_treedepth,
+    parallel_chains = num_mc_chains
+  )
+  df_ps <- df_ps$draws(format = "draws_df")
   setDT(df_ps)
-  
-} 
+  keep_col <- rep(TRUE, ncol(df_ps))
+  for (param in params_to_ignore) {
+    keep_based_on_this_param <- 
+      colnames(df_ps) != param &
+      ! startsWith(colnames(df_ps), paste0(param, ".")) &
+      ! startsWith(colnames(df_ps), paste0(param, "[")) 
+    keep_col <- keep_col & keep_based_on_this_param
+  }
+  df_ps <- df_ps[, ..keep_col]
+} else if (stan_method == "rstan") {
+  df_ps <- sampling(model_compiled,
+                    data = stan_input_prior,
+                    iter = num_mc_iterations_prior,
+                    chains = num_mc_chains,
+                    control = list(max_treedepth = max_treedepth),
+                    pars = params_to_ignore,
+                    include = FALSE)
+  df_ps <- as.data.frame(df_ps)
+  setDT(df_ps)
+} else {
+  stop(paste("Unknown value", stan_method, "specified for stan_method"))
+}
+df_ps[, sample := 1:nrow(df_ps)]
+df_ps[, density_type := "prior"]
+
 
 # WRANGLE STAN OUTPUT ----
 
