@@ -29,11 +29,11 @@ theme_set(theme_classic())
 
 # INPUT ----
 
-set.seed(12345)
+set.seed(1234567)
 
 # Unmodelled aspects of the data-generating process (things we condition on)
-num_plate <- 50
-num_sam_per_plate <- 30
+num_plate <- 1
+num_sam_per_plate <- 2
 num_rep_per_sam <- 2
 num_rep_per_cal <- 2
 xlogs <- log(c(0, 0.5, 1.5, 4.5, 13, 40)) #c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cals
@@ -107,12 +107,16 @@ for (x_mix_pred_var_ in x_mix_params) {
 # sigma_p_pos_pred_vars should be a list with the same names as f_pred_vars.
 # Each element in sigma_p_pos_pred_vars is a standard deviation of the
 # variability in p_pos (on a logit scale) associated with that predictor variable.
-x_mix_pred_vars$p_pos <- list(letter_p_pos = letters[1:3], foo = LETTERS[1:2])
-x_mix_pred_vars_sds$p_pos <- c(letter_p_pos = 1, foo = 2)
-x_mix_pred_vars$mu_neg <- list(letter_mu_neg = letters[1:3])
-x_mix_pred_vars_sds$mu_neg <- c(letter_mu_neg = 1)
-#x_mix_pred_vars$mu_pos <- list(letter_mu_pos = letters[1:5])
-#x_mix_pred_vars_sds$mu_pos <- c(letter_mu_pos = 0.75)
+#x_mix_pred_vars$p_pos <- list(letter_p_pos = letters[1:5])
+#x_mix_pred_vars_sds$p_pos <- c(letter_p_pos = 1)
+x_mix_pred_vars$mu_neg <- list(letter = letters[1:4],
+                               int = as.character(1:4))
+x_mix_pred_vars_sds$mu_neg <- c(letter = 1,
+                                int = 0.1)
+x_mix_pred_vars$mu_pos <- list(letter = letters[1:4],
+                               int = as.character(1:4))
+x_mix_pred_vars_sds$mu_pos <- c(letter = 0.1,
+                                int = 1)
 #x_mix_pred_vars$sd_neg <- list(letter_sd_neg = LETTERS[1:3])
 #x_mix_pred_vars_sds$sd_neg <- c(letter_sd_neg = 0.6)
 #x_mix_pred_vars$sd_pos <- list(letter_sd_pos = LETTERS[1:3])
@@ -126,6 +130,7 @@ stopifnot(! any(f_pred_vars_names %in% # avoid name clashes with variables
                   c("plate", "f", "f_1", "f_2", "f_3", "f_4", "label")))
 stopifnot(identical(sort(f_pred_vars_names),
                     sort(names(sigma_f_pred_vars))))
+if (is.null(f_pred_vars_names)) f_pred_vars_names <- character() # more intuitive
 num_f_pred_vars <- length(f_pred_vars)
 predict_f <- num_f_pred_vars > 0L
 if (predict_f) {
@@ -173,6 +178,29 @@ for (param in x_mix_params) {
                     " must not contain duplicates; we ", 
                     "found it equal to ", 
                     paste(x_mix_pred_vars[[param]][[pred_var]], collapse = " ")))
+      }
+    }
+  }
+}
+
+for (i in seq(1, 4)) {
+  param_1 <- x_mix_params[[i]]
+  if (is.null(x_mix_pred_vars_names[[param_1]])) next
+  for (j in (i+1):5) {
+    param_2 <- x_mix_params[[j]]
+    if (is.null(x_mix_pred_vars_names[[param_2]])) next
+    pred_vars_shared <- x_mix_pred_vars_names[[param_1]][
+      x_mix_pred_vars_names[[param_1]] %in% x_mix_pred_vars_names[[param_2]]]
+    for (pred_var in pred_vars_shared) {
+      if (! identical(sort(x_mix_pred_vars[[param_1]][[pred_var]]),
+                      sort(x_mix_pred_vars[[param_2]][[pred_var]]))) {
+        stop(paste0(pred_var, " was specified as a predictor variable for both ",
+                    param_1, " and ", param_2, ", but different categories were specified: ",
+                    paste(x_mix_pred_vars[[param_1]][[pred_var]], collapse = ", "),
+                    " for ", param_1, ", and ",
+                    paste(x_mix_pred_vars[[param_2]][[pred_var]], collapse = ", "),
+                    " for ", param_2,
+                    ". The categories must be the same for a given predictor variable."))
       }
     }
   }
@@ -362,6 +390,7 @@ x_mix_baseline <- c(p_pos  = p_pos,
 # Allocate each unique sample to a plate and draw its x mix predictors.
 # Ensure that we don't randomly sample the same category for every sample.
 # Delete any unsampled categories.
+# For those pred vars shared by multiple params, sample once only.
 df_sam <- df_plate %>%
   slice(rep(row_number(), num_sam_per_plate)) %>%
   arrange(plate) %>%
@@ -370,16 +399,19 @@ x_mix_pred_vars_num_cats <- list()
 x_mix_pred_vars_num_cats_tots <- integer()
 for (param in x_mix_params) {
   for (pred_var in x_mix_pred_vars_names[[param]]) {
-    
+    if (pred_var %in% names(df_sam)) {
+      # We've already sampled this pred_var for a previous param.
+      # Ensure we remove any unsampled cats the same as previously, then skip.
+      x_mix_pred_vars[[param]][[pred_var]] <- sort(unique(df_sam[[pred_var]]))
+      next
+    } 
     sampled_pred_vars <- character()
-    while(length(sampled_pred_vars) < 2) {
+    while(n_distinct(sampled_pred_vars) < 2) {
       sampled_pred_vars <- sample(x_mix_pred_vars[[param]][[pred_var]],
                                   size = num_sam_id,
                                   replace = TRUE)
     } 
-    if (length(sampled_pred_vars) < length(x_mix_pred_vars[[param]][[pred_var]])) {
-      x_mix_pred_vars[[param]][[pred_var]] <- sort(unique(sampled_pred_vars))
-    } 
+    x_mix_pred_vars[[param]][[pred_var]] <- sort(unique(sampled_pred_vars))
     df_sam[[pred_var]] <- sampled_pred_vars
   }
   x_mix_pred_vars_num_cats[[param]] <-

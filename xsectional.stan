@@ -2,8 +2,8 @@
 
 data {
   // Actual data
-  int<lower = 1> num_plate;
-  int<lower = num_plate> num_cal_tot;
+  int<lower = 0> num_plate;
+  int<lower = 0> num_cal_tot;
   int<lower = 0> num_sam_id;
   int<lower = num_sam_id> num_sam_rep;
   array[num_cal_tot] int<lower = 1, upper = num_plate> which_plate_cal;
@@ -30,7 +30,6 @@ data {
   int<lower = 0> num_sd_neg_pred_vars;
   array[num_sd_neg_pred_vars] int<lower = 2> num_cat_per_sd_neg_pred_var;
   matrix<lower = 0, upper = 1>[num_sam_id, sum(num_cat_per_sd_neg_pred_var)] design_matrix_sd_neg;
-  
   
   // Other things to keep fixed over a complete round of sampling: a binary
   // switch to control whether we sample from the prior or the posterior
@@ -154,10 +153,10 @@ parameters {
   vector[num_sam_id] xlog_sam;
   array[tot_cat_per_f_pred_var] row_vector[4] f_effects_by_pred_var_cat_unscaled;
   array[tot_cat_per_p_pos_pred_var]  real  p_pos_effects_by_pred_var_cat_unscaled;
-  array[tot_cat_per_mu_pos_pred_var] real mu_pos_effects_by_pred_var_cat_unscaled;
   array[tot_cat_per_sd_pos_pred_var] real sd_pos_effects_by_pred_var_cat_unscaled;
-  array[tot_cat_per_mu_neg_pred_var] real mu_neg_effects_by_pred_var_cat_unscaled;
   array[tot_cat_per_sd_neg_pred_var] real sd_neg_effects_by_pred_var_cat_unscaled;
+  vector<lower = (mu_neg - mu_pos)/2>[tot_cat_per_mu_pos_pred_var] mu_pos_effects_by_pred_var_cat;
+  vector<upper = (mu_pos - mu_neg)/2>[tot_cat_per_mu_neg_pred_var] mu_neg_effects_by_pred_var_cat;
 }
 
 transformed parameters{
@@ -189,9 +188,7 @@ transformed parameters{
   vector[num_plate] f_3_min_f_2_per_plate = f_per_plate[, 3] - f_per_plate[, 2];
 
   vector[tot_cat_per_p_pos_pred_var]  p_pos_effects_by_pred_var_cat;
-  vector[tot_cat_per_mu_pos_pred_var] mu_pos_effects_by_pred_var_cat;
   vector[tot_cat_per_sd_pos_pred_var] sd_pos_effects_by_pred_var_cat;
-  vector[tot_cat_per_mu_neg_pred_var] mu_neg_effects_by_pred_var_cat;
   vector[tot_cat_per_sd_neg_pred_var] sd_neg_effects_by_pred_var_cat;
   vector[num_sam_id] p_pos_log_per_sam_id;
   vector[num_sam_id] p_neg_log_per_sam_id;
@@ -212,41 +209,24 @@ transformed parameters{
       }
       cat_current += num_cat_this_p_pos_pred_var;
     }
-    cat_current = 1;
-    for (mu_pos_pred_var in 1:num_mu_pos_pred_vars) {
-      int num_cat_this_mu_pos_pred_var = num_cat_per_mu_pos_pred_var[mu_pos_pred_var];
-      for (cat in cat_current:(cat_current + num_cat_this_mu_pos_pred_var - 1)) {
-        mu_pos_effects_by_pred_var_cat[cat] = mu_pos_effects_by_pred_var_cat_unscaled[cat] * 
-        sigma_mu_pos_pred_vars[mu_pos_pred_var]; 
-      }
-      cat_current += num_cat_this_mu_pos_pred_var;
-    }
+
     cat_current = 1;
     for (sd_pos_pred_var in 1:num_sd_pos_pred_vars) {
-      int num_cat_this_sd_pos_pred_var = num_cat_per_sd_pos_pred_var[sd_pos_pred_var];
-      for (cat in cat_current:(cat_current + num_cat_this_sd_pos_pred_var - 1)) {
+      int num_cat = num_cat_per_sd_pos_pred_var[sd_pos_pred_var];
+      for (cat in cat_current:(cat_current + num_cat - 1)) {
         sd_pos_effects_by_pred_var_cat[cat] = sd_pos_effects_by_pred_var_cat_unscaled[cat] * 
         sigma_sd_pos_pred_vars[sd_pos_pred_var]; 
       }
-      cat_current += num_cat_this_sd_pos_pred_var;
-    }
-    cat_current = 1;
-    for (mu_neg_pred_var in 1:num_mu_neg_pred_vars) {
-      int num_cat_this_mu_neg_pred_var = num_cat_per_mu_neg_pred_var[mu_neg_pred_var];
-      for (cat in cat_current:(cat_current + num_cat_this_mu_neg_pred_var - 1)) {
-        mu_neg_effects_by_pred_var_cat[cat] = mu_neg_effects_by_pred_var_cat_unscaled[cat] * 
-        sigma_mu_neg_pred_vars[mu_neg_pred_var]; 
-      }
-      cat_current += num_cat_this_mu_neg_pred_var;
+      cat_current += num_cat;
     }
     cat_current = 1;
     for (sd_neg_pred_var in 1:num_sd_neg_pred_vars) {
-      int num_cat_this_sd_neg_pred_var = num_cat_per_sd_neg_pred_var[sd_neg_pred_var];
-      for (cat in cat_current:(cat_current + num_cat_this_sd_neg_pred_var - 1)) {
+      int num_cat = num_cat_per_sd_neg_pred_var[sd_neg_pred_var];
+      for (cat in cat_current:(cat_current + num_cat - 1)) {
         sd_neg_effects_by_pred_var_cat[cat] = sd_neg_effects_by_pred_var_cat_unscaled[cat] * 
         sigma_sd_neg_pred_vars[sd_neg_pred_var]; 
       }
-      cat_current += num_cat_this_sd_neg_pred_var;
+      cat_current += num_cat;
     }
   }
   
@@ -323,17 +303,19 @@ transformed parameters{
   }
   }
   
-  vector[num_plate] loglik_per_plate;
+  vector[num_plate] loglik_per_plate_notblanks = rep_vector(0, num_plate);
   vector[num_plate] loglik_per_plate_blanks = rep_vector(0, num_plate);
+  vector[num_plate] logprob_f_effects_per_plate;
   for (plate in 1:num_plate) {
-    loglik_per_plate[plate] = multi_normal_lpdf(f_plate_effects_unscaled[plate] | zeros_4, rho);
+    logprob_f_effects_per_plate[plate] =
+    multi_normal_lpdf(f_plate_effects_unscaled[plate] | zeros_4, rho);
   }
   for (cal_rep in 1:num_cal_tot) {
     if (x_cal_is_zero[cal_rep]) {
       loglik_per_plate_blanks[which_plate_cal[cal_rep]] +=
       normal_lpdf(y_cal[cal_rep] | y_cal_mean_per_obs[cal_rep], y_obs_sd_cal[cal_rep]);
     } else {
-      loglik_per_plate[which_plate_cal[cal_rep]] +=
+      loglik_per_plate_notblanks[which_plate_cal[cal_rep]] +=
       normal_lpdf(y_cal[cal_rep] | y_cal_mean_per_obs[cal_rep], y_obs_sd_cal[cal_rep]);  
     }
   }
@@ -357,21 +339,37 @@ model {
   }
   f_effects_by_pred_var_cat_unscaled ~ multi_normal(zeros_for_f_pred_vars, rho);
   p_pos_effects_by_pred_var_cat_unscaled  ~ std_normal();
-  mu_pos_effects_by_pred_var_cat_unscaled ~ std_normal();
   sd_pos_effects_by_pred_var_cat_unscaled ~ std_normal();
-  mu_neg_effects_by_pred_var_cat_unscaled ~ std_normal();
   sd_neg_effects_by_pred_var_cat_unscaled ~ std_normal();
-  
-  // Mixed prior and likelihood term, breaking the separation:
-  target += sum(loglik_per_plate);
-  target += sum(loglik_per_plate_blanks);
+  target += sum(logprob_f_effects_per_plate);
+
+  // Each mu_pos and mu_neg pred var has a set of regression coefficients (for a
+  // set of cats) with the same prior: a truncated normal. The truncation is
+  // handled by the parameter declaration statements.
+  int cat_current = 1;
+  for (mu_pos_pred_var in 1:num_mu_pos_pred_vars) {
+    int num_cat = num_cat_per_mu_pos_pred_var[mu_pos_pred_var];
+    mu_pos_effects_by_pred_var_cat[
+    cat_current:(cat_current + num_cat - 1)] ~
+    normal(0, sigma_mu_pos_pred_vars[mu_pos_pred_var]);
+    cat_current += num_cat;
+  }
+  cat_current = 1;
+  for (mu_neg_pred_var in 1:num_mu_neg_pred_vars) {
+    int num_cat = num_cat_per_mu_neg_pred_var[mu_neg_pred_var];
+    mu_neg_effects_by_pred_var_cat[
+    cat_current:(cat_current + num_cat - 1)] ~
+    normal(0, sigma_mu_neg_pred_vars[mu_neg_pred_var]);
+    cat_current += num_cat;
+  }
   
   // Likelihood
-  //profile("likelihood_cal") {
-  //if (sample_posterior_not_prior) {
+  if (sample_posterior_not_prior) {
+    target += sum(loglik_per_plate_blanks);
+    target += sum(loglik_per_plate_notblanks);
     target += sum(y_sam_loglik_per_obs);
-  //}
-  //}
+  }
+
 } 
 
 // 'sim' is short for simulated, with a fresh draw of stochastic uncertainty 
