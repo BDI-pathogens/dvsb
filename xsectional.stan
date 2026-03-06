@@ -36,29 +36,29 @@ data {
   // (important to compare the difference), and upper and lower bounds for the priors.
   int<lower = 0, upper = 1> sample_posterior_not_prior;
   row_vector[4] f_lower;
-  row_vector[4] f_upper;
+  row_vector<lower = f_lower>[4] f_upper;
   row_vector[4] sigma_f_plate_lower;
-  row_vector[4] sigma_f_plate_upper;
+  row_vector<lower = sigma_f_plate_lower>[4] sigma_f_plate_upper;
   row_vector[4] sigma_f_pred_vars_lower;
-  row_vector[4] sigma_f_pred_vars_upper;
+  row_vector<lower = sigma_f_pred_vars_lower>[4] sigma_f_pred_vars_upper;
   real sigma_p_pos_pred_vars_lower;
-  real sigma_p_pos_pred_vars_upper;
+  real<lower = sigma_p_pos_pred_vars_lower> sigma_p_pos_pred_vars_upper;
   real sigma_mu_pos_pred_vars_lower;
-  real sigma_mu_pos_pred_vars_upper;
+  real<lower = sigma_mu_pos_pred_vars_lower> sigma_mu_pos_pred_vars_upper;
   real sigma_sd_pos_pred_vars_lower;
-  real sigma_sd_pos_pred_vars_upper;
+  real<lower = sigma_sd_pos_pred_vars_lower> sigma_sd_pos_pred_vars_upper;
   real sigma_mu_neg_pred_vars_lower;
-  real sigma_mu_neg_pred_vars_upper;
+  real<lower = sigma_mu_neg_pred_vars_lower> sigma_mu_neg_pred_vars_upper;
   real sigma_sd_neg_pred_vars_lower;
-  real sigma_sd_neg_pred_vars_upper;
+  real<lower = sigma_sd_neg_pred_vars_lower> sigma_sd_neg_pred_vars_upper;
   real y_obs_sd_cal_min_lower;
-  real y_obs_sd_cal_min_upper;
+  real<lower = y_obs_sd_cal_min_lower> y_obs_sd_cal_min_upper;
   real y_obs_sd_cal_jump_lower;
-  real y_obs_sd_cal_jump_upper;
+  real<lower = y_obs_sd_cal_jump_lower> y_obs_sd_cal_jump_upper;
   real y_obs_sd_sam_min_lower;
-  real y_obs_sd_sam_min_upper;
+  real<lower = y_obs_sd_sam_min_lower> y_obs_sd_sam_min_upper;
   real y_obs_sd_sam_jump_lower;
-  real y_obs_sd_sam_jump_upper;
+  real<lower = y_obs_sd_sam_jump_lower> y_obs_sd_sam_jump_upper;
   
   real mu_neg_lower;
   real<lower = mu_neg_lower> mu_neg_upper;
@@ -70,9 +70,9 @@ data {
   real<lower = sd_pos_lower> sd_pos_upper;
 
   real p_pos_lower;
-  real p_pos_upper;
+  real<lower = p_pos_lower> p_pos_upper;
   real p_blank_lower;
-  real p_blank_upper;
+  real<lower = p_blank_lower> p_blank_upper;
   real rho_prior_eta;
   
 }
