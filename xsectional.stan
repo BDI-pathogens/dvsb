@@ -5,20 +5,33 @@ data {
   int<lower = 1> num_plate;
   int<lower = num_plate> num_cal_tot;
   int<lower = 0> num_sam_id;
-  int<lower = num_sam_id> num_sam_tot;
+  int<lower = num_sam_id> num_sam_rep;
   array[num_cal_tot] int<lower = 1, upper = num_plate> which_plate_cal;
-  array[num_sam_tot] int<lower = 1, upper = num_plate> which_plate_sam;
-  array[num_sam_tot] int<lower = 1, upper = num_sam_id> which_id_sam;
+  array[num_sam_rep] int<lower = 1, upper = num_plate> which_plate_sam;
+  array[num_sam_rep] int<lower = 1, upper = num_sam_id> which_id_sam;
   vector[num_cal_tot] y_cal;
   vector<lower = 0>[num_cal_tot] x_cal;
-  vector[num_sam_tot] y_sam;
+  vector[num_sam_rep] y_sam;
   int<lower = 0> num_f_pred_vars;
   array[num_f_pred_vars] int<lower = 2> num_cat_per_f_pred_var;
   matrix<lower = 0, upper = 1>[num_plate, sum(num_cat_per_f_pred_var)] design_matrix_f;
   int<lower = 0> num_p_pos_pred_vars;
   array[num_p_pos_pred_vars] int<lower = 2> num_cat_per_p_pos_pred_var;
   matrix<lower = 0, upper = 1>[num_sam_id, sum(num_cat_per_p_pos_pred_var)] design_matrix_p_pos;
-
+  int<lower = 0> num_mu_pos_pred_vars;
+  array[num_mu_pos_pred_vars] int<lower = 2> num_cat_per_mu_pos_pred_var;
+  matrix<lower = 0, upper = 1>[num_sam_id, sum(num_cat_per_mu_pos_pred_var)] design_matrix_mu_pos;
+  int<lower = 0> num_sd_pos_pred_vars;
+  array[num_sd_pos_pred_vars] int<lower = 2> num_cat_per_sd_pos_pred_var;
+  matrix<lower = 0, upper = 1>[num_sam_id, sum(num_cat_per_sd_pos_pred_var)] design_matrix_sd_pos;
+  int<lower = 0> num_mu_neg_pred_vars;
+  array[num_mu_neg_pred_vars] int<lower = 2> num_cat_per_mu_neg_pred_var;
+  matrix<lower = 0, upper = 1>[num_sam_id, sum(num_cat_per_mu_neg_pred_var)] design_matrix_mu_neg;
+  int<lower = 0> num_sd_neg_pred_vars;
+  array[num_sd_neg_pred_vars] int<lower = 2> num_cat_per_sd_neg_pred_var;
+  matrix<lower = 0, upper = 1>[num_sam_id, sum(num_cat_per_sd_neg_pred_var)] design_matrix_sd_neg;
+  
+  
   // Other things to keep fixed over a complete round of sampling: a binary
   // switch to control whether we sample from the prior or the posterior
   // (important to compare the difference), and upper and lower bounds for the priors.
@@ -31,6 +44,14 @@ data {
   row_vector[4] sigma_f_pred_vars_upper;
   real sigma_p_pos_pred_vars_lower;
   real sigma_p_pos_pred_vars_upper;
+  real sigma_mu_pos_pred_vars_lower;
+  real sigma_mu_pos_pred_vars_upper;
+  real sigma_sd_pos_pred_vars_lower;
+  real sigma_sd_pos_pred_vars_upper;
+  real sigma_mu_neg_pred_vars_lower;
+  real sigma_mu_neg_pred_vars_upper;
+  real sigma_sd_neg_pred_vars_lower;
+  real sigma_sd_neg_pred_vars_upper;
   real y_obs_sd_cal_min_lower;
   real y_obs_sd_cal_min_upper;
   real y_obs_sd_cal_jump_lower;
@@ -40,14 +61,14 @@ data {
   real y_obs_sd_sam_jump_lower;
   real y_obs_sd_sam_jump_upper;
   
-  real x_sam_neg_mu_lower;
-  real<lower = x_sam_neg_mu_lower> x_sam_neg_mu_upper;
-  real<lower = x_sam_neg_mu_lower> x_sam_pos_mu_lower;
-  real<lower = x_sam_pos_mu_lower> x_sam_pos_mu_upper;
-  real<lower = 0> x_sam_neg_sd_lower;
-  real<lower = x_sam_neg_sd_lower> x_sam_neg_sd_upper;
-  real<lower = 0> x_sam_pos_sd_lower;
-  real<lower = x_sam_pos_sd_lower> x_sam_pos_sd_upper;
+  real mu_neg_lower;
+  real<lower = mu_neg_lower> mu_neg_upper;
+  real<lower = mu_neg_lower> mu_pos_lower;
+  real<lower = mu_pos_lower> mu_pos_upper;
+  real<lower = 0> sd_neg_lower;
+  real<lower = sd_neg_lower> sd_neg_upper;
+  real<lower = 0> sd_pos_lower;
+  real<lower = sd_pos_lower> sd_pos_upper;
 
   real p_pos_lower;
   real p_pos_upper;
@@ -76,6 +97,14 @@ transformed data {
   
   int tot_cat_per_p_pos_pred_var = sum(num_cat_per_p_pos_pred_var);
   int predict_p_pos = 1 ? num_p_pos_pred_vars > 0 : 0;
+  int tot_cat_per_mu_pos_pred_var = sum(num_cat_per_mu_pos_pred_var);
+  int predict_mu_pos = 1 ? num_mu_pos_pred_vars > 0 : 0;
+  int tot_cat_per_sd_pos_pred_var = sum(num_cat_per_sd_pos_pred_var);
+  int predict_sd_pos = 1 ? num_sd_pos_pred_vars > 0 : 0;
+  int tot_cat_per_mu_neg_pred_var = sum(num_cat_per_mu_neg_pred_var);
+  int predict_mu_neg = 1 ? num_mu_neg_pred_vars > 0 : 0;
+  int tot_cat_per_sd_neg_pred_var = sum(num_cat_per_sd_neg_pred_var);
+  int predict_sd_neg = 1 ? num_sd_neg_pred_vars > 0 : 0;
   
   vector[num_cal_tot] xlog_cal = log(x_cal);
   array[num_cal_tot] int x_cal_is_zero;
@@ -94,11 +123,20 @@ parameters {
   upper = sigma_f_pred_vars_upper_array>[4] sigma_f_pred_vars;
   array[num_p_pos_pred_vars] real<lower = sigma_p_pos_pred_vars_lower,
   upper = sigma_p_pos_pred_vars_upper> sigma_p_pos_pred_vars;
+  array[num_mu_pos_pred_vars] real<lower = sigma_mu_pos_pred_vars_lower,
+  upper = sigma_mu_pos_pred_vars_upper> sigma_mu_pos_pred_vars;
+  array[num_sd_pos_pred_vars] real<lower = sigma_sd_pos_pred_vars_lower,
+  upper = sigma_sd_pos_pred_vars_upper> sigma_sd_pos_pred_vars;
+  array[num_mu_neg_pred_vars] real<lower = sigma_mu_neg_pred_vars_lower,
+  upper = sigma_mu_neg_pred_vars_upper> sigma_mu_neg_pred_vars;
+  array[num_sd_neg_pred_vars] real<lower = sigma_sd_neg_pred_vars_lower,
+  upper = sigma_sd_neg_pred_vars_upper> sigma_sd_neg_pred_vars;
+  
   
   // Scalar params constrained only by lower and upper
-  real<lower = x_sam_neg_mu_lower, upper = x_sam_neg_mu_upper> x_sam_neg_mu;
-  real<lower = x_sam_neg_sd_lower, upper = x_sam_neg_sd_upper> x_sam_neg_sd;
-  real<lower = x_sam_pos_sd_lower, upper = x_sam_pos_sd_upper> x_sam_pos_sd;
+  real<lower = mu_neg_lower, upper = mu_neg_upper> mu_neg;
+  real<lower = sd_neg_lower, upper = sd_neg_upper> sd_neg;
+  real<lower = sd_pos_lower, upper = sd_pos_upper> sd_pos;
   real<lower = p_pos_lower,    upper = p_pos_upper>    p_pos;
   real<lower = p_blank_lower,  upper = p_blank_upper>  p_blank;
   real<lower = y_obs_sd_cal_min_lower,  upper = y_obs_sd_cal_min_upper>  y_obs_sd_cal_min;
@@ -106,8 +144,8 @@ parameters {
   real<lower = y_obs_sd_sam_min_lower,  upper = y_obs_sd_sam_min_upper>  y_obs_sd_sam_min;
   real<lower = y_obs_sd_sam_jump_lower, upper = y_obs_sd_sam_jump_upper> y_obs_sd_sam_jump;
   
-  // Enforce that x_sam_pos_mu > x_sam_neg_mu
-  real<lower = max([x_sam_pos_mu_lower, x_sam_neg_mu]), upper = x_sam_pos_mu_upper> x_sam_pos_mu;
+  // Enforce that mu_pos > mu_neg
+  real<lower = max([mu_pos_lower, mu_neg]), upper = mu_pos_upper> mu_pos;
 
   
   // Those with explicit priors declared
@@ -115,7 +153,11 @@ parameters {
   array[num_plate] row_vector[4] f_plate_effects_unscaled;
   vector[num_sam_id] xlog_sam;
   array[tot_cat_per_f_pred_var] row_vector[4] f_effects_by_pred_var_cat_unscaled;
-  array[tot_cat_per_p_pos_pred_var] real p_pos_effects_by_pred_var_cat_unscaled;
+  array[tot_cat_per_p_pos_pred_var]  real  p_pos_effects_by_pred_var_cat_unscaled;
+  array[tot_cat_per_mu_pos_pred_var] real mu_pos_effects_by_pred_var_cat_unscaled;
+  array[tot_cat_per_sd_pos_pred_var] real sd_pos_effects_by_pred_var_cat_unscaled;
+  array[tot_cat_per_mu_neg_pred_var] real mu_neg_effects_by_pred_var_cat_unscaled;
+  array[tot_cat_per_sd_neg_pred_var] real sd_neg_effects_by_pred_var_cat_unscaled;
 }
 
 transformed parameters{
@@ -146,7 +188,20 @@ transformed parameters{
   
   vector[num_plate] f_3_min_f_2_per_plate = f_per_plate[, 3] - f_per_plate[, 2];
 
-  vector[tot_cat_per_p_pos_pred_var] p_pos_effects_by_pred_var_cat;
+  vector[tot_cat_per_p_pos_pred_var]  p_pos_effects_by_pred_var_cat;
+  vector[tot_cat_per_mu_pos_pred_var] mu_pos_effects_by_pred_var_cat;
+  vector[tot_cat_per_sd_pos_pred_var] sd_pos_effects_by_pred_var_cat;
+  vector[tot_cat_per_mu_neg_pred_var] mu_neg_effects_by_pred_var_cat;
+  vector[tot_cat_per_sd_neg_pred_var] sd_neg_effects_by_pred_var_cat;
+  vector[num_sam_id] p_pos_log_per_sam_id;
+  vector[num_sam_id] p_neg_log_per_sam_id;
+  vector[num_sam_id] p_pos_per_sam_id;
+  vector[num_sam_id] mu_pos_per_sam_id = rep_vector(mu_pos, num_sam_id);
+  vector[num_sam_id] mu_neg_per_sam_id = rep_vector(mu_neg, num_sam_id);
+  vector[num_sam_id] sd_pos_per_sam_id;
+  vector[num_sam_id] sd_neg_per_sam_id;
+
+  profile("define_x_mix_pred_vars") {
   {
     int cat_current = 1;
     for (p_pos_pred_var in 1:num_p_pos_pred_vars) {
@@ -157,27 +212,79 @@ transformed parameters{
       }
       cat_current += num_cat_this_p_pos_pred_var;
     }
+    cat_current = 1;
+    for (mu_pos_pred_var in 1:num_mu_pos_pred_vars) {
+      int num_cat_this_mu_pos_pred_var = num_cat_per_mu_pos_pred_var[mu_pos_pred_var];
+      for (cat in cat_current:(cat_current + num_cat_this_mu_pos_pred_var - 1)) {
+        mu_pos_effects_by_pred_var_cat[cat] = mu_pos_effects_by_pred_var_cat_unscaled[cat] * 
+        sigma_mu_pos_pred_vars[mu_pos_pred_var]; 
+      }
+      cat_current += num_cat_this_mu_pos_pred_var;
+    }
+    cat_current = 1;
+    for (sd_pos_pred_var in 1:num_sd_pos_pred_vars) {
+      int num_cat_this_sd_pos_pred_var = num_cat_per_sd_pos_pred_var[sd_pos_pred_var];
+      for (cat in cat_current:(cat_current + num_cat_this_sd_pos_pred_var - 1)) {
+        sd_pos_effects_by_pred_var_cat[cat] = sd_pos_effects_by_pred_var_cat_unscaled[cat] * 
+        sigma_sd_pos_pred_vars[sd_pos_pred_var]; 
+      }
+      cat_current += num_cat_this_sd_pos_pred_var;
+    }
+    cat_current = 1;
+    for (mu_neg_pred_var in 1:num_mu_neg_pred_vars) {
+      int num_cat_this_mu_neg_pred_var = num_cat_per_mu_neg_pred_var[mu_neg_pred_var];
+      for (cat in cat_current:(cat_current + num_cat_this_mu_neg_pred_var - 1)) {
+        mu_neg_effects_by_pred_var_cat[cat] = mu_neg_effects_by_pred_var_cat_unscaled[cat] * 
+        sigma_mu_neg_pred_vars[mu_neg_pred_var]; 
+      }
+      cat_current += num_cat_this_mu_neg_pred_var;
+    }
+    cat_current = 1;
+    for (sd_neg_pred_var in 1:num_sd_neg_pred_vars) {
+      int num_cat_this_sd_neg_pred_var = num_cat_per_sd_neg_pred_var[sd_neg_pred_var];
+      for (cat in cat_current:(cat_current + num_cat_this_sd_neg_pred_var - 1)) {
+        sd_neg_effects_by_pred_var_cat[cat] = sd_neg_effects_by_pred_var_cat_unscaled[cat] * 
+        sigma_sd_neg_pred_vars[sd_neg_pred_var]; 
+      }
+      cat_current += num_cat_this_sd_neg_pred_var;
+    }
   }
   
-  vector[num_sam_id] p_pos_log_per_sam_id;
-  vector[num_sam_id] p_neg_log_per_sam_id;
   if (predict_p_pos) {
-    vector[num_sam_id] p_pos_per_sam_id = inv_logit(
-    rep_vector(logit(p_pos), num_sam_id) +
+    p_pos_per_sam_id = inv_logit(rep_vector(logit(p_pos), num_sam_id) +
     design_matrix_p_pos * p_pos_effects_by_pred_var_cat);
     p_pos_log_per_sam_id = log(  p_pos_per_sam_id);
     p_neg_log_per_sam_id = log1m(p_pos_per_sam_id);
   } else {
+    p_pos_per_sam_id     = rep_vector(p_pos,        num_sam_id);
     p_pos_log_per_sam_id = rep_vector(log(  p_pos), num_sam_id);
     p_neg_log_per_sam_id = rep_vector(log1m(p_pos), num_sam_id);
   }
+  if (predict_mu_pos) {
+    mu_pos_per_sam_id += design_matrix_mu_pos * mu_pos_effects_by_pred_var_cat;
+  } 
+  if (predict_mu_neg) {
+    mu_neg_per_sam_id += design_matrix_mu_neg * mu_neg_effects_by_pred_var_cat;
+  } 
+  if (predict_sd_pos) {
+    sd_pos_per_sam_id = exp(rep_vector(log(sd_pos), num_sam_id) +
+    design_matrix_sd_pos * sd_pos_effects_by_pred_var_cat);
+  } else {
+    sd_pos_per_sam_id = rep_vector(sd_pos, num_sam_id);
+  }
+  if (predict_sd_neg) {
+    sd_neg_per_sam_id = exp(rep_vector(log(sd_neg), num_sam_id) +
+    design_matrix_sd_neg * sd_neg_effects_by_pred_var_cat);
+  } else {
+    sd_neg_per_sam_id = rep_vector(sd_neg, num_sam_id);
+  }
+  }
 
   vector[num_cal_tot] y_cal_mean_per_obs;
-  vector[num_sam_tot] y_sam_mean_per_obs;
+  vector[num_sam_rep] y_sam_mean_per_obs;
   vector[num_cal_tot] y_obs_sd_cal;
-  vector[num_sam_tot] y_obs_sd_sam;
+  vector[num_sam_rep] y_obs_sd_sam;
   profile("y_means_and_sds") {
-    
   for (cal_rep in 1:num_cal_tot) {
     if (x_cal_is_zero[cal_rep]) {
       y_cal_mean_per_obs[cal_rep] = f_per_plate[which_plate_cal[cal_rep], 2];
@@ -191,8 +298,7 @@ transformed parameters{
       y_obs_sd_cal[cal_rep] = y_obs_sd_cal_min + y_obs_sd_cal_jump / denominator;
     }
   }
-  
-  for (sam_rep in 1:num_sam_tot) {
+  for (sam_rep in 1:num_sam_rep) {
     int plate = which_plate_sam[sam_rep];
     real denominator = (1 + exp(-f_per_plate[plate, 1] * (xlog_sam[which_id_sam[sam_rep]] - f_per_plate[plate, 4])));
     y_sam_mean_per_obs[sam_rep] =
@@ -202,11 +308,11 @@ transformed parameters{
   }
   }
   
-  //vector[num_sam_tot] y_sam_loglik_per_obs_from_blank;
-  //vector[num_sam_tot] y_sam_loglik_per_obs_from_notblank;
-  vector[num_sam_tot] y_sam_loglik_per_obs;
+  //vector[num_sam_rep] y_sam_loglik_per_obs_from_blank;
+  //vector[num_sam_rep] y_sam_loglik_per_obs_from_notblank;
+  vector[num_sam_rep] y_sam_loglik_per_obs;
   profile("likelihood_sam") {
-  for (sam_rep in 1:num_sam_tot) {
+  for (sam_rep in 1:num_sam_rep) {
     real y_sam_loglik_per_obs_from_blank = p_blank_log + normal_lpdf(
     y_sam[sam_rep] | f_per_plate[which_plate_sam[sam_rep], 2], y_obs_sd_sam_min);
     real y_sam_loglik_per_obs_from_notblank = p_blank_log1m + normal_lpdf(
@@ -230,9 +336,7 @@ transformed parameters{
       loglik_per_plate[which_plate_cal[cal_rep]] +=
       normal_lpdf(y_cal[cal_rep] | y_cal_mean_per_obs[cal_rep], y_obs_sd_cal[cal_rep]);  
     }
-    
   }
-  
   
 }
 
@@ -240,17 +344,23 @@ transformed parameters{
 model {
   
   // Priors
-  x_sam_pos_mu ~ uniform(max([x_sam_pos_mu_lower, x_sam_neg_mu]), x_sam_pos_mu_upper);
+  mu_pos ~ uniform(max([mu_pos_lower, mu_neg]), mu_pos_upper);
   rho ~ lkj_corr(rho_prior_eta);
   profile("mixture_model") {
   for (sam_id in 1:num_sam_id) {
     target += log_sum_exp(
-      p_pos_log_per_sam_id[sam_id] + normal_lpdf(xlog_sam[sam_id] | x_sam_pos_mu, x_sam_pos_sd),
-      p_neg_log_per_sam_id[sam_id] + normal_lpdf(xlog_sam[sam_id] | x_sam_neg_mu, x_sam_neg_sd));
+      p_pos_log_per_sam_id[sam_id] + normal_lpdf(xlog_sam[sam_id] |
+      mu_pos_per_sam_id[sam_id], sd_pos_per_sam_id[sam_id]),
+      p_neg_log_per_sam_id[sam_id] + normal_lpdf(xlog_sam[sam_id] |
+      mu_neg_per_sam_id[sam_id], sd_neg_per_sam_id[sam_id]));
   }
   }
   f_effects_by_pred_var_cat_unscaled ~ multi_normal(zeros_for_f_pred_vars, rho);
-  p_pos_effects_by_pred_var_cat_unscaled ~ std_normal();
+  p_pos_effects_by_pred_var_cat_unscaled  ~ std_normal();
+  mu_pos_effects_by_pred_var_cat_unscaled ~ std_normal();
+  sd_pos_effects_by_pred_var_cat_unscaled ~ std_normal();
+  mu_neg_effects_by_pred_var_cat_unscaled ~ std_normal();
+  sd_neg_effects_by_pred_var_cat_unscaled ~ std_normal();
   
   // Mixed prior and likelihood term, breaking the separation:
   target += sum(loglik_per_plate);
@@ -264,6 +374,7 @@ model {
   //}
 } 
 
+// 'sim' is short for simulated, with a fresh draw of stochastic uncertainty 
 generated quantities {
   
   real y_obs_sd_cal_max = y_obs_sd_cal_min + y_obs_sd_cal_jump;
@@ -271,9 +382,15 @@ generated quantities {
   
   array[num_cal_tot] real y_cal_sim = normal_rng(y_cal_mean_per_obs, y_obs_sd_cal);
   
-  //array[num_sam_tot] real p_sam_rep_is_blank;
-  array[num_sam_tot] real y_sam_sim;
-  //for (sam_rep in 1:num_sam_tot) {
+  // (un)conditional refers to that sam's observed y values.
+  // We always condition on population-level parameters and any x mix pred vars.
+  array[num_sam_rep] real y_sam_sim_conditional;
+  vector[num_sam_id] xlog_sam_sim_unconditional;
+  vector[num_sam_rep]   y_sam_sim_unconditional;
+  profile("simulation") {
+      y_sam_sim_conditional = normal_rng(y_sam_mean_per_obs, y_obs_sd_sam);
+  //array[num_sam_rep] real p_sam_rep_is_blank;
+  //for (sam_rep in 1:num_sam_rep) {
     //real p_sam_rep_is_blank = exp(y_sam_loglik_per_obs_from_blank[sam_rep] - 
     //log_sum_exp(y_sam_loglik_per_obs_from_blank[sam_rep],
     //y_sam_loglik_per_obs_from_notblank[sam_rep]));
@@ -283,14 +400,37 @@ generated quantities {
     //  y_sam_sim[sam_rep] = normal_rng(y_sam_mean_per_obs[sam_rep], y_obs_sd_sam[sam_rep]);
     //}
   //}
-  y_sam_sim = normal_rng(y_sam_mean_per_obs, y_obs_sd_sam);
+  
+  for (sam_id in 1:num_sam_id) {
+    if (bernoulli_rng(p_pos_per_sam_id[sam_id])) {
+      xlog_sam_sim_unconditional[sam_id] = 
+      normal_rng(mu_pos_per_sam_id[sam_id], sd_pos_per_sam_id[sam_id]);
+    } else {
+      xlog_sam_sim_unconditional[sam_id] = 
+      normal_rng(mu_neg_per_sam_id[sam_id], sd_neg_per_sam_id[sam_id]);
+    }
+  }
+  for (sam_rep in 1:num_sam_rep) {
+    int plate = which_plate_sam[sam_rep];
+    if (bernoulli_rng(p_blank)) {
+      y_sam_sim_unconditional[sam_rep] = normal_rng(
+      f_per_plate[which_plate_sam[sam_rep], 2], y_obs_sd_sam_min);
+    } else {
+      real denominator = (1 + exp(-f_per_plate[plate, 1] *
+      (xlog_sam_sim_unconditional[which_id_sam[sam_rep]] - f_per_plate[plate, 4])));
+      y_sam_sim_unconditional[sam_rep] = normal_rng(
+        f_per_plate[plate, 2] + f_3_min_f_2_per_plate[plate] / denominator,
+        y_obs_sd_sam_min + y_obs_sd_sam_jump / denominator);
+    }
+  }
+  }
 
   vector[num_sam_id] p_sam_is_pos;
   for (sam_id in 1:num_sam_id) {
     real p_log = p_pos_log_per_sam_id[sam_id] +
-    normal_lpdf(xlog_sam[sam_id] | x_sam_pos_mu, x_sam_pos_sd);
+    normal_lpdf(xlog_sam[sam_id] | mu_pos_per_sam_id[sam_id], sd_pos_per_sam_id[sam_id]);
     p_sam_is_pos[sam_id] = exp(p_log - log_sum_exp(p_log, p_neg_log_per_sam_id[sam_id] +
-    normal_lpdf(xlog_sam[sam_id] | x_sam_neg_mu, x_sam_neg_sd)));
+    normal_lpdf(xlog_sam[sam_id] | mu_neg_per_sam_id[sam_id], sd_neg_per_sam_id[sam_id])));
   }
   
 }

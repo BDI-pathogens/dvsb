@@ -1,20 +1,23 @@
 library(data.table)
+theme_set(theme_classic())
 
 data_was_simulated <- FALSE
 read_samples_from_file <- TRUE
-#files_samples <- Sys.glob("~/enable/samples_full_run-202509160846-*-76908a.csv") # non-baseline, no observation mixture model
 #files_samples <- Sys.glob("~/enable/samples_full_run-202509180821-*-54ceae.csv") # baseline only, mixture observation with p_sam_rep_is_blank and correct y_sim
 #files_samples <- Sys.glob("~/enable/samples_full_run-202509192120-*-212f13.csv") # non-baseline, mixture observation without p_sam_rep_is_blank and with y_sim excluding blank possibility
 #files_samples <- Sys.glob("~/enable/samples_full_run-202509231402-*-34f4eb.csv") # all calibration only, including all blanks to identify which are outliers
-files_samples <- Sys.glob("/Users/cwymant/enable/samples_full_run-202509240958-*-8dbbf0.csv") # non-baseline, mixture observation without p_sam_rep_is_blank and with y_sim excluding blank possibility, after removing some outliers
+#files_samples <- Sys.glob("/Users/cwymant/enable/samples_full_run-202509240958-*-8dbbf0.csv") # non-baseline, mixture observation without p_sam_rep_is_blank and with y_sim excluding blank possibility, after removing some outliers
+#files_samples <- Sys.glob("/Users/cwymant/enable/samples_full_run-202510051834-*-2fd950.csv") # with site effects on x mix, but not converged
+#files_samples <- Sys.glob("/Users/cwymant/enable/samples_full_run-202510072125-*-3e7356.csv") # with site effects on x mix
+files_samples <- Sys.glob("/Users/cwymant/enable/samples_full_run-202510090853-*-7abd6f.csv") # re-including latest outliers, site effects on p_pos only
 
 # INPUT ABOUT STAN ----
 
-file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v16.stan"
+file_input_stan <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_v17.stan"
 sample_prior_manually <- TRUE
 num_mc_chains <- 4
-num_mc_iterations_posterior <- 500
-num_mc_iterations_prior <- 4000
+num_mc_iterations_posterior <- 750
+num_mc_iterations_prior <- 2000
 use_cmdstanr <- TRUE
 
 # Upper and lower bounds for priors
@@ -22,17 +25,21 @@ if (data_was_simulated) {
   
   df_priors_scalars <- tribble(
     ~param, ~lower, ~upper,
-    "x_sam_neg_mu", x_sam_neg_mu - 1, x_sam_neg_mu + 1,
-    "x_sam_pos_mu", x_sam_pos_mu - 1, x_sam_pos_mu + 1,
-    "x_sam_neg_sd", 0, x_sam_neg_sd * 2,
-    "x_sam_pos_sd", 0, x_sam_pos_sd * 2,
+    "mu_neg", mu_neg - 1, mu_neg + 1,
+    "mu_pos", mu_pos - 1, mu_pos + 1,
+    "sd_neg", 0, sd_neg * 2,
+    "sd_pos", 0, sd_pos * 2,
     "p_pos", 0, 1,
     "p_blank", 0, 2 * p_blank,
     "y_obs_sd_cal_min",  0, 2 * y_obs_sd_cal_min,
     "y_obs_sd_cal_jump", 0, 2 * y_obs_sd_cal_jump,
     "y_obs_sd_sam_min",  0, 2 * y_obs_sd_sam_min,
     "y_obs_sd_sam_jump", 0, 2 * y_obs_sd_sam_jump,
-    "sigma_p_pos_pred_vars", 0, 2 * max(sigma_p_pos_pred_vars)
+    "sigma_p_pos_pred_vars",  0, 2 * max(x_mix_pred_vars_sds$p_pos),
+    "sigma_mu_pos_pred_vars", 0, 2 * max(x_mix_pred_vars_sds$mu_pos),
+    "sigma_sd_pos_pred_vars", 0, 2 * max(x_mix_pred_vars_sds$sd_pos),
+    "sigma_mu_neg_pred_vars", 0, 2 * max(x_mix_pred_vars_sds$mu_neg),
+    "sigma_sd_neg_pred_vars", 0, 2 * max(x_mix_pred_vars_sds$sd_neg)
   )
   df_priors_vectors <- tribble(
     ~param, ~lower, ~upper,
@@ -46,17 +53,21 @@ if (data_was_simulated) {
 } else {
   df_priors_scalars <- tribble(
     ~param, ~lower, ~upper,
-    "x_sam_neg_mu", -5, -1,
-    "x_sam_neg_sd", 0, 2,
-    "x_sam_pos_sd", 0, 2.5, 
-    "x_sam_pos_mu", -1, 3,
+    "mu_neg", -5, -1,
+    "sd_neg", 0.5, 2,
+    "sd_pos", 0, 2.5, 
+    "mu_pos", -1.5, 3,
     "p_pos", 0, 1,
     "p_blank", 0, 0.05,
     "y_obs_sd_cal_min", 0, 0.015,
     "y_obs_sd_cal_jump", 0.1, 1,
     "y_obs_sd_sam_min", 0, 0.03,
     "y_obs_sd_sam_jump", 0.1, 1,
-    "sigma_p_pos_pred_vars", 0, 2
+    "sigma_p_pos_pred_vars", 0, 3,
+    "sigma_mu_pos_pred_vars", 0, 1,
+    "sigma_sd_pos_pred_vars", 0, 1,
+    "sigma_mu_neg_pred_vars", 0, 1,
+    "sigma_sd_neg_pred_vars", 0, 1
   )
   df_priors_vectors <- tribble(
     ~param, ~lower, ~upper,
@@ -83,6 +94,12 @@ if (data_was_simulated) {
 }
 
 # FINISH PREPARING INPUT TO STAN ----
+
+predict_p_pos  <- x_mix_pred_vars_nums[["p_pos"]]  > 0L
+predict_mu_pos <- x_mix_pred_vars_nums[["mu_pos"]] > 0L
+predict_sd_pos <- x_mix_pred_vars_nums[["sd_pos"]] > 0L
+predict_mu_neg <- x_mix_pred_vars_nums[["mu_neg"]] > 0L
+predict_sd_neg <- x_mix_pred_vars_nums[["sd_neg"]] > 0L
 
 # 0-or-1 encode each cat of f_pred_vars for every plate
 if (predict_f) {
@@ -117,43 +134,75 @@ if (predict_f) {
                                 f_pred_var_cat_int = 1:num_f_pred_var_cats)
 }
 
-# 0-or-1 encode each cat of p_pos_pred_vars for every sample
-if (predict_p_pos) {
-  design_matrix_p_pos <- df_sam %>%
-    select(id_sam, all_of(p_pos_pred_vars_names)) %>%
-    distinct()
-  stopifnot(identical(design_matrix_p_pos$id_sam,
-                      1:nrow(design_matrix_p_pos)))
-  design_matrix_p_pos <- design_matrix_p_pos %>%
-    select(-id_sam) %>%
-    mutate(across(everything(), as.character)) %>%
-    mutate(across(everything(), as.factor)) %>%
-    {model.matrix(~ . - 1,
-                  data = .,
-                  contrasts.arg = lapply(.[, , drop = FALSE],
-                                         contrasts, contrasts = FALSE))}
-} else {
-  design_matrix_p_pos <- matrix(nrow = num_sam_id, ncol = 0)
+# For each of the 5 x mix params, 0-or-1 encode each cat of each pred var,
+# for every sample
+x_mix_design_matrices <- list()
+for (param in x_mix_params) {
+  
+  # No pred vars
+  if (x_mix_pred_vars_nums[[param]] == 0L) {
+    x_mix_design_matrices[[param]] <- matrix(nrow = num_sam_id, ncol = 0)
+    
+    # Some pred vars
+  } else {
+    mat <- df_sam %>%
+      select(id_sam, all_of(x_mix_pred_vars_names[[param]])) %>%
+      distinct() # remove duplicates because of replicates...
+    stopifnot(identical(mat$id_sam, # ... and check one row per sam_id, in order
+                        1:nrow(mat)))
+    mat <- mat %>%
+      select(-id_sam) %>%
+      mutate(across(everything(), as.character)) %>%
+      mutate(across(everything(), as.factor)) %>%
+      {model.matrix(~ . - 1,
+                    data = .,
+                    contrasts.arg = lapply(.[, , drop = FALSE],
+                                           contrasts, contrasts = FALSE))}
+    colnames_expected <-
+      map(x_mix_pred_vars_names[[param]],
+          ~ paste0(.x, x_mix_pred_vars[[param]][[.x]])) %>%
+      unlist
+    stopifnot(identical(sort(colnames(mat)),
+                        sort(colnames_expected)))
+    mat <- mat[, colnames_expected]
+    stopifnot(identical(sort(colnames(mat)),
+                        sort(colnames_expected)))
+    x_mix_design_matrices[[param]] <- mat
+  }
 }
 
-# Count cats per p_pos pred var. Ensure the col names of design_matrix_p_pos are as 
-# expected.
-design_matrix_p_pos_colnames_expected <-
-  map(p_pos_pred_vars_names, ~ paste0(.x, p_pos_pred_vars[[.x]])) %>%
-  unlist
-stopifnot(identical(sort(colnames(design_matrix_p_pos)),
-                    sort(design_matrix_p_pos_colnames_expected)))
-design_matrix_p_pos <- design_matrix_p_pos[, design_matrix_p_pos_colnames_expected]
-stopifnot(identical(colnames(design_matrix_p_pos),
-                    design_matrix_p_pos_colnames_expected))
-stan_input_posterior$design_matrix_p_pos <- design_matrix_p_pos
+stan_input_posterior$design_matrix_p_pos  <- x_mix_design_matrices[["p_pos"]]
+stan_input_posterior$design_matrix_mu_pos <- x_mix_design_matrices[["mu_pos"]]
+stan_input_posterior$design_matrix_sd_pos <- x_mix_design_matrices[["sd_pos"]]
+stan_input_posterior$design_matrix_mu_neg <- x_mix_design_matrices[["mu_neg"]]
+stan_input_posterior$design_matrix_sd_neg <- x_mix_design_matrices[["sd_neg"]]
+stan_input_posterior$num_p_pos_pred_vars <- x_mix_pred_vars_nums[["p_pos"]]
+stan_input_posterior$num_cat_per_p_pos_pred_var <- x_mix_pred_vars_num_cats$p_pos %>% as.array()
+stan_input_posterior$num_mu_pos_pred_vars <- x_mix_pred_vars_nums[["mu_pos"]]
+stan_input_posterior$num_cat_per_mu_pos_pred_var <- x_mix_pred_vars_num_cats$mu_pos %>% as.array()
+stan_input_posterior$num_sd_pos_pred_vars <- x_mix_pred_vars_nums[["sd_pos"]]
+stan_input_posterior$num_cat_per_sd_pos_pred_var <- x_mix_pred_vars_num_cats$sd_pos %>% as.array()
+stan_input_posterior$num_mu_neg_pred_vars <- x_mix_pred_vars_nums[["mu_neg"]]
+stan_input_posterior$num_cat_per_mu_neg_pred_var <- x_mix_pred_vars_num_cats$mu_neg %>% as.array()
+stan_input_posterior$num_sd_neg_pred_vars <- x_mix_pred_vars_nums[["sd_neg"]]
+stan_input_posterior$num_cat_per_sd_neg_pred_var <- x_mix_pred_vars_num_cats$sd_neg %>% as.array()
 
-# Look-ups between int and string encoding
-if (predict_p_pos) {
-  df_p_pos_pred_vars <- tibble(p_pos_pred_var = p_pos_pred_vars_names,
-                               p_pos_pred_var_int = 1:num_p_pos_pred_vars)
-  df_p_pos_pred_vars_cats <- tibble(p_pos_pred_var_cat = design_matrix_p_pos_colnames_expected,
-                                    p_pos_pred_var_cat_int = 1:num_p_pos_pred_var_cats)
+# Look-ups between int and string encodings of pred vars & their cats
+lookup_pred_var_int <- list()
+lookup_pred_var_cat_int <- list()
+for (param in x_mix_params) {
+  lookup_pred_var_int[[param]] <- tibble(
+    pred_var = x_mix_pred_vars_names[[param]],
+    pred_var_int = seq(from = 1, length.out = x_mix_pred_vars_nums[[param]]))
+  lookup_pred_var_cat_int[[param]] <- tibble(
+    pred_var_cat = colnames(x_mix_design_matrices[[param]]),
+    pred_var_cat_int = seq(from = 1, length.out = x_mix_pred_vars_num_cats_tots[[param]]))
+  if (nrow(lookup_pred_var_int[[param]]) == 0) {
+    lookup_pred_var_int[[param]]$pred_var <- character()
+  }
+  if (nrow(lookup_pred_var_cat_int[[param]]) == 0) {
+    lookup_pred_var_cat_int[[param]]$pred_var_cat <- character()
+  }
 }
 
 # Priors
@@ -182,10 +231,25 @@ params_to_ignore <- c(
   "y_obs_sd_sam",
   "f_effects_by_pred_var_cat_unscaled",
   "p_pos_effects_by_pred_var_cat_unscaled",
+  "mu_pos_effects_by_pred_var_cat_unscaled",
+  "sd_pos_effects_by_pred_var_cat_unscaled",
+  "mu_neg_effects_by_pred_var_cat_unscaled",
+  "sd_neg_effects_by_pred_var_cat_unscaled",
   "exp_f_1_mult_f_4_per_plate",
   "p_pos_log_per_sam_id",
   "p_neg_log_per_sam_id",
-  "f_3_min_f_2_per_plate"
+  "p_pos_per_sam_id",
+  "mu_pos_per_sam_id",
+  "mu_neg_per_sam_id",
+  "sd_pos_per_sam_id",
+  "sd_neg_per_sam_id",
+  "f_3_min_f_2_per_plate",
+  # actually interesting, but memory is limited:
+  "xlog_sam",
+  #"y_sam_sim_conditional", 
+  #"p_sam_is_pos", 
+  #"y_sam_loglik_per_obs",
+  "xlog_sam_sim_unconditional"
 )
 
 # RUN STAN ----
@@ -193,6 +257,7 @@ params_to_ignore <- c(
 if (read_samples_from_file) {
   
   df_fit_wide_postonly <- map(files_samples, function(file_){
+    print(Sys.time())
     cat("Now reading file", file_, "\n")
     df_ <- data.table::fread(cmd = paste("grep -v '^#'", file_))
     keep_col <- rep(TRUE, ncol(df_))
@@ -285,6 +350,8 @@ if (read_samples_from_file) {
   # rm(samples_posterior)
   # save.image("~/enable/samples_full_run_TODO_DATE.RData")
   
+  # samples_posterior$profiles() 
+  
 }
 
 # WRANGLE STAN OUTPUT ----
@@ -329,17 +396,35 @@ if (sample_prior_manually) {
                         by = "param"))
   df_priors <- df_priors %>%
     mutate(replicates_needed = case_when(
-      param == "sigma_p_pos_pred_vars" ~ num_p_pos_pred_vars,
+      param == "sigma_p_pos_pred_vars"  ~ x_mix_pred_vars_nums[["p_pos"]],
+      param == "sigma_mu_pos_pred_vars" ~ x_mix_pred_vars_nums[["mu_pos"]],
+      param == "sigma_sd_pos_pred_vars" ~ x_mix_pred_vars_nums[["sd_pos"]],
+      param == "sigma_mu_neg_pred_vars" ~ x_mix_pred_vars_nums[["mu_neg"]],
+      param == "sigma_sd_neg_pred_vars" ~ x_mix_pred_vars_nums[["sd_neg"]],
       TRUE ~ 1)) %>%
     uncount(replicates_needed) 
-  if (predict_p_pos) {
-    df_priors <- bind_rows(
-      df_priors %>% 
-        filter(param != "sigma_p_pos_pred_vars"),
-      df_priors %>% 
-        filter(param == "sigma_p_pos_pred_vars") %>%
-        mutate(param = paste0(param, "[", row_number(), "]")))
-  }
+  df_priors <- bind_rows(
+    df_priors %>% 
+      filter(! param %in% c("sigma_p_pos_pred_vars",
+                            "sigma_mu_pos_pred_vars",
+                            "sigma_sd_pos_pred_vars",
+                            "sigma_mu_neg_pred_vars",
+                            "sigma_sd_neg_pred_vars")),
+    df_priors %>% 
+      filter(param == "sigma_p_pos_pred_vars") %>%
+      mutate(param = paste0(param, "[", row_number(), "]")),
+    df_priors %>% 
+      filter(param == "sigma_mu_pos_pred_vars") %>%
+      mutate(param = paste0(param, "[", row_number(), "]")),
+    df_priors %>% 
+      filter(param == "sigma_sd_pos_pred_vars") %>%
+      mutate(param = paste0(param, "[", row_number(), "]")),
+    df_priors %>% 
+      filter(param == "sigma_mu_neg_pred_vars") %>%
+      mutate(param = paste0(param, "[", row_number(), "]")),
+    df_priors %>% 
+      filter(param == "sigma_sd_neg_pred_vars") %>%
+      mutate(param = paste0(param, "[", row_number(), "]")))
   
   # Sample params with simple uniform distributions.
   # df_ps = a df with prior samples. Short name due to heavy usage.
@@ -361,12 +446,12 @@ if (sample_prior_manually) {
   df_ps <- df_ps %>%
     mutate(y_obs_sd_cal_max = y_obs_sd_cal_min + y_obs_sd_cal_jump,
            y_obs_sd_sam_max = y_obs_sd_sam_min + y_obs_sd_sam_jump)
-  x_sam_pos_mu_lower <- df_priors %>% filter(param == "x_sam_pos_mu") %>% pull(lower)
-  x_sam_pos_mu_upper <- df_priors %>% filter(param == "x_sam_pos_mu") %>% pull(upper)
+  mu_pos_lower <- df_priors %>% filter(param == "mu_pos") %>% pull(lower)
+  mu_pos_upper <- df_priors %>% filter(param == "mu_pos") %>% pull(upper)
   df_ps <- df_ps %>%
-    mutate(x_sam_pos_mu = runif(N,
-                                pmax(x_sam_pos_mu_lower, x_sam_neg_mu),
-                                x_sam_pos_mu_upper),
+    mutate(mu_pos = runif(N,
+                          pmax(mu_pos_lower, mu_neg),
+                          mu_pos_upper),
            density_type = "prior")
   
   if (predict_f) {
@@ -415,9 +500,11 @@ if (sample_prior_manually) {
     }
   }
   
-  if (predict_p_pos) {
-    # Independently draw num_f_pred_var_cats 4-vectors with mean zero, then scale,
-    # mirroring these parts of the Stan code:
+  for (param in x_mix_params) {
+    if (x_mix_pred_vars_nums[[param]] == 0) next
+    
+    # Independently draw standard normals for each cat of each pred var, 
+    # then scale, mirroring this parts of the Stan code e.g. when param=p_pos:
     # p_pos_effects_by_pred_var_cat_unscaled ~ std_normal();
     #...
     #vector[tot_cat_per_p_pos_pred_var] p_pos_effects_by_pred_var_cat;
@@ -432,26 +519,27 @@ if (sample_prior_manually) {
     #    cat_current += num_cat_this_p_pos_pred_var;
     #  }
     #}
-    p_pos_effects_by_pred_var_cat_samples <- # define unscaled, then scale
-      matrix(rnorm(n = num_mc_iterations_prior * num_p_pos_pred_var_cats),
+    effects_by_pred_var_cat_samples_unscaled <- # define unscaled, then scale
+      matrix(rnorm(n = num_mc_iterations_prior * x_mix_pred_vars_num_cats_tots[[param]]),
              nrow = num_mc_iterations_prior,
-             ncol = num_p_pos_pred_var_cats)
-    for (sample in 1:num_mc_iterations_prior) {
-      cat_current <- 1
-      for (p_pos_pred_var_int in 1:num_p_pos_pred_vars) {
-        num_cat_this_p_pos_pred_var = num_cat_per_p_pos_pred_var[p_pos_pred_var_int]
-        sigma_p_pos_pred_vars_ <- df_ps[[paste0(
-          "sigma_p_pos_pred_vars[", p_pos_pred_var_int, "]")]][[sample]]
-        cats <- cat_current:(cat_current + num_cat_this_p_pos_pred_var - 1)
-        p_pos_effects_by_pred_var_cat_samples[sample, cats] <-
-          p_pos_effects_by_pred_var_cat_samples[sample, cats] *
-          sigma_p_pos_pred_vars_
-        cat_current <- cat_current + num_cat_this_p_pos_pred_var
+             ncol = x_mix_pred_vars_num_cats_tots[[param]])
+    effects_by_pred_var_cat_samples <- 
+      matrix(nrow = num_mc_iterations_prior,
+             ncol = x_mix_pred_vars_num_cats_tots[[param]])
+    cat_current <- 1
+    for (pred_var_int in 1:x_mix_pred_vars_nums[[param]]) {
+      num_cat_this_pred_var <- x_mix_pred_vars_num_cats[[param]][pred_var_int]
+      sigma_pred_vars_ <- df_ps[[paste0(
+        "sigma_", param, "_pred_vars[", pred_var_int, "]")]]
+      for (cat in cat_current:(cat_current + num_cat_this_pred_var - 1)) {
+        effects_by_pred_var_cat_samples[, cat] <-
+          effects_by_pred_var_cat_samples_unscaled[, cat] * sigma_pred_vars_  
       }
+      cat_current <- cat_current + num_cat_this_pred_var
     }
-    for (p_pos_pred_var_cat_int in 1:num_p_pos_pred_var_cats) {
-      df_ps[[paste0("p_pos_effects_by_pred_var_cat[", p_pos_pred_var_cat_int, "]" )]] <-
-        p_pos_effects_by_pred_var_cat_samples[, p_pos_pred_var_cat_int]
+    for (pred_var_cat_int in 1:x_mix_pred_vars_num_cats_tots[[param]]) {
+      df_ps[[paste0(param, "_effects_by_pred_var_cat[", pred_var_cat_int, "]" )]] <-
+        effects_by_pred_var_cat_samples[, pred_var_cat_int]
     }
   }
   
@@ -468,6 +556,7 @@ desired_cols <- names(df_ps)
 df_fit_wide_postandprior <- rbind(df_fit_wide_postonly[,..desired_cols],
                                   df_ps) 
 
+# Record true values of params
 if (data_was_simulated) {
   
   df_true_pop_params <- tribble(
@@ -486,10 +575,10 @@ if (data_was_simulated) {
     "rho[2,3]", rho[2,3],
     "rho[2,4]", rho[2,4],
     "rho[3,4]", rho[3,4],
-    "x_sam_neg_sd", x_sam_neg_sd,
-    "x_sam_pos_sd", x_sam_pos_sd,
-    "x_sam_neg_mu", x_sam_neg_mu,
-    "x_sam_pos_mu", x_sam_pos_mu,
+    "sd_neg", sd_neg,
+    "sd_pos", sd_pos,
+    "mu_neg", mu_neg,
+    "mu_pos", mu_pos,
     "p_pos", p_pos,
     "p_blank", p_blank,
     "y_obs_sd_cal_min",  y_obs_sd_cal_min,
@@ -528,30 +617,33 @@ if (data_was_simulated) {
                   select(param, value))
   }
   
-  if (predict_p_pos) {
-    df_true_p_pos_effects_by_pred_var <- p_pos_effects_by_pred_var %>% 
-      map(function(mat) {mat %>%
-          as_tibble(.name_repair = "universal_quiet") %>%
-          mutate(cat = names(mat))}) %>% 
-      bind_rows(.id = "p_pos_pred_var") %>%
-      mutate(p_pos_pred_var_cat = paste0(p_pos_pred_var, cat)) %>% 
-      inner_join(df_p_pos_pred_vars_cats, by = "p_pos_pred_var_cat")
-    stopifnot(identical(sort(df_true_p_pos_effects_by_pred_var$p_pos_pred_var_cat),
-                        sort(design_matrix_p_pos_colnames_expected)))
-    df_true_p_pos_effects_by_pred_var <- df_true_p_pos_effects_by_pred_var %>%
-      mutate(param = paste0("p_pos_effects_by_pred_var_cat[", 
-                            p_pos_pred_var_cat_int, "]")) %>%
-      select(param, value)
-    df_true_sigma_p_pos_pred_vars <-
-      tibble(p_pos_pred_var = names(sigma_p_pos_pred_vars),
-             value = sigma_p_pos_pred_vars) %>%
-      inner_join(df_p_pos_pred_vars, by = "p_pos_pred_var") %>%
-      mutate(param = paste0("sigma_p_pos_pred_vars[", p_pos_pred_var_int, "]")) %>%
-      select(param, value)
-    df_true_pop_params <- df_true_pop_params %>%
-      bind_rows(df_true_p_pos_effects_by_pred_var,
-                df_true_sigma_p_pos_pred_vars)
-  }
+  df_true_pop_params <- df_true_pop_params %>% bind_rows(
+    map(x_mix_params, function(param) {
+      if (x_mix_pred_vars_nums[[param]] == 0) {
+        return(tibble(param = character(), value = numeric()))
+      }
+      df_true_effects_by_pred_var <- x_mix_effects[[param]] %>% 
+        map(function(mat) {mat %>%
+            as_tibble(.name_repair = "universal_quiet") %>%
+            mutate(cat = names(mat))}) %>% 
+        bind_rows(.id = "pred_var") %>%
+        mutate(pred_var_cat = paste0(pred_var, cat)) %>% 
+        inner_join(lookup_pred_var_cat_int[[param]], by = "pred_var_cat")
+      stopifnot(identical(sort(df_true_effects_by_pred_var$pred_var_cat),
+                          sort(colnames(x_mix_design_matrices[[param]]))))
+      df_true_effects_by_pred_var <- df_true_effects_by_pred_var %>%
+        mutate(param = paste0(param, "_effects_by_pred_var_cat[", 
+                              pred_var_cat_int, "]")) %>%
+        select(param, value)
+      df_true_sigma_pred_vars <-
+        tibble(pred_var = names(x_mix_pred_vars_sds[[param]]),
+               value = x_mix_pred_vars_sds[[param]]) %>%
+        inner_join(lookup_pred_var_int[[param]], by = "pred_var") %>%
+        mutate(param = paste0("sigma_", param, "_pred_vars[", pred_var_int, "]")) %>%
+        select(param, value)
+      bind_rows(df_true_effects_by_pred_var, df_true_sigma_pred_vars)
+    }) %>%
+      bind_rows())
 }
 
 # Rename params for interpretability
@@ -580,25 +672,28 @@ rename_params <- function(original_names) {
         TRUE ~ new
       ))
   }
-  if (predict_p_pos) {
+  
+  for (param in x_mix_params) {
+    if (x_mix_pred_vars_nums[[param]] == 0) next
     df_param_names <- df_param_names %>%
       tidyr::extract(orig, 
-                     into = "p_pos_pred_var_int", 
-                     regex = "sigma_p_pos_pred_vars\\[([0-9]+)\\]",
+                     into = "pred_var_int", 
+                     regex = paste0("sigma_", param, "_pred_vars\\[([0-9]+)\\]"),
                      remove = FALSE) %>%
       tidyr::extract(orig, 
-                     into = "p_pos_pred_var_cat_int", 
-                     regex = "p_pos_effects_by_pred_var_cat\\[([0-9]+)\\]",
+                     into = "pred_var_cat_int", 
+                     regex = paste0(param, "_effects_by_pred_var_cat\\[([0-9]+)\\]"),
                      remove = FALSE) %>%
-      mutate(p_pos_pred_var_int = as.integer(p_pos_pred_var_int),
-             p_pos_pred_var_cat_int = as.integer(p_pos_pred_var_cat_int)) %>%
-      left_join(df_p_pos_pred_vars, by = "p_pos_pred_var_int") %>%
-      left_join(df_p_pos_pred_vars_cats, by = "p_pos_pred_var_cat_int") %>% 
+      mutate(pred_var_int = as.integer(pred_var_int),
+             pred_var_cat_int = as.integer(pred_var_cat_int)) %>%
+      left_join(lookup_pred_var_int[[param]], by = "pred_var_int") %>%
+      left_join(lookup_pred_var_cat_int[[param]], by = "pred_var_cat_int") %>% 
       mutate(new = case_when(
-        !is.na(p_pos_pred_var_int) ~ paste0("sigma_p_pos_pred_vars_", p_pos_pred_var),
-        !is.na(p_pos_pred_var_cat_int) ~ paste0("p_pos_effect_", p_pos_pred_var_cat),
+        !is.na(pred_var_int) ~ paste0("sigma_", param, "_pred_vars_", pred_var),
+        !is.na(pred_var_cat_int) ~ paste0(param, "_effect_", pred_var_cat),
         TRUE ~ new
-      ))
+      )) %>%
+      select(orig, new)
   }
   df_param_names$new
 }
@@ -607,53 +702,101 @@ setnames(df_fit_wide_postandprior, rename_params)
 setnames(df_ps, rename_params)
 if (data_was_simulated) df_true_pop_params$param <- rename_params(df_true_pop_params$param)
 
-# Define p_pos by group, from overall p_pos and p_pos effects
-if (predict_p_pos) {
-  for (p_pos_pred_var_cat in df_p_pos_pred_vars_cats$p_pos_pred_var_cat) {
-    df_fit_wide_postandprior[[paste0("p_pos_for_", p_pos_pred_var_cat)]] <- mastiff::logistic(
-      mastiff::logit(df_fit_wide_postandprior$p_pos) + df_fit_wide_postandprior[[paste0("p_pos_effect_", p_pos_pred_var_cat)]])
-    df_ps[[paste0("p_pos_for_", p_pos_pred_var_cat)]] <- mastiff::logistic(
-      mastiff::logit(df_ps$p_pos) + df_ps[[paste0("p_pos_effect_", p_pos_pred_var_cat)]])
+# Define x mix params by group, from overall params + effects
+for (param in x_mix_params) {
+  if (x_mix_pred_vars_nums[[param]] == 0) next
+  for (pred_var_cat in lookup_pred_var_cat_int[[param]]$pred_var_cat) {
+    if (param == "p_pos") {
+      df_fit_wide_postandprior[[paste0(param, "_for_", pred_var_cat)]] <- mastiff::logistic(
+        mastiff::logit(df_fit_wide_postandprior[[param]]) +
+          df_fit_wide_postandprior[[paste0(param, "_effect_", pred_var_cat)]])
+      df_ps[[paste0(param, "_for_", pred_var_cat)]] <- mastiff::logistic(
+        mastiff::logit(df_ps[[param]]) + df_ps[[paste0(param, "_effect_", pred_var_cat)]])
+    } else if (param %in% c("sd_pos", "sd_neg")) {
+      df_fit_wide_postandprior[[paste0(param, "_for_", pred_var_cat)]] <- exp(
+        log(df_fit_wide_postandprior[[param]]) + 
+          df_fit_wide_postandprior[[paste0(param, "_effect_", pred_var_cat)]])
+      df_ps[[paste0(param, "_for_", pred_var_cat)]] <- exp(
+        log(df_ps[[param]]) + df_ps[[paste0(param, "_effect_", pred_var_cat)]])
+    }
+    else {
+      df_fit_wide_postandprior[[paste0(param, "_for_", pred_var_cat)]] <-
+        df_fit_wide_postandprior[[param]] + 
+        df_fit_wide_postandprior[[paste0(param, "_effect_", pred_var_cat)]]
+      df_ps[[paste0(param, "_for_", pred_var_cat)]] <-
+        df_ps[[param]] + df_ps[[paste0(param, "_effect_", pred_var_cat)]]
+    }
   }
-  if (data_was_simulated) {
-    df_true_pop_params <- df_true_pop_params %>%
-      bind_rows(p_pos_overall_by_pred_var %>% 
-                  map(function(mat) {mat %>%
-                      as_tibble(.name_repair = "universal_quiet") %>%
-                      mutate(cat = names(mat))}) %>%
-                  bind_rows(.id = "p_pos_pred_var") %>%
-                  mutate(param = paste0("p_pos_for_", p_pos_pred_var, cat)) %>%
-                  select(param, value))
-  }
+}
+if (data_was_simulated) {
+  df_true_pop_params <- df_true_pop_params %>% bind_rows(
+    x_mix_params %>% map(function(param) {
+      if (x_mix_pred_vars_nums[[param]] == 0) {
+        return(tibble(param = character(), value = numeric()))
+      }
+      x_mix_overall[[param]] %>%
+        map(function(mat) {mat %>%
+            as_tibble(.name_repair = "universal_quiet") %>%
+            mutate(cat = names(mat))}) %>%
+        bind_rows(.id = "pred_var") %>%
+        mutate(param = paste0(param, "_for_", pred_var, cat)) %>%
+        select(param, value)
+    }) 
+  )
 }
 
 # PLOT STAN OUTPUT ----
+
+param_names_pop <- colnames(df_fit_wide_postandprior)
 
 # Plot prior vs posterior for all main params, except f_effects
 p <- ggplot() +
   geom_histogram(data = df_fit_wide_postandprior %>%
                    select(!matches("f_effect")) %>%
-                   select(!matches("p_pos_")) %>%
-                   select(!matches("_jump")) %>%
+                   #select(!matches("p_pos_")) %>%
+                   #select(!matches("_jump")) %>%
                    pivot_longer(-c("sample", "density_type"), names_to = "param"),
                  aes(value, fill = density_type, y = after_stat(density)),
                  alpha = 0.6,
                  position = "identity",
                  bins = 50) +
-  facet_wrap(~param, scales = "free", nrow = 5) +
+  facet_wrap(~param, scales = "free", nrow = 8) +
   scale_fill_brewer(palette = "Set1") +
   coord_cartesian(expand = FALSE) +
   labs(fill = "",
        x = "param value",
-       y = "probability density")
+       y = "probability density") +
+  theme(strip.text.x = element_text(size = 7))
 if (data_was_simulated) {
   p <- p + geom_vline(data = df_true_pop_params %>%
-                        filter(!str_detect(param, "f_effect"),
-                               !str_detect(param, "p_pos_")),
+                        filter(!str_detect(param, "f_effect")),
                       aes(xintercept = value))
 }
 p
 ggsave("~/enable/enable_posteriors.pdf", height = 8, width = 9.4)
+
+mastiff::plot_posterior(
+  posterior_samples = df_fit_wide_postandprior %>% filter(density_type == "posterior"),
+  prior_samples = df_fit_wide_postandprior %>% filter(density_type == "prior"),
+  params_desired = param_names_pop[grepl("mu_pos", param_names_pop)],
+  skip_stanfit_to_dt = TRUE)
+
+df_fit_wide_postandprior %>%
+  filter(density_type == "posterior") %>%
+  select(sample, matches("mu_pos_for_"), matches("mu_neg_for_")) %>%
+  pivot_longer(-c("sample"), names_to = "param") %>%
+  tidyr::extract(param,
+                 into = c("param", "site"), 
+                 regex = "(mu_[a-z]+)_for_site_(.*)") %>%
+  pivot_wider(names_from = param) %>%
+  ggplot() + 
+  geom_bin_2d(aes(mu_neg, mu_pos, fill = after_stat(density)), bins = 60) +
+  facet_wrap(~site, nrow = 2) +
+  geom_abline() +
+  labs(x = "mean log Ab for seronegatives",
+       y = "mean log Ab for seropositives",
+       fill = "posterior\ndensity")
+ggsave("~/enable/enable_mixture_random_effects_multimodal.pdf", height = 4, width = 8)
 
 p <- ggplot() +
   geom_histogram(data = df_fit_wide_postandprior %>%
@@ -773,15 +916,14 @@ df_fit_wide_postonly %>%
   theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0))
 ggsave("~/enable/enable_f_effects_of_lab_and_lot.pdf", height = 8, width = 8)  
 
-
 # Compare true and estimated sample x 
 quantiles <- c(0.025, 0.5, 0.975)
 df_sam_x <- df_fit_wide_postonly %>%
-  select(sample, starts_with("x_sam[")) %>%
+  select(sample, starts_with("xlog_sam[")) %>%
   pivot_longer(-sample, names_to = "param") %>%
   tidyr::extract(param, 
                  into = "id_sam", 
-                 regex = "x_sam\\[([0-9]+)\\]") %>%
+                 regex = "xlog_sam\\[([0-9]+)\\]") %>%
   mutate(id_sam = as.integer(id_sam)) %>%
   group_by(id_sam) %>%
   reframe(value = quantile(value, probs = quantiles),
@@ -790,16 +932,16 @@ df_sam_x <- df_fit_wide_postonly %>%
 if (data_was_simulated) {
   df_sam_x %>%
     left_join(df_sam %>%
-                select(id_sam, x) %>%
+                select(id_sam, xlog) %>%
                 distinct(),
               by = "id_sam") %>%
     filter(id_sam %% 15 == 0) %>%
     ggplot() +
-    geom_errorbar(aes(x, ymin = x_q_0.025, ymax = x_q_0.975)) +
-    geom_point(aes(x, x_q_0.5)) +
+    geom_errorbar(aes(xlog, ymin = x_q_0.025, ymax = x_q_0.975)) +
+    geom_point(aes(xlog, x_q_0.5)) +
     geom_abline() +
-    scale_x_log10(breaks = xs) +
-    scale_y_log10(breaks = xs) +
+    #scale_x_log10(breaks = xs) +
+    #scale_y_log10(breaks = xs) +
     labs(x = "True Ab",
          y = "Estimated Ab")
   ggsave("~/foo_8.pdf", height = 3.3, width = 3.3)
@@ -911,57 +1053,17 @@ if (data_was_simulated) {
 p
 ggsave("~/enable/enable_calibrator_posterior_curves.pdf", height = 4.5, width = 6)
 
-
-# Plot P(x | pos), P(x | neg), P(x), P(pos | x)
-xs_plot <- seq(from = 0, to = 4,
-               length.out = 500)
-df_x_distributions <- df_fit_wide_postonly %>%
-  filter(sample %% 10 == 0) %>%
-  select("sample", "x_sam_pos_alpha", "x_sam_pos_beta",
-         "x_sam_neg_alpha", "x_sam_neg_beta", "p_pos") %>%
-  full_join(tibble(x = xs_plot),
-            by = character()) %>%
-  mutate(`P(x | pos)` = dgamma(x, shape = x_sam_pos_alpha, rate = x_sam_pos_beta),
-         `P(x | neg)` = dgamma(x, shape = x_sam_neg_alpha, rate = x_sam_neg_beta),
-         `P(x)` = p_pos * `P(x | pos)` + (1 - p_pos) * `P(x | neg)`,
-         `P(pos | x)` = p_pos * `P(x | pos)` / `P(x)`) %>%
-  select(sample, x, `P(x | pos)`, 
-         `P(x | neg)`, `P(x)`, `P(pos | x)`) %>%
-  pivot_longer(c("P(x | pos)", "P(x | neg)", "P(x)", "P(pos | x)"))
-p <- ggplot() +
-  geom_line(data = df_x_distributions,
-            aes(x = x, y = value, group = sample), alpha = 0.15) +
-  facet_wrap(vars(name), scales = "free_y", ncol = 1) +
-  labs(x = "x = Ab concentration",
-       y = "") +
-  #scale_x_continuous(expand = c(0, 0), limits = c(NA, 2.5)) +
-  scale_y_continuous(expand = c(0, 0), limits = c(NA, NA))
-if (data_was_simulated) {
-  df_x_distributions_truth <-
-    tibble(x = xs_plot,
-           xlog = log(x),
-           `P(x | pos)` = dgamma(x, shape = x_sam_pos_alpha, rate = x_sam_pos_beta),
-           `P(x | neg)` = dgamma(x, shape = x_sam_neg_alpha, rate = x_sam_neg_beta),
-           `P(x)` = p_pos * `P(x | pos)` + (1 - p_pos) * `P(x | neg)`,
-           `P(pos | x)` = p_pos * `P(x | pos)` / `P(x)`) %>%
-    pivot_longer(-c("x", "xlog"))
-  p <- p +
-    geom_line(data = df_x_distributions_truth,
-              aes(x = x, y = value), colour = "blue") 
-}
-p
-
 # Plot P(x | pos), P(x | neg), P(x), P(pos | x) again but now with logx
 xlogs_plot <- log(10) * -90:60 / 30
 df_xlog_distributions <- df_fit_wide_postonly %>%
   filter(sample %% 10 == 0) %>%
-  select("sample", "x_sam_pos_mu", "x_sam_pos_sd",
-         "x_sam_neg_mu", "x_sam_neg_sd", "p_pos") %>%
+  select("sample", "mu_pos", "sd_pos",
+         "mu_neg", "sd_neg", "p_pos") %>%
   full_join(tibble(xlog = xlogs_plot,
                    x = exp(xlog)),
             by = character()) %>%
-  mutate(`P(xlog | pos)` = dnorm(xlog, mean = x_sam_pos_mu, sd = x_sam_pos_sd),
-         `P(xlog | neg)` = dnorm(xlog, mean = x_sam_neg_mu, sd = x_sam_neg_sd),
+  mutate(`P(xlog | pos)` = dnorm(xlog, mean = mu_pos, sd = sd_pos),
+         `P(xlog | neg)` = dnorm(xlog, mean = mu_neg, sd = sd_neg),
          `P(xlog)` = p_pos * `P(xlog | pos)` + (1 - p_pos) * `P(xlog | neg)`,
          `P(pos | xlog)` = p_pos * `P(xlog | pos)` / `P(xlog)`) %>%
   select(sample, xlog, `P(xlog | pos)`, 
@@ -992,7 +1094,38 @@ if (data_was_simulated) {
 p
 ggsave("~/enable/enable_parametric_prob_pos.pdf", height = 5, width = 6)
 
-
+# Same as last plot but stratified by group, assuming the same pred var - site - 
+# was used for all five x mix paramsm 
+df_xlog_distributions_site <- df_fit_wide_postandprior %>%
+  filter(density_type == "posterior") %>%
+  select(sample, matches("_for_"), matches("mu_neg_for_")) %>%
+  filter(sample %% 30 == 0) %>%
+  pivot_longer(-c("sample"), names_to = "param") %>%
+  tidyr::extract(param,
+                 into = c("param", "site"), 
+                 regex = "([a-z_]+)_for_site_(.*)") %>%
+  pivot_wider(names_from = param) %>%
+  filter(mu_pos > mu_neg) %>%
+  cross_join(tibble(xlog = xlogs_plot,
+                    x = exp(xlog))) %>%
+  mutate(`P(xlog | pos)` = dnorm(xlog, mean = mu_pos, sd = sd_pos),
+         `P(xlog | neg)` = dnorm(xlog, mean = mu_neg, sd = sd_neg),
+         `P(xlog)` = p_pos * `P(xlog | pos)` + (1 - p_pos) * `P(xlog | neg)`,
+         `P(pos | xlog)` = p_pos * `P(xlog | pos)` / `P(xlog)`) %>%
+  select(sample, site, xlog, `P(xlog | pos)`, 
+         `P(xlog | neg)`, `P(xlog)`, `P(pos | xlog)`) %>%
+  pivot_longer(c("P(xlog | pos)", "P(xlog | neg)", "P(xlog)", "P(pos | xlog)"))
+p <- ggplot() +
+  geom_line(data = df_xlog_distributions_site,
+            aes(x = xlog, y = value, group = sample), alpha = 0.15) +
+  facet_grid(name ~ site, scales = "free_y") +
+  labs(x = "log_e(Ab concentration)",
+       y = "") +
+  #scale_x_log10(expand = c(0, 0), limits = c(NA, NA)) +
+  scale_x_continuous(expand = c(0, 0), limits = c(NA, NA)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(NA, NA))
+p
+ggsave("~/enable/enable_parametric_prob_pos_by_site.pdf", height = 6, width = 10.5)
 
 # Posterior retrodictive check
 group_size <- 15
@@ -1081,10 +1214,10 @@ df_x_sam_point %>%
   write_csv("~/enable/enable/enable_SampleX_empirical_v9.csv")
 
 # Plot the posterior distribution of the population level distribution of 
-# stochastically redrawn y_sam 
+# stochastically redrawn y_sam_sim_conditional 
 df_fit_wide_postonly %>%
   filter(sample %% 30 == 0) %>%
-  select(sample, starts_with("y_sam_sim[")) %>%
+  select(sample, starts_with("y_sam_sim_conditional[")) %>%
   pivot_longer(-c("sample"), names_to = "param") %>%
   mutate(value = log10(value)) %>%
   ggplot() +
@@ -1099,10 +1232,29 @@ df_fit_wide_postonly %>%
   NULL 
 ggsave("~/enable/enable_PopDistributionOfODs.pdf", height = 4, width = 6.5)
 
-
-
-
-
-
-
+# Plot the posterior distribution of the population level distribution of 
+# stochastically redrawn y_sam_sim_unconditional 
+df_fit_wide_postonly %>%
+  filter(sample %% 100 == 0) %>%
+  select(sample, starts_with("y_sam_sim_unconditional[")) %>%
+  pivot_longer(-c("sample"), names_to = "param") %>%
+  tidyr::extract(param, 
+                 into = "which_sam_rep", 
+                 regex = "y_sam_sim_unconditional\\[([0-9]+)\\]") %>%
+  mutate(which_sam_rep = as.integer(which_sam_rep)) %>%
+  left_join(df_sam, by = "which_sam_rep") %>%
+  mutate(value = log10(value)) %>%
+  ggplot() +
+  geom_density(aes(value, group = sample), alpha = 0.01) +
+  geom_histogram(data = df_sam, 
+                 aes(x = log10(y), y = after_stat(density)),
+                 col = "blue", fill = NA,
+                 bins = 60) +
+  coord_cartesian(expand = F) +
+  scale_x_continuous(limits = c(-3, 1)) +
+  facet_wrap(~x_mix_group, scales = "free_y", nrow = 2) +
+  labs(x = "log10(OD value)",
+       y = "probability density") +
+  NULL 
+ggsave("~/enable/enable_mixture_random_effects_model_fit.pdf", height = 5, width = 10)
 

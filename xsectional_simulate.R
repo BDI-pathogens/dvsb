@@ -29,11 +29,11 @@ theme_set(theme_classic())
 
 # INPUT ----
 
-set.seed(123456)
+set.seed(12345)
 
 # Unmodelled aspects of the data-generating process (things we condition on)
-num_plate <- 20
-num_sam_per_plate <- 10
+num_plate <- 50
+num_sam_per_plate <- 30
 num_rep_per_sam <- 2
 num_rep_per_cal <- 2
 xlogs <- log(c(0, 0.5, 1.5, 4.5, 13, 40)) #c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cals
@@ -42,10 +42,10 @@ y_obs_sd_cal_min <- 0.01
 y_obs_sd_cal_jump <- 0.4
 y_obs_sd_sam_min <- 0.002
 y_obs_sd_sam_jump <- 0.4
-x_sam_neg_mu <- -2.9
-x_sam_neg_sd <- 1
-x_sam_pos_mu <- 0.7
-x_sam_pos_sd <- 1.1
+mu_neg <- -3.4
+sd_neg <- 1
+mu_pos <- 0.8
+sd_pos <- 1.1
 p_pos <- 0.5
 p_blank <- 0.2
 
@@ -60,10 +60,10 @@ f <- c(0.95,
 # The covariance matrix for the plate-level random effects on f, parameterised
 # by the square root of the diagonal entries and the dimensionless correlation
 # matrix.
-sigma_f_plate <- c(0.065,
-                   0.009,
-                   0.9,
-                   0.35)
+sigma_f_plate <- c(0.0065,
+                   0.0009,
+                   0.09,
+                   0.035)
 rho <- matrix(c(1, 0, 0, 0,
                 0, 1, 0, 0,
                 0, 0, 1, 0,
@@ -89,6 +89,16 @@ sigma_f_pred_vars <- list(
   #lab_ = 3 * sigma_f_plate
 )
 
+# Initialise empty predictor vars for the x mix distribution (unnecessary
+# because we'll overwrite them next, but it shows the structure when empty).
+x_mix_pred_vars <- list()
+x_mix_pred_vars_sds <- list()
+x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
+for (x_mix_pred_var_ in x_mix_params) {
+  x_mix_pred_vars[[x_mix_pred_var_]]  <- list()
+  x_mix_pred_vars_sds[[x_mix_pred_var_]] <- numeric()
+}
+
 # p_pos_pred_vars should either be an empty list, or a named list in which 
 # each element is a character vector of length at least 2 with no duplicates.
 # Each character vector consists of categories that systematically differ in
@@ -97,16 +107,18 @@ sigma_f_pred_vars <- list(
 # sigma_p_pos_pred_vars should be a list with the same names as f_pred_vars.
 # Each element in sigma_p_pos_pred_vars is a standard deviation of the
 # variability in p_pos (on a logit scale) associated with that predictor variable.
-p_pos_pred_vars <- list(
-  #letter = letters[1:5]
-  #int = as.character(1:4)
-)
-sigma_p_pos_pred_vars <- c(
-  #letter = 1
-  #int = 0.1
-)
+x_mix_pred_vars$p_pos <- list(letter_p_pos = letters[1:3], foo = LETTERS[1:2])
+x_mix_pred_vars_sds$p_pos <- c(letter_p_pos = 1, foo = 2)
+x_mix_pred_vars$mu_neg <- list(letter_mu_neg = letters[1:3])
+x_mix_pred_vars_sds$mu_neg <- c(letter_mu_neg = 1)
+#x_mix_pred_vars$mu_pos <- list(letter_mu_pos = letters[1:5])
+#x_mix_pred_vars_sds$mu_pos <- c(letter_mu_pos = 0.75)
+#x_mix_pred_vars$sd_neg <- list(letter_sd_neg = LETTERS[1:3])
+#x_mix_pred_vars_sds$sd_neg <- c(letter_sd_neg = 0.6)
+#x_mix_pred_vars$sd_pos <- list(letter_sd_pos = LETTERS[1:3])
+#x_mix_pred_vars_sds$sd_pos <- c(letter_sd_pos = 0.6)
 
-# SIMULATE ----
+# INPUT CHECKS ----
 
 # Check f_pred_vars 
 f_pred_vars_names <- names(f_pred_vars)
@@ -125,21 +137,48 @@ if (predict_f) {
   }
 }
 
-# Check p_pred_vars 
+# Check x mix pred vars 
 num_sam_id <- num_plate * num_sam_per_plate
-p_pos_pred_vars_names <- names(p_pos_pred_vars)
-stopifnot(identical(sort(p_pos_pred_vars_names),
-                    sort(names(sigma_p_pos_pred_vars))))
-num_p_pos_pred_vars <- length(p_pos_pred_vars)
-predict_p_pos <- num_p_pos_pred_vars > 0L
-if (predict_p_pos) {
-  if (num_sam_id == 0) stop("You need some samples if sample positivity is predicted")
-  for (name_ in p_pos_pred_vars_names) {
-    stopifnot(is.character(p_pos_pred_vars[[name_]]))
-    stopifnot(length(p_pos_pred_vars[[name_]]) >= 2L)
-    stopifnot(!anyDuplicated(p_pos_pred_vars[[name_]]))
+stopifnot(identical(names(x_mix_pred_vars),     x_mix_params))
+stopifnot(identical(names(x_mix_pred_vars_sds), x_mix_params))
+for (param_ in x_mix_params) {
+  if (! identical(names(x_mix_pred_vars[[param_]]),
+                  names(x_mix_pred_vars_sds[[param_]]))) {
+    stop(paste0("Different predictor variables were named in x_mix_pred_vars$",
+                param_, " and in x_mix_pred_vars$", param_, ":\n",
+                paste(names(x_mix_pred_vars[[param_]]), collapse = " "), "\nand\n",
+                paste(names(x_mix_pred_vars_sds[[param_]]), collapse = " "), 
+                "\nrespectively. These must be identical.\n"))
   }
 }
+x_mix_pred_vars_names <- map(x_mix_pred_vars, names)
+x_mix_pred_vars_nums <- map_int(x_mix_pred_vars_names, length)
+if (any(x_mix_pred_vars_nums) && num_sam_id == 0) {
+  stop("You need some samples if the x mix parameters are to be predicted")
+}
+for (param in x_mix_params) {
+  if (x_mix_pred_vars_nums[[param]]) {
+    for (pred_var in x_mix_pred_vars_names[[param]]) {
+      if (!is.character(x_mix_pred_vars[[param]][[pred_var]])) {
+        stop(paste0("x_mix_pred_vars$", param, "$", pred_var,
+                    " must be a character vector"))
+      }
+      if (length(x_mix_pred_vars[[param]][[pred_var]]) < 2L) {
+        stop(paste0("x_mix_pred_vars$", param, "$", pred_var,
+                    " must contain at least two elements; we found it equal to ",
+                    x_mix_pred_vars[[param]][[pred_var]]))
+      }
+      if (anyDuplicated(x_mix_pred_vars[[param]][[pred_var]])) {
+        stop(paste0("x_mix_pred_vars$", param, "$", pred_var,
+                    " must not contain duplicates; we ", 
+                    "found it equal to ", 
+                    paste(x_mix_pred_vars[[param]][[pred_var]], collapse = " ")))
+      }
+    }
+  }
+}
+
+# SIMULATE PLATE VARIABILITY AND CALS ----
 
 # Derived params
 y_obs_sd_cal_max <- y_obs_sd_cal_min + y_obs_sd_cal_jump
@@ -312,78 +351,129 @@ if (FALSE) {
   ggsave("~/foo_3.pdf", height = 8, width = 4)
 }
 
-# Allocate each unique sample to a plate and draw its p_pos predictors.
+# SIMULATE SAMS ----
+
+x_mix_baseline <- c(p_pos  = p_pos,
+                    mu_pos = mu_pos,
+                    sd_pos = sd_pos,
+                    mu_neg = mu_neg,
+                    sd_neg = sd_neg)
+
+# Allocate each unique sample to a plate and draw its x mix predictors.
 # Ensure that we don't randomly sample the same category for every sample.
 # Delete any unsampled categories.
 df_sam <- df_plate %>%
   slice(rep(row_number(), num_sam_per_plate)) %>%
   arrange(plate) %>%
   mutate(id_sam = row_number())
-for (p_pos_pred_var in p_pos_pred_vars_names) {
-  
-  sampled_pred_vars <- character()
-  while(length(sampled_pred_vars) < 2) {
-    sampled_pred_vars <- sample(p_pos_pred_vars[[p_pos_pred_var]],
-                                size = num_sam_id,
-                                replace = TRUE)
+x_mix_pred_vars_num_cats <- list()
+x_mix_pred_vars_num_cats_tots <- integer()
+for (param in x_mix_params) {
+  for (pred_var in x_mix_pred_vars_names[[param]]) {
+    
+    sampled_pred_vars <- character()
+    while(length(sampled_pred_vars) < 2) {
+      sampled_pred_vars <- sample(x_mix_pred_vars[[param]][[pred_var]],
+                                  size = num_sam_id,
+                                  replace = TRUE)
+    } 
+    if (length(sampled_pred_vars) < length(x_mix_pred_vars[[param]][[pred_var]])) {
+      x_mix_pred_vars[[param]][[pred_var]] <- sort(unique(sampled_pred_vars))
+    } 
+    df_sam[[pred_var]] <- sampled_pred_vars
+  }
+  x_mix_pred_vars_num_cats[[param]] <-
+    map_int(x_mix_pred_vars[[param]], length)
+  x_mix_pred_vars_num_cats_tots[[param]] <- 
+    sum(x_mix_pred_vars_num_cats[[param]])
+}
+all_names_x_mix_pred_vars <- x_mix_pred_vars %>% 
+  map(names) %>%
+  unlist() %>%
+  unique()
+if (is.null(all_names_x_mix_pred_vars)) {
+  df_sam <- df_sam %>%
+    mutate(x_mix_group = NA_character_)
+} else {
+  df_sam <- df_sam %>%
+    unite("x_mix_group", all_of(all_names_x_mix_pred_vars), sep = "_", remove = FALSE)
+}
+
+# Draw effects on the x mix params from each pred var
+x_mix_effects <- list()
+x_mix_overall <- list()
+for (param in x_mix_params) {
+  x_mix_effects[[param]] <- list()
+  x_mix_overall[[param]] <- list()
+  for (pred_var in x_mix_pred_vars_names[[param]]) {
+    sigma_ <- x_mix_pred_vars_sds[[param]][[pred_var]]
+    num_cats <- x_mix_pred_vars_num_cats[[param]][[pred_var]]
+    effects_ <- rnorm(num_cats, 0, sigma_)
+    effects_ <- effects_ - mean(effects_)
+    names(effects_) <- x_mix_pred_vars[[param]][[pred_var]]
+    x_mix_effects[[param]][[pred_var]] <- effects_
+    df_sam[[paste0(param, "_effect_", pred_var)]] <- map_dbl(
+      df_sam[[pred_var]], ~ effects_[[.x]])
+    if (param == "p_pos") {
+      x_mix_overall[[param]][[pred_var]] <- 
+        mastiff::logistic(mastiff::logit(x_mix_baseline[[param]]) + effects_)
+    } else if (param %in% c("sd_pos", "sd_neg")) {
+      x_mix_overall[[param]][[pred_var]] <- 
+        exp(log(x_mix_baseline[[param]]) + effects_)
+    } else {
+      x_mix_overall[[param]][[pred_var]] <- 
+        x_mix_baseline[[param]] + effects_
+    }
+  }
+}
+
+# Calculate each sam's x mix params given its predictors
+for (param in x_mix_params) {
+  if (param == "p_pos") {
+    df_sam[[param]] <- mastiff::logit(x_mix_baseline[[param]]) 
+  } else if (param %in% c("sd_pos", "sd_neg")) {
+    df_sam[[param]] <- log(x_mix_baseline[[param]])
+  } else {
+    df_sam[[param]] <- x_mix_baseline[[param]]
+  }
+  for (pred_var in x_mix_pred_vars_names[[param]]) {
+    df_sam[[param]] <- df_sam[[param]] +
+      df_sam[[paste0(param, "_effect_", pred_var)]]
+  }
+  if (param == "p_pos") {
+    df_sam[[param]] <- mastiff::logistic(df_sam[[param]]) 
+  } else if (param %in% c("sd_pos", "sd_neg")) {
+    df_sam[[param]] <- exp(df_sam[[param]])
   } 
-  if (length(sampled_pred_vars) < length(p_pos_pred_vars[[p_pos_pred_var]])) {
-    p_pos_pred_vars[[p_pos_pred_var]] <- sort(unique(sampled_pred_vars))
-  } 
-  df_sam[[p_pos_pred_var]] <- sampled_pred_vars
-}
-num_cat_per_p_pos_pred_var <- map_int(p_pos_pred_vars, length)
-num_p_pos_pred_var_cats <- sum(num_cat_per_p_pos_pred_var)
-
-# Draw variation in p_pos due to p_pos_pred_vars
-p_pos_effects_by_pred_var <- list()
-p_pos_overall_by_pred_var <- list()
-for (p_pos_pred_var in p_pos_pred_vars_names) {
-  sigma_p_pos_ <- sigma_p_pos_pred_vars[[p_pos_pred_var]]
-  num_cats <- length(p_pos_pred_vars[[p_pos_pred_var]])
-  p_pos_effects_ <- rnorm(num_cats, 0, sigma_p_pos_)
-  p_pos_effects_ <- p_pos_effects_ - mean(p_pos_effects_)
-  names(p_pos_effects_) <- p_pos_pred_vars[[p_pos_pred_var]]
-  p_pos_effects_by_pred_var[[p_pos_pred_var]] <- p_pos_effects_
-  p_pos_overall_by_pred_var[[p_pos_pred_var]] <- 
-    mastiff::logistic(mastiff::logit(p_pos) + p_pos_effects_)
-  df_sam[[paste0("p_pos_effect_", p_pos_pred_var)]] <- map_dbl(
-    df_sam[[p_pos_pred_var]], ~ p_pos_effects_[[.x]])
 }
 
-# For each sam: calculate its p_pos using its predictors, draw x using p_pos,
-# and calculate its mean y using that plate's f parameters...
-df_sam$p_pos <- mastiff::logit(p_pos)
-for (p_pos_pred_var in p_pos_pred_vars_names) {
-  df_sam$p_pos <- df_sam$p_pos +
-    df_sam[[paste0("p_pos_effect_", p_pos_pred_var)]]
-}
-df_sam$p_pos <- mastiff::logistic(df_sam$p_pos)
-
-# For each sam: draw x using p_pos, and calculate its mean y using its plate's
+# For each sam: draw x using x mix params, then calculate its mean y using its plate's
 # f parameters...
 df_sam <- df_sam %>%
   mutate(pos = runif(num_sam_id) < p_pos,
          xlog = if_else(pos,
-                        rnorm(num_sam_id, mean = x_sam_pos_mu, 
-                              sd = x_sam_pos_sd),
-                        rnorm(num_sam_id, mean = x_sam_neg_mu, 
-                              sd = x_sam_neg_sd)),
+                        rnorm(num_sam_id, mean = mu_pos, 
+                              sd = sd_pos),
+                        rnorm(num_sam_id, mean = mu_neg, 
+                              sd = sd_neg)),
          x = exp(xlog),
          y_mean = PL4(xlog, f_1, f_2, f_3, f_4))
 
+ggplot(df_sam %>% mutate(x_mix_group = paste("x mix group =", x_mix_group))) +
+  geom_histogram(aes(x), fill = "grey", bins = 30) +
+  scale_x_log10(limits = c(NA, NA)) +
+  coord_cartesian(expand = F) +
+  labs(x = "x = Ab concentration",
+       y = "Number of samples") +
+  facet_wrap(~x_mix_group, ncol = 8) +
+  geom_vline(xintercept = exp(mu_pos)) +
+  geom_vline(xintercept = exp(mu_neg))
 if (FALSE) {
-  ggplot(df_sam) +
-    geom_histogram(aes(x), fill = "grey") +
-    scale_x_log10() +
-    coord_cartesian(expand = F) +
-    labs(x = "x = Ab concentration",
-         y = "Number of samples") 
   ggsave("~/foo_4.pdf", height = 4, width = 5)
 }
 
 # ... then create the desired number of reps of each sample, and draw their ys
-num_sam_tot <- num_sam_id * num_rep_per_sam
+num_sam_rep <- num_sam_id * num_rep_per_sam
 df_sam <- df_sam %>%
   slice(rep(row_number(), num_rep_per_sam)) %>%
   arrange(id_sam) %>%
@@ -394,9 +484,13 @@ df_sam <- df_sam %>%
                      rnorm(nrow(.), mean = f_2,    sd = y_obs_sd_sam_min),
                      rnorm(nrow(.), mean = y_mean, sd = y_obs_sd)))
 
-ggplot(df_sam) +
-  geom_histogram(aes(y)) +
-  scale_x_log10(limits = c(1e-2, 3), expand = c(0, 0))
+ggplot(df_sam %>% mutate(x_mix_group = paste("x mix group =", x_mix_group))) +
+  geom_histogram(aes(y), fill = "grey", bins = 30) +
+  scale_x_log10(limits = c(NA, NA)) +
+  coord_cartesian(expand = F) +
+  labs(x = "x = Ab concentration",
+       y = "Number of samples") +
+  facet_wrap(~x_mix_group, ncol = 8) 
 
 
 # Plot calibrators and samples by plate
@@ -420,7 +514,7 @@ stan_input_posterior <- list(
   num_plate = num_plate,
   num_cal_tot = nrow(df_cal),
   num_sam_id = num_sam_id,
-  num_sam_tot = num_sam_tot,
+  num_sam_rep = num_sam_rep,
   which_plate_cal = df_cal$plate,
   which_plate_sam = df_sam$plate,
   which_id_sam = df_sam$id_sam,
@@ -429,8 +523,6 @@ stan_input_posterior <- list(
   x_cal = df_cal$x,
   num_f_pred_vars = num_f_pred_vars,
   num_cat_per_f_pred_var = num_cat_per_f_pred_var %>% as.array(),
-  num_p_pos_pred_vars = num_p_pos_pred_vars,
-  num_cat_per_p_pos_pred_var = num_cat_per_p_pos_pred_var %>% as.array(),
   sample_posterior_not_prior = 1L
 )
 
