@@ -2,7 +2,7 @@ library(data.table)
 library(tidyverse)
 theme_set(theme_classic())
 
-data_was_simulated <- TRUE
+data_was_simulated <- FALSE
 read_posterior_from_file <- FALSE
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run-202510141258-*-97b346.csv") # first run with Anton's code debugged
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-10-27-18h07m40_chain*.csv") # v19 on data 2025-10-27
@@ -960,8 +960,7 @@ inner_join(df_sam_x, df_prob_pos, by = "id_sam") %>%
   ggplot() +
   geom_point(aes(x_q_0.5, prob_pos_q_0.5)) +
   labs(x = "Estimated concentration",
-       y = "Estimated probability of being positive") +
-  scale_x_log10()
+       y = "Estimated probability of being positive") 
 
 # Plot cal data by plate  
 ggplot() +
@@ -1047,39 +1046,6 @@ if (data_was_simulated) {
     geom_line(data = df_x_distributions_truth,
               aes(x = xlog, y = value), colour = "blue") 
 }
-p
-
-# Same as last plot but stratified by group, assuming the same pred var - site - 
-# was used for all five x mix paramsm 
-xlogs_plot <- log(10) * -90:60 / 30
-df_xlog_distributions_site <- df_fit_wide_postandprior %>%
-  filter(density_type == "posterior") %>%
-  select(sample, matches("_for_"), matches("mu_neg_for_")) %>%
-  filter(sample %% 30 == 0) %>%
-  pivot_longer(-c("sample"), names_to = "param") %>%
-  tidyr::extract(param,
-                 into = c("param", "site"), 
-                 regex = "([a-z_]+)_for_site_(.*)") %>%
-  pivot_wider(names_from = param) %>%
-  filter(mu_pos > mu_neg) %>%
-  cross_join(tibble(xlog = xlogs_plot,
-                    x = exp(xlog))) %>%
-  mutate(`P(xlog | pos)` = dnorm(xlog, mean = mu_pos, sd = sd_pos),
-         `P(xlog | neg)` = dnorm(xlog, mean = mu_neg, sd = sd_neg),
-         `P(xlog)` = p_pos * `P(xlog | pos)` + (1 - p_pos) * `P(xlog | neg)`,
-         `P(pos | xlog)` = p_pos * `P(xlog | pos)` / `P(xlog)`) %>%
-  select(sample, site, xlog, `P(xlog | pos)`, 
-         `P(xlog | neg)`, `P(xlog)`, `P(pos | xlog)`) %>%
-  pivot_longer(c("P(xlog | pos)", "P(xlog | neg)", "P(xlog)", "P(pos | xlog)"))
-p <- ggplot() +
-  geom_line(data = df_xlog_distributions_site,
-            aes(x = xlog, y = value, group = sample), alpha = 0.15) +
-  facet_grid(name ~ site, scales = "free_y") +
-  labs(x = "log_e(Ab concentration)",
-       y = "") +
-  #scale_x_log10(expand = c(0, 0), limits = c(NA, NA)) +
-  scale_x_continuous(expand = c(0, 0), limits = c(NA, NA)) +
-  scale_y_continuous(expand = c(0, 0), limits = c(NA, NA))
 p
 
 # Plot the posterior distribution of the population level distribution of point
