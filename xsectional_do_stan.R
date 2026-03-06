@@ -402,8 +402,6 @@ if (read_posterior_from_file || stan_method == "cmdstan") {
   }) %>% data.table::rbindlist()
   
   data.table::setnames(df_fit_wide_postonly, mastiff::rename_params_cmdstanfile_to_rstan)
-  #colnames(df_fit_wide_postonly) <- 
-  #  mastiff::rename_params_cmdstanfile_to_rstan(colnames(df_fit_wide_postonly))
 }
 
 # GET THE PRIOR FROM STAN ----
@@ -672,20 +670,14 @@ if (data_was_simulated) {
     posterior_samples = df_fit_wide_postandprior %>% select(-sample) %>% filter(density_type == "posterior"),
     prior_samples     = df_fit_wide_postandprior %>% select(-sample) %>% filter(density_type == "prior"),
     params_desired = params_desired,
-    #transforms = list_for_log_transform,
     true_param_values = true_params_to_plot,
-    skip_stanfit_to_dt = TRUE,
-    bins = 200)
+    skip_stanfit_to_dt = TRUE)
 } else {
   p <- mastiff::plot_posterior(
     posterior_samples = df_fit_wide_postandprior %>% select(-sample) %>% filter(density_type == "posterior"),
     prior_samples     = df_fit_wide_postandprior %>% select(-sample) %>% filter(density_type == "prior"),
     params_desired = params_desired,
-    #transforms = list_for_log_transform,
-    #lower = -0.03,
-    #upper = 0.03,
-    skip_stanfit_to_dt = TRUE,
-    bins = 50)
+    skip_stanfit_to_dt = TRUE)
 }
 p
 
@@ -713,8 +705,6 @@ if (data_was_simulated) {
     geom_errorbar(aes(xlog, ymin = x_q_0.025, ymax = x_q_0.975)) +
     geom_point(aes(xlog, x_q_0.5)) +
     geom_abline() +
-    #scale_x_log10(breaks = xs) +
-    #scale_y_log10(breaks = xs) +
     labs(x = "True Ab",
          y = "Estimated Ab")
 }
@@ -738,15 +728,11 @@ if (data_was_simulated) {
              by = "id_sam") %>%
     mutate(pos = if_else(pos, "pos", "neg")) %>%
     ggplot() +
-    #geom_violin(aes(pos, prob_pos_q_0.5)) +
-    #geom_sina(aes(pos, prob_pos_q_0.5)) +
-    #geom_point(aes(jitter(as.numeric(pos)), prob_pos_q_0.5)) +
     geom_histogram(aes(prob_pos_q_0.5, fill = pos), #y = after_stat(density))
                    position = "identity",
                    alpha = 0.6,
                    bins = 30) +
     labs(y = "Number of samples",
-         #x = "Estimated probability of being positive (posterior median)",
          x = "Probability sample is positive",
          fill = "Truth:") +
     coord_cartesian(expand = FALSE) +
@@ -837,7 +823,6 @@ p <- ggplot() +
   facet_wrap(vars(name), scales = "free_y", ncol = 1) +
   labs(x = "log_e(Ab concentration)",
        y = "") +
-  #scale_x_log10(expand = c(0, 0), limits = c(NA, NA)) +
   scale_x_continuous(expand = c(0, 0), limits = c(NA, NA)) +
   scale_y_continuous(expand = c(0, 0), limits = c(NA, NA))
 if (data_was_simulated) {
@@ -870,14 +855,8 @@ df_fit_wide_postonly %>%
             aes(x = xlog, y = value, group = sample), alpha = 0.15, col = "blue") +
   geom_density(aes(log(value) , group = sample), alpha = 0.01) +
   coord_cartesian(expand = F) +
-  # 
-  #scale_x_continuous(limits = c(0, 4)) +
-  #scale_x_log10(limits = c(1e-3, 100)) + 
   labs(x = "log_e(Ab concentration)",
-       #y = "population distribution of point estimates (inverting the 4PL)") +
        y = "probability density") +
-  #geom_line(data = df_gamma_, aes(x, p), col = "blue") +
-  #geom_density(data = df_x_sam_point, aes(x), col = "blue") +
   NULL 
 
 # Plot the posterior distribution of the population level distribution of 
