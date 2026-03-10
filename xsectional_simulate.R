@@ -50,7 +50,7 @@ p_pos <- 0.5
 p_blank <- 0.2
 
 # The four parameters of the logistic regression (f_1, f_2, f_3, f_4)
-# which calibrator the OD, y, through
+# which control the OD, y, through
 # f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4))) 
 f <- c(0.95,
        0.01,
@@ -123,6 +123,9 @@ x_mix_pred_vars$sd_neg <- list(letter = letters[1:7])
 x_mix_pred_vars_sds$sd_neg <- c(letter = 1)
 x_mix_pred_vars$sd_pos <- list(letter = letters[1:7])
 x_mix_pred_vars_sds$sd_pos <- c(letter = 1)
+
+p_pos_binary_pred_vars <- c("boolA", "boolB", "boolC")
+p_pos_binary_pred_vars_sd <- 2
 
 # INPUT CHECKS ----
 
@@ -206,6 +209,37 @@ for (i in seq(1, 4)) {
       }
     }
   }
+}
+
+# Check p_pos_binary_pred_vars
+stopifnot(is.character(p_pos_binary_pred_vars))
+stopifnot(is.numeric(p_pos_binary_pred_vars_sd))
+if (length(p_pos_binary_pred_vars_sd) == 1) {
+  stopifnot(p_pos_binary_pred_vars_sd >= 0)
+  if (length(p_pos_binary_pred_vars) == 0) {
+    stop(paste("If p_pos_binary_pred_vars_sd has length 1, then",
+               "p_pos_binary_pred_vars must have length at least 1"))
+  }
+  for (x_mix_param in x_mix_params) {
+    if (is.null(x_mix_pred_vars_names[[x_mix_param]])) next 
+    pred_vars_shared <- x_mix_pred_vars_names[[x_mix_param]][
+      x_mix_pred_vars_names[[x_mix_param]] %in% p_pos_binary_pred_vars]
+    if (length(pred_vars_shared)) {
+      stop(paste0("p_pos_binary_pred_vars must not contain any predictor ",
+                  "variables that are also used as (non-binary) predictors for ", 
+                  x_mix_param, "; found these variables used for both: ", 
+                  paste(pred_vars_shared, collapse = " ")))
+    }
+  }
+} else if (length(p_pos_binary_pred_vars_sd) == 0) {
+  if (length(p_pos_binary_pred_vars) != 0) {
+    stop(paste("If p_pos_binary_pred_vars_sd has length 0, then",
+               "p_pos_binary_pred_vars must have length 0; found length",
+               length(p_pos_binary_pred_vars)))
+  }
+  } else {
+  stop(paste("p_pos_binary_pred_vars_sd should have length 0 or 1; found length",
+             length(p_pos_binary_pred_vars_sd)))
 }
 
 # SIMULATE PLATE VARIABILITY AND CALS ----
@@ -421,6 +455,15 @@ for (param in x_mix_params) {
   x_mix_pred_vars_num_cats_tots[[param]] <- 
     sum(x_mix_pred_vars_num_cats[[param]])
 }
+for (pred_var in p_pos_binary_pred_vars) {
+  sampled_pred_vars <- character()
+  while(n_distinct(sampled_pred_vars) < 2) {
+    sampled_pred_vars <- sample(c(TRUE, FALSE),
+                                size = num_sam_id,
+                                replace = TRUE)
+  } 
+  df_sam[[pred_var]] <- sampled_pred_vars
+}
 all_names_x_mix_pred_vars <- x_mix_pred_vars %>% 
   map(names) %>%
   unlist() %>%
@@ -431,6 +474,9 @@ if (is.null(all_names_x_mix_pred_vars)) {
 } else {
   df_sam <- df_sam %>%
     unite("x_mix_group", all_of(all_names_x_mix_pred_vars), sep = "_", remove = FALSE)
+}
+for (pred_var in p_pos_binary_pred_vars) {
+ df_sam$x_mix_group <- paste0(df_sam$x_mix_group, "_", pred_var, df_sam[[pred_var]])
 }
 
 # Draw effects on the x mix params from each pred var
@@ -461,6 +507,18 @@ for (param in x_mix_params) {
   }
 }
 
+if (length(p_pos_binary_pred_vars)) {
+  p_pos_binary_effects <- rnorm(n = length(p_pos_binary_pred_vars),
+                                mean = 0, 
+                                sd = p_pos_binary_pred_vars_sd)  
+  names(p_pos_binary_effects) <- p_pos_binary_pred_vars
+  for (pred_var in p_pos_binary_pred_vars) {
+    df_sam[[paste0("p_pos_effect_", pred_var)]] <- 
+      p_pos_binary_effects[[pred_var]] * df_sam[[pred_var]]
+  }
+}
+
+
 # Calculate each sam's x mix params given its predictors
 for (param in x_mix_params) {
   if (param == "p_pos") {
@@ -475,6 +533,10 @@ for (param in x_mix_params) {
       df_sam[[paste0(param, "_effect_", pred_var)]]
   }
   if (param == "p_pos") {
+    for (pred_var in p_pos_binary_pred_vars) {
+      df_sam[[param]] <- df_sam[[param]] +
+        df_sam[[paste0("p_pos_effect_", pred_var)]]
+    }
     df_sam[[param]] <- mastiff::logistic(df_sam[[param]]) 
   } else if (param %in% c("sd_pos", "sd_neg")) {
     df_sam[[param]] <- exp(df_sam[[param]])

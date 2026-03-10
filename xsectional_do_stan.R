@@ -40,13 +40,12 @@ if (data_was_simulated) {
     "y_obs_sd_cal_jump", 0, 2 * y_obs_sd_cal_jump,
     "y_obs_sd_sam_min",  0, 2 * y_obs_sd_sam_min,
     "y_obs_sd_sam_jump", 0, 2 * y_obs_sd_sam_jump,
-    "sigma_p_pos_pred_vars",  0, 2 * max(x_mix_pred_vars_sds$p_pos),
-    "sigma_mu_pos_pred_vars", 0.5 * min(x_mix_pred_vars_sds$mu_pos),
-    2 * max(x_mix_pred_vars_sds$mu_pos),
-    "sigma_sd_pos_pred_vars", 0, 2 * max(x_mix_pred_vars_sds$sd_pos),
-    "sigma_mu_neg_pred_vars", 0.5 * min(x_mix_pred_vars_sds$mu_neg),
-    2 * max(x_mix_pred_vars_sds$mu_neg),
-    "sigma_sd_neg_pred_vars", 0, 2 * max(x_mix_pred_vars_sds$sd_neg)
+    "sigma_p_pos_pred_vars",  0, 10,
+    "sigma_mu_pos_pred_vars", 0, 10,
+    "sigma_sd_pos_pred_vars", 0, 10,
+    "sigma_mu_neg_pred_vars", 0, 10,
+    "sigma_sd_neg_pred_vars", 0, 10,
+    "sigma_p_pos_binary_pred_vars", 0, 2
   )
   df_priors_vectors <- tribble(
     ~param, ~lower, ~upper,
@@ -74,7 +73,8 @@ if (data_was_simulated) {
     "sigma_mu_pos_pred_vars", 0, 2,
     "sigma_sd_pos_pred_vars", 0, 1,
     "sigma_mu_neg_pred_vars", 0, 2,
-    "sigma_sd_neg_pred_vars", 0, 1
+    "sigma_sd_neg_pred_vars", 0, 1,
+    "sigma_p_pos_binary_pred_vars", 0, 2
   )
   df_priors_vectors <- tribble(
     ~param, ~lower, ~upper,
@@ -107,6 +107,7 @@ predict_mu_pos <- x_mix_pred_vars_nums[["mu_pos"]] > 0L
 predict_sd_pos <- x_mix_pred_vars_nums[["sd_pos"]] > 0L
 predict_mu_neg <- x_mix_pred_vars_nums[["mu_neg"]] > 0L
 predict_sd_neg <- x_mix_pred_vars_nums[["sd_neg"]] > 0L
+predict_p_pos_binary <- length(p_pos_binary_pred_vars) > 0L
 
 # 0-or-1 encode each cat of f_pred_vars for every plate
 if (predict_f) {
@@ -180,6 +181,23 @@ for (param in x_mix_params) {
   }
 }
 
+# Encode the design matrix for p_pos_binary 
+if (! predict_p_pos_binary) {
+  p_pos_binary_design_matrix <- matrix(NA_real_, nrow = num_sam_id, ncol = 0)
+} else {
+  mat <- df_sam %>%
+    select(id_sam, all_of(p_pos_binary_pred_vars)) %>%
+    distinct() 
+  stopifnot(identical(mat$id_sam, 
+                      1:nrow(mat)))
+  mat <- mat %>%
+    select(-id_sam) %>%
+    mutate(across(everything(), as.integer))
+  stopifnot(identical(colnames(mat),
+                      p_pos_binary_pred_vars))
+  p_pos_binary_design_matrix <- mat
+}
+
 for (param in x_mix_params) {
   stan_input_posterior[[paste0("design_matrix_", param)]] <-
     x_mix_design_matrices[[param]]
@@ -188,6 +206,9 @@ for (param in x_mix_params) {
   stan_input_posterior[[paste0("num_cat_per_", param, "_pred_var")]] <- 
     x_mix_pred_vars_num_cats[[param]] %>% as.array()
 }
+
+stan_input_posterior$num_p_pos_binary_pred_vars <- length(p_pos_binary_pred_vars)
+stan_input_posterior$design_matrix_p_pos_binary <- p_pos_binary_design_matrix
 
 # Look-ups between int and string encodings of pred vars & their cats
 lookup_pred_var_int <- list()
@@ -240,6 +261,8 @@ for (param in x_mix_params) {
   stan_input_prior[[paste0("design_matrix_", param)]] <-
     stan_input_posterior[[paste0("design_matrix_", param)]][0, ]
 }
+stan_input_prior$design_matrix_p_pos_binary <- 
+  stan_input_posterior$design_matrix_p_pos_binary[0, ]
 
 params_to_ignore <- c(
   "f_plate_effects_unscaled",
@@ -254,6 +277,7 @@ params_to_ignore <- c(
   "sd_pos_effects_by_pred_var_cat_unscaled",
   "mu_neg_effects_by_pred_var_cat_unscaled",
   "sd_neg_effects_by_pred_var_cat_unscaled",
+  "p_pos_binary_effects_by_pred_var_unscaled",
   "exp_f_1_mult_f_4_per_plate",
   "p_pos_log_per_sam_id",
   "p_neg_log_per_sam_id",
@@ -543,6 +567,19 @@ if (data_was_simulated) {
       bind_rows(df_true_effects_by_pred_var, df_true_sigma_pred_vars)
     }) %>%
       bind_rows())
+  
+  if (predict_p_pos_binary) {
+    df_true_pop_params <- df_true_pop_params %>%
+      bind_rows(tibble(
+        param = paste0("p_pos_binary_effects_by_pred_var[",
+                       1:length(p_pos_binary_pred_vars), "]"),
+        value = p_pos_binary_effects)) %>%
+      bind_rows(tibble(
+        param = "sigma_p_pos_binary_pred_vars[1]",
+        value = p_pos_binary_pred_vars_sd
+      ))
+  }
+
 }
 
 # Rename params for interpretability
@@ -593,6 +630,25 @@ rename_params <- function(original_names) {
         TRUE ~ new
       )) %>%
       select(orig, new)
+  }
+  if (predict_p_pos_binary) {
+    df_param_names <- df_param_names %>%
+      tidyr::extract(orig, 
+                     into = "pred_var_int", 
+                     regex = paste0("p_pos_binary_effects_by_pred_var\\[([0-9]+)\\]"),
+                     remove = FALSE) %>%
+      mutate(pred_var_int = as.integer(pred_var_int)) %>%
+      left_join(tibble(pred_var_int = 1:length(p_pos_binary_pred_vars),
+                       pred_var = p_pos_binary_pred_vars),
+                by = "pred_var_int") %>% 
+      mutate(new = case_when(
+        !is.na(pred_var_int) ~ paste0("p_pos_effect_", pred_var),
+        TRUE ~ new
+      )) %>%
+      select(orig, new) %>%
+      mutate(new = if_else(orig == "sigma_p_pos_binary_pred_vars[1]",
+                           "sigma_p_pos_binary_pred_vars",
+                           new))
   }
   df_param_names$new
 }
