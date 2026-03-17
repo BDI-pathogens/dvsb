@@ -55,8 +55,6 @@ data {
   real sigma_sd_neg_pred_vars_lower;
   real<lower = sigma_sd_neg_pred_vars_lower> sigma_sd_neg_pred_vars_upper;
   real y_obs_sd_cal_min_lower;
-  real sigma_p_pos_binary_pred_vars_lower;
-  real<lower = sigma_p_pos_binary_pred_vars_lower> sigma_p_pos_binary_pred_vars_upper;
   real<lower = y_obs_sd_cal_min_lower> y_obs_sd_cal_min_upper;
   real y_obs_sd_cal_jump_lower;
   real<lower = y_obs_sd_cal_jump_lower> y_obs_sd_cal_jump_upper;
@@ -73,6 +71,8 @@ data {
   real<lower = sd_neg_lower> sd_neg_upper;
   real<lower = 0> sd_pos_lower;
   real<lower = sd_pos_lower> sd_pos_upper;
+  real p_pos_binary_effects_lower;
+  real<lower = p_pos_binary_effects_lower> p_pos_binary_effects_upper;
 
   real p_pos_lower;
   real<lower = p_pos_lower> p_pos_upper;
@@ -136,8 +136,6 @@ parameters {
   upper = sigma_mu_neg_pred_vars_upper> sigma_mu_neg_pred_vars;
   array[num_sd_neg_pred_vars] real<lower = sigma_sd_neg_pred_vars_lower,
   upper = sigma_sd_neg_pred_vars_upper> sigma_sd_neg_pred_vars;
-  array[predict_p_pos_binary] real<lower = sigma_p_pos_binary_pred_vars_lower,
-  upper = sigma_p_pos_binary_pred_vars_upper> sigma_p_pos_binary_pred_vars;
   
   // Scalar params constrained only by lower and upper
   real<lower = mu_neg_lower, upper = mu_neg_upper> mu_neg;
@@ -162,7 +160,8 @@ parameters {
   array[tot_cat_per_p_pos_pred_var]  real  p_pos_effects_by_pred_var_cat_unscaled;
   array[tot_cat_per_sd_pos_pred_var] real sd_pos_effects_by_pred_var_cat_unscaled;
   array[tot_cat_per_sd_neg_pred_var] real sd_neg_effects_by_pred_var_cat_unscaled;
-  vector[num_p_pos_binary_pred_vars] p_pos_binary_effects_by_pred_var_unscaled;
+  vector<lower = p_pos_binary_effects_lower,
+  upper = p_pos_binary_effects_upper>[num_p_pos_binary_pred_vars] p_pos_binary_effects;
   vector<lower = (mu_neg - mu_pos) / (2 * sigma_mu_pos_pred_vars[1])>[tot_cat_per_mu_pos_pred_var]
   mu_pos_effects_by_pred_var_cat_unscaled;
   vector<upper = (mu_pos - mu_neg) / (2 * sigma_mu_neg_pred_vars[1])>[tot_cat_per_mu_neg_pred_var]
@@ -202,7 +201,6 @@ transformed parameters{
   vector[tot_cat_per_sd_neg_pred_var] sd_neg_effects_by_pred_var_cat;
   vector[tot_cat_per_mu_pos_pred_var] mu_pos_effects_by_pred_var_cat;
   vector[tot_cat_per_mu_neg_pred_var] mu_neg_effects_by_pred_var_cat;
-  vector[num_p_pos_binary_pred_vars]  p_pos_binary_effects_by_pred_var;
 
   vector[num_sam_id] p_pos_log_per_sam_id;
   vector[num_sam_id] p_neg_log_per_sam_id;
@@ -250,10 +248,8 @@ transformed parameters{
       p_pos_per_sam_id += design_matrix_p_pos * p_pos_effects_by_pred_var_cat;
     }
     if (predict_p_pos_binary) {
-      p_pos_binary_effects_by_pred_var =
-      p_pos_binary_effects_by_pred_var_unscaled * sigma_p_pos_binary_pred_vars[1];
       p_pos_per_sam_id +=
-      design_matrix_p_pos_binary * p_pos_binary_effects_by_pred_var;
+      design_matrix_p_pos_binary * p_pos_binary_effects;
     }
     p_pos_per_sam_id = inv_logit(p_pos_per_sam_id);
     p_pos_log_per_sam_id = log(  p_pos_per_sam_id);
@@ -368,7 +364,6 @@ model {
   p_pos_effects_by_pred_var_cat_unscaled  ~ std_normal();
   sd_pos_effects_by_pred_var_cat_unscaled ~ std_normal();
   sd_neg_effects_by_pred_var_cat_unscaled ~ std_normal();
-  p_pos_binary_effects_by_pred_var_unscaled ~ std_normal();
   if (predict_mu_pos) {
     mu_pos_effects_by_pred_var_cat_unscaled ~
     std_normal() T[(mu_neg - mu_pos) / (2 * sigma_mu_pos_pred_vars[1]), ];

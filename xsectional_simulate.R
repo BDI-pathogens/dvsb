@@ -32,8 +32,8 @@ theme_set(theme_classic())
 set.seed(1234567)
 
 # Unmodelled aspects of the data-generating process (things we condition on)
-num_plate <- 1
-num_sam_per_plate <- 2
+num_plate <- 10
+num_sam_per_plate <- 50
 num_rep_per_sam <- 2
 num_rep_per_cal <- 2
 xlogs <- log(c(0, 0.5, 1.5, 4.5, 13, 40)) #c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cals
@@ -107,25 +107,20 @@ for (x_mix_pred_var_ in x_mix_params) {
 # sigma_p_pos_pred_vars should be a list with the same names as f_pred_vars.
 # Each element in sigma_p_pos_pred_vars is a standard deviation of the
 # variability in p_pos (on a logit scale) associated with that predictor variable.
-x_mix_pred_vars$p_pos <- list(letter = letters[1:7],
-                              int = as.character(1:7),
-                              foo = c("bar", "spam"),
-                              age = c("0-9", "10-19", "20+"))
-x_mix_pred_vars_sds$p_pos <- c(letter = 1,
-                               int = 1,
-                               foo = 1,
-                               age = 1)
+x_mix_pred_vars$p_pos <- list() #list(letter = letters[1:7])
+x_mix_pred_vars_sds$p_pos <- numeric() #c(letter = 1)
 x_mix_pred_vars$mu_neg <- list(letter = letters[1:7])
 x_mix_pred_vars_sds$mu_neg <- c(letter = 1)
 x_mix_pred_vars$mu_pos <- list(letter = letters[1:7])
 x_mix_pred_vars_sds$mu_pos <- c(letter = 1)
-x_mix_pred_vars$sd_neg <- list(letter = letters[1:7])
-x_mix_pred_vars_sds$sd_neg <- c(letter = 1)
-x_mix_pred_vars$sd_pos <- list(letter = letters[1:7])
-x_mix_pred_vars_sds$sd_pos <- c(letter = 1)
+x_mix_pred_vars$sd_neg <- list() #list(letter = letters[1:7])
+x_mix_pred_vars_sds$sd_neg <- numeric() #c(letter = 1)
+x_mix_pred_vars$sd_pos <- list() #list(letter = letters[1:7])
+x_mix_pred_vars_sds$sd_pos <- numeric() #c(letter = 1)
 
-p_pos_binary_pred_vars <- c("boolA", "boolB", "boolC")
-p_pos_binary_pred_vars_sd <- 2
+p_pos_binary_effects <- c("boolA" = -2,
+                          "boolB" = 0,
+                          "boolC" = 2)
 
 # INPUT CHECKS ----
 
@@ -212,14 +207,12 @@ for (i in seq(1, 4)) {
 }
 
 # Check p_pos_binary_pred_vars
-stopifnot(is.character(p_pos_binary_pred_vars))
-stopifnot(is.numeric(p_pos_binary_pred_vars_sd))
-if (length(p_pos_binary_pred_vars_sd) == 1) {
-  stopifnot(p_pos_binary_pred_vars_sd >= 0)
-  if (length(p_pos_binary_pred_vars) == 0) {
-    stop(paste("If p_pos_binary_pred_vars_sd has length 1, then",
-               "p_pos_binary_pred_vars must have length at least 1"))
-  }
+stopifnot(is.numeric(p_pos_binary_effects))
+p_pos_binary_pred_vars <- names(p_pos_binary_effects)
+if (length(p_pos_binary_effects)) {
+  stopifnot(!is.null(p_pos_binary_pred_vars))
+  stopifnot(!anyNA(p_pos_binary_pred_vars))
+  stopifnot(!anyNA(p_pos_binary_effects))
   for (x_mix_param in x_mix_params) {
     if (is.null(x_mix_pred_vars_names[[x_mix_param]])) next 
     pred_vars_shared <- x_mix_pred_vars_names[[x_mix_param]][
@@ -231,16 +224,7 @@ if (length(p_pos_binary_pred_vars_sd) == 1) {
                   paste(pred_vars_shared, collapse = " ")))
     }
   }
-} else if (length(p_pos_binary_pred_vars_sd) == 0) {
-  if (length(p_pos_binary_pred_vars) != 0) {
-    stop(paste("If p_pos_binary_pred_vars_sd has length 0, then",
-               "p_pos_binary_pred_vars must have length 0; found length",
-               length(p_pos_binary_pred_vars)))
-  }
-  } else {
-  stop(paste("p_pos_binary_pred_vars_sd should have length 0 or 1; found length",
-             length(p_pos_binary_pred_vars_sd)))
-}
+} 
 
 # SIMULATE PLATE VARIABILITY AND CALS ----
 
@@ -423,17 +407,12 @@ for (param in x_mix_params) {
   }
 }
 
-if (length(p_pos_binary_pred_vars)) {
-  p_pos_binary_effects <- rnorm(n = length(p_pos_binary_pred_vars),
-                                mean = 0, 
-                                sd = p_pos_binary_pred_vars_sd)  
-  names(p_pos_binary_effects) <- p_pos_binary_pred_vars
+if (length(p_pos_binary_effects)) {
   for (pred_var in p_pos_binary_pred_vars) {
     df_sam[[paste0("p_pos_effect_", pred_var)]] <- 
       p_pos_binary_effects[[pred_var]] * df_sam[[pred_var]]
   }
 }
-
 
 # Calculate each sam's x mix params given its predictors
 for (param in x_mix_params) {

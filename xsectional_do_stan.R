@@ -2,16 +2,12 @@ library(data.table)
 library(tidyverse)
 theme_set(theme_classic())
 
-data_was_simulated <- TRUE
+data_was_simulated <- FALSE
 read_posterior_from_file <- FALSE
-#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run-202510141258-*-97b346.csv") # first run with Anton's code debugged
-#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-10-27-18h07m40_chain*.csv") # v19 on data 2025-10-27
-#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-10-29-16h26m52_chain*.csv") # v19 on data 2025-10-27 with 15 of my dodgy plates excluded and longer chains
-#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-03-22h29m50_chain*.csv") # v19 on all data
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-13-21h38m27_chain*.csv") # v19 on all data with 1500 iter, with sex as p_pos predictor, slow but OK convergence 
-files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-25-18h44m40_chain*.csv") # v20 with age as a predictor for all 5 params, with cluster and site and job for p_pos
-
+#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-25-18h44m40_chain*.csv") # v20 with age as a predictor for all 5 params, with cluster and site and job for p_pos
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-12-03-10h28m49_chain*.csv") # first restriction to baseline only in some time(!), v20 with age as a predictor for all 5 params, with site and job for p_pos
+files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2026-03-11-17h13m09_chain*.csv") # first run using p_pos_binary_pred_vars
 
 # INPUT ABOUT STAN ----
 
@@ -19,7 +15,7 @@ file_input_stan <- "~/repos/dvsb/xsectional.stan"
 dir_stan <- "~/.cmdstan/cmdstan-2.37.0/"
 num_mc_chains <- 5
 num_mc_iterations_posterior <- 500 # per chain, half of them warmup
-num_mc_iterations_prior <- 10000
+num_mc_iterations_prior <- 2000
 # one of: "rstan", "cmdstanr", "cmdstan". cmdstan uses cmdstanr for prior sampling.
 stan_method <- "cmdstan" 
 file_stan_temp <- "/Users/cwymant/foo.json" # for writing the data for cmdstan
@@ -45,7 +41,7 @@ if (data_was_simulated) {
     "sigma_sd_pos_pred_vars", 0, 10,
     "sigma_mu_neg_pred_vars", 0, 10,
     "sigma_sd_neg_pred_vars", 0, 10,
-    "sigma_p_pos_binary_pred_vars", 0, 2
+    "p_pos_binary_effects", -4, 4
   )
   df_priors_vectors <- tribble(
     ~param, ~lower, ~upper,
@@ -74,7 +70,7 @@ if (data_was_simulated) {
     "sigma_sd_pos_pred_vars", 0, 1,
     "sigma_mu_neg_pred_vars", 0, 2,
     "sigma_sd_neg_pred_vars", 0, 1,
-    "sigma_p_pos_binary_pred_vars", 0, 2
+    "p_pos_binary_effects", -4, 4
   )
   df_priors_vectors <- tribble(
     ~param, ~lower, ~upper,
@@ -277,7 +273,6 @@ params_to_ignore <- c(
   "sd_pos_effects_by_pred_var_cat_unscaled",
   "mu_neg_effects_by_pred_var_cat_unscaled",
   "sd_neg_effects_by_pred_var_cat_unscaled",
-  "p_pos_binary_effects_by_pred_var_unscaled",
   "exp_f_1_mult_f_4_per_plate",
   "p_pos_log_per_sam_id",
   "p_neg_log_per_sam_id",
@@ -571,13 +566,9 @@ if (data_was_simulated) {
   if (predict_p_pos_binary) {
     df_true_pop_params <- df_true_pop_params %>%
       bind_rows(tibble(
-        param = paste0("p_pos_binary_effects_by_pred_var[",
+        param = paste0("p_pos_binary_effects[",
                        1:length(p_pos_binary_pred_vars), "]"),
-        value = p_pos_binary_effects)) %>%
-      bind_rows(tibble(
-        param = "sigma_p_pos_binary_pred_vars[1]",
-        value = p_pos_binary_pred_vars_sd
-      ))
+        value = p_pos_binary_effects)) 
   }
 
 }
@@ -635,7 +626,7 @@ rename_params <- function(original_names) {
     df_param_names <- df_param_names %>%
       tidyr::extract(orig, 
                      into = "pred_var_int", 
-                     regex = paste0("p_pos_binary_effects_by_pred_var\\[([0-9]+)\\]"),
+                     regex = paste0("p_pos_binary_effects\\[([0-9]+)\\]"),
                      remove = FALSE) %>%
       mutate(pred_var_int = as.integer(pred_var_int)) %>%
       left_join(tibble(pred_var_int = 1:length(p_pos_binary_pred_vars),
@@ -645,10 +636,7 @@ rename_params <- function(original_names) {
         !is.na(pred_var_int) ~ paste0("p_pos_effect_", pred_var),
         TRUE ~ new
       )) %>%
-      select(orig, new) %>%
-      mutate(new = if_else(orig == "sigma_p_pos_binary_pred_vars[1]",
-                           "sigma_p_pos_binary_pred_vars",
-                           new))
+      select(orig, new)
   }
   df_param_names$new
 }
@@ -736,7 +724,6 @@ if (data_was_simulated) {
     skip_stanfit_to_dt = TRUE)
 }
 p
-
  
 # Compare true and estimated sample x 
 quantiles <- c(0.025, 0.5, 0.975)
@@ -956,6 +943,4 @@ df_fit_wide_postonly %>%
   labs(x = "log10(OD value)",
        y = "probability density") +
   NULL 
-
-
 
