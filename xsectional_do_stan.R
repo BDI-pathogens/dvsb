@@ -22,64 +22,32 @@ file_stan_temp <- "/Users/cwymant/foo.json" # for writing the data for cmdstan
 file_out_stan_basename <- "/Users/cwymant/enable/samples_full_run_"
 
 # Upper and lower bounds for priors
-if (data_was_simulated) {
+df_priors_scalars <- tribble(
+  ~param, ~lower, ~upper,
+  "mu_neg", -5, -1,
+  "sd_neg", 0.5, 2,
+  "sd_pos", 0, 2.5, 
+  "mu_pos", -1.5, 3,
+  "p_pos", 0, 1,
+  "p_blank", 0, 0.05,
+  "y_obs_sd_cal_min", 0, 0.015,
+  "y_obs_sd_cal_jump", 0.1, 1,
+  "y_obs_sd_sam_min", 0, 0.03,
+  "y_obs_sd_sam_jump", 0.1, 1,
+  "sigma_p_pos_pred_vars", 0, 3,
+  "sigma_mu_pos_pred_vars", 0, 2,
+  "sigma_sd_pos_pred_vars", 0, 1,
+  "sigma_mu_neg_pred_vars", 0, 2,
+  "sigma_sd_neg_pred_vars", 0, 1,
+  "p_pos_binary_effects", -4, 4
+)
+df_priors_vectors <- tribble(
+  ~param, ~lower, ~upper,
+  "sigma_f_plate", c(0, 0, 0, 0), c(0.25, 0.025, 2.5, 2),
+  "f", c(0.8, -0.05, 3, 2.2), c(1.1, 0.05, 5.5, 3.8),
+  "sigma_f_pred_vars", c(0, 0, 0, 0), c(0.6, 0.1, 4, 3)
+)
   
-  df_priors_scalars <- tribble(
-    ~param, ~lower, ~upper,
-    "mu_neg", -5, -1,
-    "mu_pos", -1.5, 3,
-    "sd_neg", 0, sd_neg * 2,
-    "sd_pos", 0, sd_pos * 2,
-    "p_pos", 0, 1,
-    "p_blank", 0, 2 * p_blank,
-    "y_obs_sd_cal_min",  0, 2 * y_obs_sd_cal_min,
-    "y_obs_sd_cal_jump", 0, 2 * y_obs_sd_cal_jump,
-    "y_obs_sd_sam_min",  0, 2 * y_obs_sd_sam_min,
-    "y_obs_sd_sam_jump", 0, 2 * y_obs_sd_sam_jump,
-    "sigma_p_pos_pred_vars",  0, 10,
-    "sigma_mu_pos_pred_vars", 0, 10,
-    "sigma_sd_pos_pred_vars", 0, 10,
-    "sigma_mu_neg_pred_vars", 0, 10,
-    "sigma_sd_neg_pred_vars", 0, 10,
-    "p_pos_binary_effects", -4, 4
-  )
-  df_priors_vectors <- tribble(
-    ~param, ~lower, ~upper,
-    "sigma_f_plate", sigma_f_plate * 0, sigma_f_plate * 4,
-    "f", f-0.5, f+0.5,
-    "sigma_f_pred_vars", rep(0, 4), rep(0, 4)) # not needed if ! predict_f
-  if (predict_f) {
-    df_priors_vectors$upper[[3]] <- 2 * do.call(pmax, sigma_f_pred_vars)
-  }
-  
-} else {
-  df_priors_scalars <- tribble(
-    ~param, ~lower, ~upper,
-    "mu_neg", -5, -1,
-    "sd_neg", 0.5, 2,
-    "sd_pos", 0, 2.5, 
-    "mu_pos", -1.5, 3,
-    "p_pos", 0, 1,
-    "p_blank", 0, 0.05,
-    "y_obs_sd_cal_min", 0, 0.015,
-    "y_obs_sd_cal_jump", 0.1, 1,
-    "y_obs_sd_sam_min", 0, 0.03,
-    "y_obs_sd_sam_jump", 0.1, 1,
-    "sigma_p_pos_pred_vars", 0, 3,
-    "sigma_mu_pos_pred_vars", 0, 2,
-    "sigma_sd_pos_pred_vars", 0, 1,
-    "sigma_mu_neg_pred_vars", 0, 2,
-    "sigma_sd_neg_pred_vars", 0, 1,
-    "p_pos_binary_effects", -4, 4
-  )
-  df_priors_vectors <- tribble(
-    ~param, ~lower, ~upper,
-    "sigma_f_plate", c(0, 0, 0, 0), c(0.25, 0.025, 2.5, 2),
-    "f", c(0.8, -0.05, 3, 2.2), c(1.1, 0.05, 5.5, 3.8),
-    "sigma_f_pred_vars", c(0, 0, 0, 0), c(0.6, 0.1, 4, 3)
-  )
-  
-}
 
 # The eta parameter of the LKJ prior for rho
 rho_prior_eta <- 1
