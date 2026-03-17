@@ -27,15 +27,22 @@ library(mvtnorm)
 library(ggforce)
 theme_set(theme_classic())
 
+PL4 <- function(xlog, f_1, f_2, f_3, f_4) {
+  f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4)))
+}
+
+simulate_data <- function(
+    seed = 1234567,
+    num_plate = 4, 
+    num_sam_per_plate = 20,
+    num_rep_per_sam = 2,
+    num_rep_per_cal = 2
+){
+
 # INPUT ----
 
-set.seed(1234567)
+set.seed(seed)
 
-# Unmodelled aspects of the data-generating process (things we condition on)
-num_plate <- 10
-num_sam_per_plate <- 50
-num_rep_per_sam <- 2
-num_rep_per_cal <- 2
 xlogs <- log(c(0, 0.5, 1.5, 4.5, 13, 40)) #c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cals
 
 y_obs_sd_cal_min <- 0.01
@@ -107,16 +114,16 @@ for (x_mix_pred_var_ in x_mix_params) {
 # sigma_p_pos_pred_vars should be a list with the same names as f_pred_vars.
 # Each element in sigma_p_pos_pred_vars is a standard deviation of the
 # variability in p_pos (on a logit scale) associated with that predictor variable.
-x_mix_pred_vars$p_pos <- list() #list(letter = letters[1:7])
-x_mix_pred_vars_sds$p_pos <- numeric() #c(letter = 1)
+x_mix_pred_vars$p_pos <- list(letter = letters[1:7])
+x_mix_pred_vars_sds$p_pos <- c(letter = 1)
 x_mix_pred_vars$mu_neg <- list(letter = letters[1:7])
 x_mix_pred_vars_sds$mu_neg <- c(letter = 1)
 x_mix_pred_vars$mu_pos <- list(letter = letters[1:7])
 x_mix_pred_vars_sds$mu_pos <- c(letter = 1)
-x_mix_pred_vars$sd_neg <- list() #list(letter = letters[1:7])
-x_mix_pred_vars_sds$sd_neg <- numeric() #c(letter = 1)
-x_mix_pred_vars$sd_pos <- list() #list(letter = letters[1:7])
-x_mix_pred_vars_sds$sd_pos <- numeric() #c(letter = 1)
+x_mix_pred_vars$sd_neg <- list(letter = letters[1:7])
+x_mix_pred_vars_sds$sd_neg <- c(letter = 1)
+x_mix_pred_vars$sd_pos <- list(letter = letters[1:7])
+x_mix_pred_vars_sds$sd_pos <- c(letter = 1)
 
 p_pos_binary_effects <- c("boolA" = -2,
                           "boolB" = 0,
@@ -299,10 +306,6 @@ for (f_pred_var in f_pred_vars_names) {
 df_plate <- df_plate %>%
   mutate(label = fct_reorder(label, plate))
 
-PL4 <- function(xlog, f_1, f_2, f_3, f_4) {
-  f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4)))
-}
-
 # Expand to one row per cal (one for each x). Calculate y expected.
 df_cal <- df_plate %>%
   expand_grid(xlog = xlogs, cal = 1:num_rep_per_cal) %>%
@@ -462,20 +465,43 @@ df_sam <- df_sam %>%
                      rnorm(nrow(.), mean = f_2,    sd = y_obs_sd_sam_min),
                      rnorm(nrow(.), mean = y_mean, sd = y_obs_sd)))
 
-# PREPARE DATA FOR STAN ----
+df_plate$plate_int <- df_plate$plate
+df_cal$plate_int <- df_cal$plate
+df_sam$plate_int <- df_sam$plate
 
-stan_input_posterior <- list(
-  num_plate = num_plate,
-  num_cal_tot = nrow(df_cal),
-  num_sam_id = num_sam_id,
-  num_sam_rep = num_sam_rep,
-  which_plate_cal = df_cal$plate,
-  which_plate_sam = df_sam$plate,
-  which_id_sam = df_sam$id_sam,
-  y_cal = df_cal$y,
-  y_sam = df_sam$y,
-  x_cal = df_cal$x,
-  num_f_pred_vars = num_f_pred_vars,
-  num_cat_per_f_pred_var = num_cat_per_f_pred_var %>% as.array(),
-  sample_posterior_not_prior = 1L
-)
+return(list(
+  df_sam = df_sam,
+  df_plate = df_plate,
+  df_cal = df_cal,
+  params = list(
+  y_obs_sd_cal_min = y_obs_sd_cal_min,
+  y_obs_sd_cal_max = y_obs_sd_cal_max,
+  y_obs_sd_cal_jump = y_obs_sd_cal_jump,
+  y_obs_sd_sam_min = y_obs_sd_sam_min,
+  y_obs_sd_sam_max = y_obs_sd_sam_max,
+  y_obs_sd_sam_jump = y_obs_sd_sam_jump,
+  mu_neg = mu_neg,
+  sd_neg = sd_neg,
+  mu_pos = mu_pos,
+  sd_pos = sd_pos,
+  p_pos = p_pos,
+  p_blank = p_blank,
+  f = f,
+  sigma_f_plate = sigma_f_plate,
+  rho = rho,
+  x_mix_pred_vars_sds = x_mix_pred_vars_sds,
+  x_mix_effects = x_mix_effects,
+  x_mix_pred_vars_nums = x_mix_pred_vars_nums,
+  x_mix_pred_vars_num_cats = x_mix_pred_vars_num_cats,
+  x_mix_pred_vars_num_cats_tots = x_mix_pred_vars_num_cats_tots,
+  x_mix_overall = x_mix_overall,
+  f_effects_by_pred_var = f_effects_by_pred_var,
+  f_pred_vars = f_pred_vars,
+  f_pred_vars_names = f_pred_vars_names,
+  sigma_f_pred_vars = sigma_f_pred_vars,
+  x_mix_pred_vars = x_mix_pred_vars,
+  x_mix_pred_vars_names = x_mix_pred_vars_names,
+  p_pos_binary_effects = p_pos_binary_effects
+  )))
+
+}

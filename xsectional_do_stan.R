@@ -2,7 +2,7 @@ library(data.table)
 library(tidyverse)
 theme_set(theme_classic())
 
-data_was_simulated <- FALSE
+data_was_simulated <- TRUE
 read_posterior_from_file <- FALSE
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-13-21h38m27_chain*.csv") # v19 on all data with 1500 iter, with sex as p_pos predictor, slow but OK convergence 
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-25-18h44m40_chain*.csv") # v20 with age as a predictor for all 5 params, with cluster and site and job for p_pos
@@ -11,7 +11,7 @@ files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2026-03-11-17
 
 # INPUT ABOUT STAN ----
 
-file_input_stan <- "~/repos/dvsb/xsectional.stan"
+path_here <- "~/repos/dvsb/"
 dir_stan <- "~/.cmdstan/cmdstan-2.37.0/"
 num_mc_chains <- 5
 num_mc_iterations_posterior <- 500 # per chain, half of them warmup
@@ -52,19 +52,50 @@ df_priors_vectors <- tribble(
 # The eta parameter of the LKJ prior for rho
 rho_prior_eta <- 1
 
-# SYNCHRONISE SIMULATED AND REAL DATA PREVIOUS STEPS ----
+# SIMULATE DATA IF DESIRED ----
+
+file_input_stan <- file.path(path_here, "xsectional.stan")
+file_input_simulate_code <- file.path(path_here, "xsectional_simulate.R")
+stopifnot(dir.exists(path_here))
+stopifnot(file.exists(file_input_stan))
+stopifnot(file.exists(file_input_simulate_code))
+source(file_input_simulate_code)
 
 if (data_was_simulated) {
-  df_plate$plate_int <- df_plate$plate
-  df_cal$plate_int <- df_cal$plate
-} else {
-  library(mvtnorm)
-  PL4 <- function(xlog, f_1, f_2, f_3, f_4) {
-    f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4)))
-  }
+  data <- simulate_data()
+  df_sam <- data$df_sam
+  df_plate <- data$df_plate
+  df_cal <- data$df_cal
+  invisible(list2env(data$params, envir = .GlobalEnv)) # hack for now
+  num_f_pred_vars <- length(f_pred_vars_names)
+  predict_f <- num_f_pred_vars > 0L
+  num_cat_per_f_pred_var <- map_int(f_pred_vars, length)
+  num_f_pred_var_cats <- sum(num_cat_per_f_pred_var)
+  p_pos_binary_pred_vars <- names(p_pos_binary_effects)
+  x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
 }
 
 # FINISH PREPARING FOR STAN ----
+
+num_plate <- nrow(df_plate)
+num_sam_rep <- nrow(df_sam)
+num_sam_id <- ifelse(num_sam_rep, max(df_sam$id_sam), 0)
+
+stan_input_posterior <- list(
+  num_plate = num_plate,
+  num_cal_tot = nrow(df_cal),
+  num_sam_id = num_sam_id,
+  num_sam_rep = num_sam_rep,
+  which_plate_cal = df_cal$plate_int,
+  which_plate_sam = df_sam$plate_int,
+  which_id_sam = df_sam$id_sam,
+  y_cal = df_cal$y,
+  y_sam = df_sam$y,
+  x_cal = df_cal$x,
+  num_f_pred_vars = num_f_pred_vars,
+  num_cat_per_f_pred_var = num_cat_per_f_pred_var %>% as.array(),
+  sample_posterior_not_prior = 1L
+)
 
 predict_p_pos  <- x_mix_pred_vars_nums[["p_pos"]]  > 0L
 predict_mu_pos <- x_mix_pred_vars_nums[["mu_pos"]] > 0L
