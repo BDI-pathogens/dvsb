@@ -54,8 +54,9 @@ rho_prior_eta <- 1
 
 # SIMULATE DATA IF DESIRED ----
 
-file_input_stan <- file.path(path_here, "xsectional.stan")
-file_input_simulate_code <- file.path(path_here, "xsectional_simulate.R")
+file_input_stan <- file.path(path_here, "dvsb.stan")
+file_input_simulate_code <- file.path(path_here, "R", "dvsb_simulate.R")
+stopifnot(dir.exists(path_here))
 stopifnot(dir.exists(path_here))
 stopifnot(file.exists(file_input_stan))
 stopifnot(file.exists(file_input_simulate_code))
