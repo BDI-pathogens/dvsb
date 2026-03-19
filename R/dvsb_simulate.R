@@ -458,16 +458,11 @@ num_sam_rep <- num_sam_id * num_rep_per_sam
 df_sam <- df_sam %>%
   slice(rep(row_number(), num_rep_per_sam)) %>%
   arrange(id_sam) %>%
-  mutate(which_sam_rep = row_number(),
-         y_obs_sd = PL4(xlog, f_1, y_obs_sd_sam_min, y_obs_sd_sam_max, f_4),
+  mutate(y_obs_sd = PL4(xlog, f_1, y_obs_sd_sam_min, y_obs_sd_sam_max, f_4),
          is_blank = runif(nrow(.)) < p_blank,
          y = if_else(is_blank,
                      rnorm(nrow(.), mean = f_2,    sd = y_obs_sd_sam_min),
                      rnorm(nrow(.), mean = y_mean, sd = y_obs_sd)))
-
-df_plate$plate_int <- df_plate$plate
-df_cal$plate_int <- df_cal$plate
-df_sam$plate_int <- df_sam$plate
 
 return(list(
   df_sam = df_sam,
@@ -489,18 +484,14 @@ return(list(
   f = f,
   sigma_f_plate = sigma_f_plate,
   rho = rho,
+  x_mix_pred_vars_names = x_mix_pred_vars_names,
   x_mix_pred_vars_sds = x_mix_pred_vars_sds,
   x_mix_effects = x_mix_effects,
-  x_mix_pred_vars_nums = x_mix_pred_vars_nums,
-  x_mix_pred_vars_num_cats = x_mix_pred_vars_num_cats,
-  x_mix_pred_vars_num_cats_tots = x_mix_pred_vars_num_cats_tots,
   x_mix_overall = x_mix_overall,
   f_effects_by_pred_var = f_effects_by_pred_var,
   f_pred_vars = f_pred_vars,
   f_pred_vars_names = f_pred_vars_names,
   sigma_f_pred_vars = sigma_f_pred_vars,
-  x_mix_pred_vars = x_mix_pred_vars,
-  x_mix_pred_vars_names = x_mix_pred_vars_names,
   p_pos_binary_effects = p_pos_binary_effects
   )))
 
