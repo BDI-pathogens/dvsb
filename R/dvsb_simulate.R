@@ -468,6 +468,9 @@ return(list(
   df_sam = df_sam,
   df_plate = df_plate,
   df_cal = df_cal,
+  f_pred_vars_names = f_pred_vars_names,
+  x_mix_pred_vars_names = x_mix_pred_vars_names,
+  p_pos_binary_pred_vars = p_pos_binary_pred_vars,
   params = list(
   y_obs_sd_cal_min = y_obs_sd_cal_min,
   y_obs_sd_cal_max = y_obs_sd_cal_max,
@@ -484,13 +487,10 @@ return(list(
   f = f,
   sigma_f_plate = sigma_f_plate,
   rho = rho,
-  x_mix_pred_vars_names = x_mix_pred_vars_names,
   x_mix_pred_vars_sds = x_mix_pred_vars_sds,
   x_mix_effects = x_mix_effects,
   x_mix_overall = x_mix_overall,
   f_effects_by_pred_var = f_effects_by_pred_var,
-  f_pred_vars = f_pred_vars,
-  f_pred_vars_names = f_pred_vars_names,
   sigma_f_pred_vars = sigma_f_pred_vars,
   p_pos_binary_effects = p_pos_binary_effects
   )))

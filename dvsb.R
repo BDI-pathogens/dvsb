@@ -2,7 +2,7 @@ library(data.table)
 library(tidyverse)
 theme_set(theme_classic())
 
-data_was_simulated <- FALSE
+data_was_simulated <- TRUE
 read_posterior_from_file <- FALSE
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-13-21h38m27_chain*.csv") # v19 on all data with 1500 iter, with sex as p_pos predictor, slow but OK convergence 
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-25-18h44m40_chain*.csv") # v20 with age as a predictor for all 5 params, with cluster and site and job for p_pos
@@ -54,27 +54,35 @@ df_priors_vectors <- tribble(
 # The eta parameter of the LKJ prior for rho
 rho_prior_eta <- 1
 
-# SIMULATE DATA IF DESIRED ----
+# SOURCE CODE IN OTHER FILES ----
 
 file_input_stan <- file.path(path_here, "dvsb.stan")
 file_input_simulate_code <- file.path(path_here, "R", "dvsb_simulate.R")
 file_input_code_prepare <- file.path(path_here, "R", "dvsb_prepare_data_for_stan.R")
+file_input_code_rename <- file.path(path_here, "R", "dvsb_rename_params_from_stan.R")
+file_input_code_wrangle_true <- file.path(path_here, "R", "dvsb_wrangle_true_params.R")
 stopifnot(dir.exists(path_here))
 stopifnot(file.exists(file_input_stan))
 stopifnot(file.exists(file_input_simulate_code))
 stopifnot(file.exists(file_input_code_prepare))
+stopifnot(file.exists(file_input_code_wrangle_true))
 source(file_input_simulate_code)
 source(file_input_code_prepare)
+source(file_input_code_rename)
+source(file_input_code_wrangle_true)
+
+# GET DATA ----
 
 if (data_was_simulated) {
   data <- simulate_data(num_plate = 2, num_sam_per_plate = 3)
   df_sam <- data$df_sam
   df_plate <- data$df_plate
   df_cal <- data$df_cal
-  invisible(list2env(data$params, envir = .GlobalEnv)) # hack for now
-  p_pos_binary_pred_vars <- names(p_pos_binary_effects)
+  true_param_values_list <- data$params
+  f_pred_vars_names <- data$f_pred_vars_names
+  x_mix_pred_vars_names <- data$x_mix_pred_vars_names
+  p_pos_binary_pred_vars <- data$p_pos_binary_pred_vars
   x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
-  
 } else {
   source(file_input_code_wrangle_real_data)
   data <- prepare_real_enable_data()
@@ -182,7 +190,7 @@ if (! read_posterior_from_file) {
     df_fit_wide_postonly <- df_fit_wide_postonly[, ..keep_col]
     
   } else if (stan_method == "rstan") {
-    samples_posterior <- sampling(model_compiled,
+    samples_posterior <- rstan::sampling(model_compiled,
                                   data = data_wrangled$stan_input_posterior,
                                   iter = num_mc_iterations_posterior,
                                   chains = num_mc_chains,
@@ -191,7 +199,7 @@ if (! read_posterior_from_file) {
                                   include = FALSE)
     df_fit_wide_postonly <- samples_posterior %>%
       as.data.frame()
-    
+    setDT(df_fit_wide_postonly)
   } else if (stan_method == "cmdstan") {
     cmdstanr::write_stan_json(data_wrangled$stan_input_posterior, file = file_stan_temp)
     stopifnot(endsWith(file_input_stan, ".stan"))
@@ -263,7 +271,7 @@ if (read_posterior_from_file || stan_method == "cmdstan") {
 if (stan_method %in% c("cmdstanr", "cmdstan")) {
   model_compiled <- cmdstanr::cmdstan_model(file_input_stan)
   df_ps <- model_compiled$sample(
-    data = stan_input_prior,
+    data = data_wrangled$stan_input_prior,
     iter_warmup = num_mc_iterations_prior / 2,
     iter_sampling = num_mc_iterations_prior / 2,
     chains = num_mc_chains,
@@ -282,8 +290,8 @@ if (stan_method %in% c("cmdstanr", "cmdstan")) {
   }
   df_ps <- df_ps[, ..keep_col]
 } else if (stan_method == "rstan") {
-  df_ps <- sampling(model_compiled,
-                    data = stan_input_prior,
+  df_ps <- rstan::sampling(model_compiled,
+                    data = data_wrangled$stan_input_prior,
                     iter = num_mc_iterations_prior,
                     chains = num_mc_chains,
                     control = list(max_treedepth = max_treedepth),
@@ -300,9 +308,10 @@ df_ps[, density_type := "prior"]
 
 # WRANGLE STAN OUTPUT ----
 
+x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
+
 df_fit_wide_postonly[, density_type := "posterior"]
 df_fit_wide_postonly[, sample := 1:nrow(df_fit_wide_postonly)]
-
 
 # Merge prior and posterior samples
 desired_cols <- names(df_ps)
@@ -311,174 +320,24 @@ df_fit_wide_postandprior <- rbind(df_fit_wide_postonly[,..desired_cols],
 
 # Record true values of params
 if (data_was_simulated) {
-  
-  df_true_pop_params <- tribble(
-    ~param, ~value,
-    "f[1]", f[1],
-    "f[2]", f[2],
-    "f[3]", f[3],
-    "f[4]", f[4],
-    "sigma_f_plate[1]", sigma_f_plate[1],
-    "sigma_f_plate[2]", sigma_f_plate[2],
-    "sigma_f_plate[3]", sigma_f_plate[3],
-    "sigma_f_plate[4]", sigma_f_plate[4],
-    "rho[1,2]", rho[1,2],
-    "rho[1,3]", rho[1,3],
-    "rho[1,4]", rho[1,4],
-    "rho[2,3]", rho[2,3],
-    "rho[2,4]", rho[2,4],
-    "rho[3,4]", rho[3,4],
-    "sd_neg", sd_neg,
-    "sd_pos", sd_pos,
-    "mu_neg", mu_neg,
-    "mu_pos", mu_pos,
-    "p_pos", p_pos,
-    "p_blank", p_blank,
-    "y_obs_sd_cal_min",  y_obs_sd_cal_min,
-    "y_obs_sd_cal_jump", y_obs_sd_cal_jump,
-    "y_obs_sd_sam_min",  y_obs_sd_sam_min,
-    "y_obs_sd_sam_jump", y_obs_sd_sam_jump,
-    "y_obs_sd_cal_max", y_obs_sd_cal_max,
-    "y_obs_sd_sam_max", y_obs_sd_sam_max
-  ) 
-  
-  if (predict_f) {
-    df_true_f_effects_by_pred_var <- f_effects_by_pred_var %>% 
-      map(function(mat) {mat %>%
-          as_tibble(.name_repair = "universal_quiet") %>%
-          mutate(cat = rownames(mat))}) %>% 
-      bind_rows(.id = "f_pred_var") %>%
-      mutate(f_pred_var_cat = paste0(f_pred_var, cat)) %>% 
-      inner_join(df_f_pred_vars_cats, by = "f_pred_var_cat")
-    stopifnot(identical(sort(df_true_f_effects_by_pred_var$f_pred_var_cat),
-                        sort(design_matrix_f_colnames_expected)))
-    df_true_f_effects_by_pred_var <- df_true_f_effects_by_pred_var %>%
-      pivot_longer(paste0("...", 1:4),
-                   names_prefix = "...",
-                   names_to = "which_f") %>%
-      mutate(param = paste0("f_effects_by_pred_var_cat[", f_pred_var_cat_int,
-                            ",", which_f, "]")) %>%
-      select(param, value)
-    df_true_pop_params <- df_true_pop_params %>%
-      bind_rows(df_true_f_effects_by_pred_var,
-                tibble(f_pred_var = names(sigma_f_pred_vars),
-                       value = sigma_f_pred_vars) %>% 
-                  unnest_longer(value, indices_to = "which_f") %>%
-                  left_join(df_f_pred_vars, by = "f_pred_var") %>%
-                  mutate(param = paste0("sigma_f_pred_vars[", f_pred_var_int,
-                                        ",", which_f, "]")) %>%
-                  select(param, value))
-  }
-  
-  df_true_pop_params <- df_true_pop_params %>% bind_rows(
-    map(x_mix_params, function(param) {
-      if (x_mix_pred_vars_nums[[param]] == 0) {
-        return(tibble(param = character(), value = numeric()))
-      }
-      df_true_effects_by_pred_var <- x_mix_effects[[param]] %>% 
-        map(function(mat) {mat %>%
-            as_tibble(.name_repair = "universal_quiet") %>%
-            mutate(cat = names(mat))}) %>% 
-        bind_rows(.id = "pred_var") %>%
-        mutate(pred_var_cat = paste0(pred_var, cat)) %>% 
-        inner_join(lookup_pred_var_cat_int[[param]], by = "pred_var_cat")
-      stopifnot(identical(sort(df_true_effects_by_pred_var$pred_var_cat),
-                          sort(colnames(x_mix_design_matrices[[param]]))))
-      df_true_effects_by_pred_var <- df_true_effects_by_pred_var %>%
-        mutate(param = paste0(param, "_effects_by_pred_var_cat[", 
-                              pred_var_cat_int, "]")) %>%
-        select(param, value)
-      df_true_sigma_pred_vars <-
-        tibble(pred_var = names(x_mix_pred_vars_sds[[param]]),
-               value = x_mix_pred_vars_sds[[param]]) %>%
-        inner_join(lookup_pred_var_int[[param]], by = "pred_var") %>%
-        mutate(param = paste0("sigma_", param, "_pred_vars[", pred_var_int, "]")) %>%
-        select(param, value)
-      bind_rows(df_true_effects_by_pred_var, df_true_sigma_pred_vars)
-    }) %>%
-      bind_rows())
-  
-  if (predict_p_pos_binary) {
-    df_true_pop_params <- df_true_pop_params %>%
-      bind_rows(tibble(
-        param = paste0("p_pos_binary_effects[",
-                       1:length(p_pos_binary_pred_vars), "]"),
-        value = p_pos_binary_effects)) 
-  }
-
+  df_true_pop_params <- wrangle_true_params(
+    true_param_values_list = true_param_values_list,
+    data_descriptors = data_wrangled$data_descriptors)
 }
 
-# Rename params for interpretability
-rename_params <- function(original_names) {
-  df_param_names <- tibble(orig = original_names,
-                           new = str_replace(orig,
-                                             "sigma_f_plate\\[([0-9]+)\\]",
-                                             "sigma_f[\\1]_plate"))
-  if (predict_f) {
-    df_param_names <- df_param_names %>%
-      tidyr::extract(orig, 
-                     into = c("f_pred_var_int", "which_f_foo"), 
-                     regex = "sigma_f_pred_vars\\[([0-9]+),([0-9]+)\\]",
-                     remove = FALSE) %>%
-      tidyr::extract(orig, 
-                     into = c("f_pred_var_cat_int", "which_f_spam"), 
-                     regex = "f_effects_by_pred_var_cat\\[([0-9]+),([0-9]+)\\]",
-                     remove = FALSE) %>%
-      mutate(f_pred_var_int = as.integer(f_pred_var_int),
-             f_pred_var_cat_int = as.integer(f_pred_var_cat_int)) %>%
-      left_join(df_f_pred_vars, by = "f_pred_var_int") %>%
-      left_join(df_f_pred_vars_cats, by = "f_pred_var_cat_int") %>% 
-      mutate(new = case_when(
-        !is.na(f_pred_var_int) ~ paste0("sigma_f[", which_f_foo, "]_", f_pred_var),
-        !is.na(f_pred_var_cat_int) ~ paste0("f_effect[", which_f_spam, "]_", f_pred_var_cat),
-        TRUE ~ new
-      ))
-  }
-  
-  for (param in x_mix_params) {
-    if (x_mix_pred_vars_nums[[param]] == 0) next
-    df_param_names <- df_param_names %>%
-      tidyr::extract(orig, 
-                     into = "pred_var_int", 
-                     regex = paste0("sigma_", param, "_pred_vars\\[([0-9]+)\\]"),
-                     remove = FALSE) %>%
-      tidyr::extract(orig, 
-                     into = "pred_var_cat_int", 
-                     regex = paste0(param, "_effects_by_pred_var_cat\\[([0-9]+)\\]"),
-                     remove = FALSE) %>%
-      mutate(pred_var_int = as.integer(pred_var_int),
-             pred_var_cat_int = as.integer(pred_var_cat_int)) %>%
-      left_join(lookup_pred_var_int[[param]], by = "pred_var_int") %>%
-      left_join(lookup_pred_var_cat_int[[param]], by = "pred_var_cat_int") %>% 
-      mutate(new = case_when(
-        !is.na(pred_var_int) ~ paste0("sigma_", param, "_pred_vars_", pred_var),
-        !is.na(pred_var_cat_int) ~ paste0(param, "_effect_", pred_var_cat),
-        TRUE ~ new
-      )) %>%
-      select(orig, new)
-  }
-  if (predict_p_pos_binary) {
-    df_param_names <- df_param_names %>%
-      tidyr::extract(orig, 
-                     into = "pred_var_int", 
-                     regex = paste0("p_pos_binary_effects\\[([0-9]+)\\]"),
-                     remove = FALSE) %>%
-      mutate(pred_var_int = as.integer(pred_var_int)) %>%
-      left_join(tibble(pred_var_int = 1:length(p_pos_binary_pred_vars),
-                       pred_var = p_pos_binary_pred_vars),
-                by = "pred_var_int") %>% 
-      mutate(new = case_when(
-        !is.na(pred_var_int) ~ paste0("p_pos_effect_", pred_var),
-        TRUE ~ new
-      )) %>%
-      select(orig, new)
-  }
-  df_param_names$new
+setnames(df_fit_wide_postonly, function(names) {
+  rename_params_from_stan(names,
+                          data_descriptors = data_wrangled$data_descriptors)})
+setnames(df_fit_wide_postandprior, function(names) {
+  rename_params_from_stan(names,
+                          data_descriptors = data_wrangled$data_descriptors)})
+setnames(df_ps, function(names) {
+  rename_params_from_stan(names,
+                          data_descriptors = data_wrangled$data_descriptors)})
+if (data_was_simulated) {
+  df_true_pop_params$param <- rename_params_from_stan(
+    df_true_pop_params$param, data_descriptors = data_wrangled$data_descriptors)
 }
-setnames(df_fit_wide_postonly, rename_params)
-setnames(df_fit_wide_postandprior, rename_params)
-setnames(df_ps, rename_params)
-if (data_was_simulated) df_true_pop_params$param <- rename_params(df_true_pop_params$param)
 
 # Define x mix params by group, from overall params + effects
 for (param in x_mix_params) {
@@ -535,7 +394,7 @@ if ("p_pos_for_sex_Male"   %in% names(df_fit_wide_postandprior) &&
 param_names_pop <- colnames(df_fit_wide_postandprior)
 param_names_pop <- param_names_pop[param_names_pop != "sample"]
 
-regex_for_params_to_plot <- "p_pos_effect_age" #"house|risk"
+regex_for_params_to_plot <- "" #"house|risk"
 params_desired <- param_names_pop[grepl(regex_for_params_to_plot, param_names_pop)]
 params_for_log_transform <- c() # params_desired[grepl("sd_", params_desired)]
 list_for_log_transform <- list()
@@ -644,6 +503,7 @@ ggplot() +
   theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0)) 
 
 # The posteriors for the 4PL function by plate
+df_plate <- left_join(df_plate, data_wrangled$df_plate, by = "plate") # TODO: something cleaner?
 xlog_range <- seq(log(0.002), log(40), length.out = 50)
 df_4pl <- df_fit_wide_postonly %>%
   select(sample, starts_with("f_per_plate[")) %>%

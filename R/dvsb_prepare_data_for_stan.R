@@ -356,6 +356,7 @@ prepare_data_for_stan <- function(
     # x mix vars
     x_mix_pred_vars = x_mix_pred_vars,
     x_mix_pred_vars_names = x_mix_pred_vars_names,
+    x_mix_pred_vars_nums = x_mix_pred_vars_nums,
     x_mix_pred_vars_num_cats = x_mix_pred_vars_num_cats,
     x_mix_pred_vars_num_cats_tots = x_mix_pred_vars_num_cats_tots,
     predict_p_pos = predict_p_pos,
@@ -367,9 +368,11 @@ prepare_data_for_stan <- function(
     lookup_pred_var_int = lookup_pred_var_int,
     lookup_pred_var_cat_int = lookup_pred_var_cat_int,
     # p_pos_binary vars
+    p_pos_binary_pred_vars = p_pos_binary_pred_vars,
     predict_p_pos_binary = predict_p_pos_binary,
     p_pos_binary_design_matrix = p_pos_binary_design_matrix,
     # f pred vars
+    f_pred_vars_names = f_pred_vars_names,
     num_f_pred_vars = num_f_pred_vars,
     predict_f = predict_f,
     f_pred_vars = f_pred_vars,
