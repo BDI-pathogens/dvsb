@@ -384,10 +384,8 @@ for (pred_var in p_pos_binary_pred_vars) {
 
 # Draw effects on the x mix params from each pred var
 x_mix_effects <- list()
-x_mix_overall <- list()
 for (param in x_mix_params) {
   x_mix_effects[[param]] <- list()
-  x_mix_overall[[param]] <- list()
   for (pred_var in x_mix_pred_vars_names[[param]]) {
     sigma_ <- x_mix_pred_vars_sds[[param]][[pred_var]]
     num_cats <- x_mix_pred_vars_num_cats[[param]][[pred_var]]
@@ -397,16 +395,6 @@ for (param in x_mix_params) {
     x_mix_effects[[param]][[pred_var]] <- effects_
     df_sam[[paste0(param, "_effect_", pred_var)]] <- map_dbl(
       df_sam[[pred_var]], ~ effects_[[.x]])
-    if (param == "p_pos") {
-      x_mix_overall[[param]][[pred_var]] <- 
-        mastiff::logistic(mastiff::logit(x_mix_baseline[[param]]) + effects_)
-    } else if (param %in% c("sd_pos", "sd_neg")) {
-      x_mix_overall[[param]][[pred_var]] <- 
-        exp(log(x_mix_baseline[[param]]) + effects_)
-    } else {
-      x_mix_overall[[param]][[pred_var]] <- 
-        x_mix_baseline[[param]] + effects_
-    }
   }
 }
 
@@ -489,7 +477,6 @@ return(list(
   rho = rho,
   x_mix_pred_vars_sds = x_mix_pred_vars_sds,
   x_mix_effects = x_mix_effects,
-  x_mix_overall = x_mix_overall,
   f_effects_by_pred_var = f_effects_by_pred_var,
   sigma_f_pred_vars = sigma_f_pred_vars,
   p_pos_binary_effects = p_pos_binary_effects

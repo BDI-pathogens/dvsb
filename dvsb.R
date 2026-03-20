@@ -17,7 +17,7 @@ file_input_code_wrangle_real_data <- "~/PathogenDynamics Dropbox/Vaccine Work/La
 dir_stan <- "~/.cmdstan/cmdstan-2.37.0/"
 num_mc_chains <- 5
 num_mc_iterations_posterior <- 500 # per chain, half of them warmup
-num_mc_iterations_prior <- 10000
+num_mc_iterations_prior <- 2000
 # one of: "rstan", "cmdstanr", "cmdstan". cmdstan uses cmdstanr for prior sampling.
 stan_method <- "cmdstan" 
 file_stan_temp <- "/Users/cwymant/foo.json" # for writing the data for cmdstan
@@ -78,7 +78,7 @@ if (data_was_simulated) {
   df_sam <- data$df_sam
   df_plate <- data$df_plate
   df_cal <- data$df_cal
-  true_param_values_list <- data$params
+  param_true_values_list <- data$params
   f_pred_vars_names <- data$f_pred_vars_names
   x_mix_pred_vars_names <- data$x_mix_pred_vars_names
   p_pos_binary_pred_vars <- data$p_pos_binary_pred_vars
@@ -321,7 +321,7 @@ df_fit_wide_postandprior <- rbind(df_fit_wide_postonly[,..desired_cols],
 # Record true values of params
 if (data_was_simulated) {
   df_true_pop_params <- wrangle_true_params(
-    true_param_values_list = true_param_values_list,
+    param_true_values_list = param_true_values_list,
     data_descriptors = data_wrangled$data_descriptors)
 }
 
@@ -337,56 +337,6 @@ setnames(df_ps, function(names) {
 if (data_was_simulated) {
   df_true_pop_params$param <- rename_params_from_stan(
     df_true_pop_params$param, data_descriptors = data_wrangled$data_descriptors)
-}
-
-# Define x mix params by group, from overall params + effects
-for (param in x_mix_params) {
-  if (x_mix_pred_vars_nums[[param]] == 0) next
-  for (pred_var_cat in lookup_pred_var_cat_int[[param]]$pred_var_cat) {
-    if (param == "p_pos") {
-      df_fit_wide_postandprior[[paste0(param, "_for_", pred_var_cat)]] <- mastiff::logistic(
-        mastiff::logit(df_fit_wide_postandprior[[param]]) +
-          df_fit_wide_postandprior[[paste0(param, "_effect_", pred_var_cat)]])
-      df_ps[[paste0(param, "_for_", pred_var_cat)]] <- mastiff::logistic(
-        mastiff::logit(df_ps[[param]]) + df_ps[[paste0(param, "_effect_", pred_var_cat)]])
-    } else if (param %in% c("sd_pos", "sd_neg")) {
-      df_fit_wide_postandprior[[paste0(param, "_for_", pred_var_cat)]] <- exp(
-        log(df_fit_wide_postandprior[[param]]) + 
-          df_fit_wide_postandprior[[paste0(param, "_effect_", pred_var_cat)]])
-      df_ps[[paste0(param, "_for_", pred_var_cat)]] <- exp(
-        log(df_ps[[param]]) + df_ps[[paste0(param, "_effect_", pred_var_cat)]])
-    }
-    else {
-      df_fit_wide_postandprior[[paste0(param, "_for_", pred_var_cat)]] <-
-        df_fit_wide_postandprior[[param]] + 
-        df_fit_wide_postandprior[[paste0(param, "_effect_", pred_var_cat)]]
-      df_ps[[paste0(param, "_for_", pred_var_cat)]] <-
-        df_ps[[param]] + df_ps[[paste0(param, "_effect_", pred_var_cat)]]
-    }
-  }
-}
-if (data_was_simulated) {
-  df_true_pop_params <- df_true_pop_params %>% bind_rows(
-    x_mix_params %>% map(function(param) {
-      if (x_mix_pred_vars_nums[[param]] == 0) {
-        return(tibble(param = character(), value = numeric()))
-      }
-      x_mix_overall[[param]] %>%
-        map(function(mat) {mat %>%
-            as_tibble(.name_repair = "universal_quiet") %>%
-            mutate(cat = names(mat))}) %>%
-        bind_rows(.id = "pred_var") %>%
-        mutate(param = paste0(param, "_for_", pred_var, cat)) %>%
-        select(param, value)
-    }) 
-  )
-}
-
-if ("p_pos_for_sex_Male"   %in% names(df_fit_wide_postandprior) &&
-    "p_pos_for_sex_Female" %in% names(df_fit_wide_postandprior)) {
-  df_fit_wide_postandprior$p_pos_for_sex_Male_min_Female <-
-    df_fit_wide_postandprior$p_pos_for_sex_Male -
-    df_fit_wide_postandprior$p_pos_for_sex_Female
 }
 
 # PLOT STAN OUTPUT ----
@@ -567,10 +517,10 @@ if (data_was_simulated) {
   df_x_distributions_truth <-
     tibble(xlog = xlogs_plot,
            x = exp(xlog),
-           `P(xlog | pos)` = dnorm(xlog, mean = mu_pos, sd = sd_pos),
-           `P(xlog | neg)` = dnorm(xlog, mean = mu_neg, sd = sd_neg),
-           `P(xlog)` = p_pos * `P(xlog | pos)` + (1 - p_pos) * `P(xlog | neg)`,
-           `P(pos | xlog)` = p_pos * `P(xlog | pos)` / `P(xlog)`) %>%
+           `P(xlog | pos)` = dnorm(xlog, mean = param_true_values_list$mu_pos, sd = param_true_values_list$sd_pos),
+           `P(xlog | neg)` = dnorm(xlog, mean = param_true_values_list$mu_neg, sd = param_true_values_list$sd_neg),
+           `P(xlog)` = param_true_values_list$p_pos * `P(xlog | pos)` + (1 - param_true_values_list$p_pos) * `P(xlog | neg)`,
+           `P(pos | xlog)` = param_true_values_list$p_pos * `P(xlog | pos)` / `P(xlog)`) %>%
     pivot_longer(-c("x", "xlog"))
   p <- p +
     geom_line(data = df_x_distributions_truth,
