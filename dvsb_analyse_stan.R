@@ -2,230 +2,41 @@ library(data.table)
 library(tidyverse)
 theme_set(theme_classic())
 
-data_was_simulated <- FALSE
-read_posterior_from_file <- FALSE
-#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-13-21h38m27_chain*.csv") # v19 on all data with 1500 iter, with sex as p_pos predictor, slow but OK convergence 
-#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-25-18h44m40_chain*.csv") # v20 with age as a predictor for all 5 params, with cluster and site and job for p_pos
-#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-12-03-10h28m49_chain*.csv") # first restriction to baseline only in some time(!), v20 with age as a predictor for all 5 params, with site and job for p_pos
-#files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2026-03-11-17h13m09_chain*.csv") # first run using p_pos_binary_pred_vars
-files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2026-03-16-14h55m08_chain*.csv")
+# INPUT ----
 
-# INPUT ABOUT STAN ----
+# If read_files_from_stan=FALSE, you must run dvsb_do_stan.R first to define
+# the required variables in your current R session's memory.
+read_files_from_stan <- FALSE
+files_from_stan_basename <- "/Users/cwymant/enable/samples_full_run_2026-03-20-17h43m15"
+downsampling_factor_posterior <- 2L
+downsampling_factor_prior <- 1L
 
 path_here <- "~/repos/dvsb/"
-file_input_code_wrangle_real_data <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_PrepareEnable_v7.R"
-dir_stan <- "~/.cmdstan/cmdstan-2.37.0/"
-num_mc_chains <- 5
-num_mc_iterations_posterior <- 500 # per chain, half of them warmup
-num_mc_iterations_prior <- 2000
-# one of: "rstan", "cmdstanr", "cmdstan". cmdstan uses cmdstanr for prior sampling.
-stan_interface <- "rstan" 
-file_stan_temp <- "/Users/cwymant/foo.json" # for writing the data for cmdstan
-file_out_stan_basename <- "/Users/cwymant/enable/samples_"
+data_was_simulated <- FALSE
 
-# Upper and lower bounds for priors
-df_priors_scalars <- tribble(
-  ~param, ~lower, ~upper,
-  "mu_neg", -5, -1,
-  "sd_neg", 0.5, 2,
-  "sd_pos", 0, 2.5, 
-  "mu_pos", -1.5, 3,
-  "p_pos", 0, 1,
-  "p_blank", 0, 0.05,
-  "y_obs_sd_cal_min", 0, 0.015,
-  "y_obs_sd_cal_jump", 0.1, 1,
-  "y_obs_sd_sam_min", 0, 0.03,
-  "y_obs_sd_sam_jump", 0.1, 1,
-  "sigma_p_pos_pred_vars", 0, 3,
-  "sigma_mu_pos_pred_vars", 0, 2,
-  "sigma_sd_pos_pred_vars", 0, 1,
-  "sigma_mu_neg_pred_vars", 0, 2,
-  "sigma_sd_neg_pred_vars", 0, 1,
-  "p_pos_binary_effects", -4, 4
-)
-df_priors_vectors <- tribble(
-  ~param, ~lower, ~upper,
-  "sigma_f_plate", c(0, 0, 0, 0), c(0.25, 0.025, 2.5, 2),
-  "f", c(0.8, -0.05, 3, 2.2), c(1.1, 0.05, 5.5, 3.8),
-  "sigma_f_pred_vars", c(0, 0, 0, 0), c(0.6, 0.1, 4, 3)
-)
-  
+# READ FILES FROM STAN IF DESIRED ----
 
-# The eta parameter of the LKJ prior for rho
-rho_prior_eta <- 1
-
-# SOURCE CODE IN OTHER FILES ----
-
-file_input_stan <- file.path(path_here, "dvsb.stan")
-file_input_simulate_code <- file.path(path_here, "R", "dvsb_simulate.R")
-file_input_code_prepare <- file.path(path_here, "R", "dvsb_prepare_data_for_stan.R")
-file_input_code_rename <- file.path(path_here, "R", "dvsb_rename_params_from_stan.R")
-file_input_code_wrangle_true <- file.path(path_here, "R", "dvsb_wrangle_true_params.R")
-file_input_code_run_stan <- file.path(path_here, "R", "dvsb_run_stan_interfaces.R")
-file_input_code_read_cmdstan <- file.path(path_here, "R", "dvsb_read_cmdstan_out_files.R")
-stopifnot(dir.exists(path_here))
-stopifnot(file.exists(file_input_stan))
-stopifnot(file.exists(file_input_simulate_code))
-stopifnot(file.exists(file_input_code_prepare))
-stopifnot(file.exists(file_input_code_wrangle_true))
-stopifnot(file.exists(file_input_code_run_stan))
-source(file_input_simulate_code)
-source(file_input_code_prepare)
-source(file_input_code_rename)
-source(file_input_code_wrangle_true)
-source(file_input_code_run_stan)
-source(file_input_code_read_cmdstan)
-
-# GET DATA ----
-
-if (data_was_simulated) {
-  data <- simulate_data(num_plate = 2, num_sam_per_plate = 3)
-  df_sam <- data$df_sam
-  df_plate <- data$df_plate
-  df_cal <- data$df_cal
-  param_true_values_list <- data$params
-  f_pred_vars_names <- data$f_pred_vars_names
-  x_mix_pred_vars_names <- data$x_mix_pred_vars_names
-  p_pos_binary_pred_vars <- data$p_pos_binary_pred_vars
-  x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
-} else if (! read_posterior_from_file) {
-  source(file_input_code_wrangle_real_data)
-  data <- prepare_real_enable_data()
-  df_sam <- data$df_sam
-  df_cal <- data$df_cal
-}
-
-# FINISH PREPARING FOR STAN ----
-
-if (! read_posterior_from_file) {
-data_wrangled <- prepare_data_for_stan(
-  df_sam = df_sam, 
-  df_cal = df_cal, 
-  df_priors_scalars = df_priors_scalars,
-  df_priors_vectors = df_priors_vectors, 
-  rho_prior_eta = rho_prior_eta, 
-  x_mix_pred_vars_names = x_mix_pred_vars_names, 
-  p_pos_binary_pred_vars = p_pos_binary_pred_vars,
-  f_pred_vars_names = f_pred_vars_names
-  )
-# TODO: something cleaner? Adding in cols from wrangling
-df_sam <- data_wrangled$df_sam
-df_cal <- data_wrangled$df_cal
-if (data_was_simulated) {
-  df_plate <- left_join(df_plate, data_wrangled$df_plate, by = "plate") 
-} else {
-  df_plate <- data_wrangled$df_plate
-}
-}
-
-params_to_ignore <- c(
-  "accept_stat__",
-  "stepsize__",
-  "treedepth__",
-  "n_leapfrog__",
-  "divergent__",
-  "energy__",
-  "lp__",
-  "rho.1.1",
-  "rho.2.2",
-  "rho.3.3",
-  "rho.4.4",
-  "f_plate_effects_unscaled",
-  "y_cal_mean_per_obs",
-  "y_cal_mean_per_obs",
-  "y_sam_mean_per_obs",
-  "y_obs_sd_cal",
-  "y_obs_sd_sam",
-  "f_effects_by_pred_var_cat_unscaled",
-  "p_pos_effects_by_pred_var_cat_unscaled",
-  "mu_pos_effects_by_pred_var_cat_unscaled",
-  "sd_pos_effects_by_pred_var_cat_unscaled",
-  "mu_neg_effects_by_pred_var_cat_unscaled",
-  "sd_neg_effects_by_pred_var_cat_unscaled",
-  "exp_f_1_mult_f_4_per_plate",
-  "p_pos_log_per_sam_id",
-  "p_neg_log_per_sam_id",
-  "p_pos_per_sam_id",
-  "mu_pos_per_sam_id",
-  "mu_neg_per_sam_id",
-  "sd_pos_per_sam_id",
-  "sd_neg_per_sam_id",
-  "f_3_min_f_2_per_plate",
-  "rho[1,1]",
-  "rho[2,2]",
-  "rho[3,3]",
-  "rho[4,4]",
-  "rho[2,1]",
-  "rho[3,1]",
-  "rho[4,1]",
-  "rho[3,2]",
-  "rho[4,2]",
-  "rho[4,3]",
-  "p_blank_log",
-  "p_blank_log1m",
-  ".chain",
-  ".iteration",
-  ".draw",
-  # actually interesting, but memory is limited:
-  #"xlog_sam",
-  #"y_sam_sim_conditional", 
-  #"p_sam_is_pos", 
-  #"y_sam_loglik_per_obs",
-  "xlog_sam_sim_unconditional"
-)
-
-# Set up Stan
-
-
-# SAMPLE THE POSTERIOR AND PRIOR WITH STAN IF DESIRED... ----
-
-if (! read_posterior_from_file) {
-  
-  time <- format(Sys.time(), "%Y-%m-%d-%Hh%Mm%S")
-  
-  df_fit_wide_postonly <- run_stan_interfaces(
-    input_to_stan = data_wrangled$stan_input_posterior,
-    path_to_stan_code = file_input_stan,
-    interface = stan_interface,
-    iterations = num_mc_iterations_posterior,
-    chains = num_mc_chains,
-    cores = parallel::detectCores(),
+if (read_files_from_stan) {
+  file_input_code_read_cmdstan <- file.path(path_here, "R", "dvsb_read_cmdstan_out_files.R")
+  stopifnot(file.exists(file_input_code_read_cmdstan))
+  source(file_input_code_read_cmdstan)
+  load(paste0(files_from_stan_basename, ".RData"))
+  files_posterior <- Sys.glob(paste0(files_from_stan_basename, "_posterior_chain*.csv"))
+  files_prior     <- Sys.glob(paste0(files_from_stan_basename, "_prior_chain*.csv"))
+  df_fit_wide_postonly <- read_cmdstan_out_files(
+    file_paths = files_posterior,
     params_to_ignore = params_to_ignore,
-    cmdstan_path_to_installation = dir_stan,
-    cmdstan_path_to_json = file_stan_temp, 
-    cmdstan_overwrite_json = TRUE,
-    cmdstan_path_to_output = paste0(file_out_stan_basename, time, "_posterior"))
-  
-  df_ps <- run_stan_interfaces(
-    input_to_stan = data_wrangled$stan_input_prior,
-    path_to_stan_code = file_input_stan,
-    interface = stan_interface,
-    iterations = num_mc_iterations_prior,
-    chains = num_mc_chains,
-    cores = parallel::detectCores(),
+    downsampling_factor = downsampling_factor_posterior)
+  df_ps <- read_cmdstan_out_files(
+    file_paths = files_prior,
     params_to_ignore = params_to_ignore,
-    cmdstan_path_to_installation = dir_stan,
-    cmdstan_path_to_json = file_stan_temp, 
-    cmdstan_overwrite_json = TRUE,
-    cmdstan_path_to_output = paste0(file_out_stan_basename, time, "_prior"))
-
-  }
-
-
-
-#save.image(paste0(file_out_stan_basename, time, ".RData"))
-
-# ...OR READ THE POSTERIOR AND PRIOR FROM FILE IF DESIRED ----
-
-# TODO
-
-data.table::setnames(df_fit_wide_postonly, mastiff::rename_params_cmdstanfile_to_rstan)
-data.table::setnames(df_ps, mastiff::rename_params_cmdstanfile_to_rstan)
-
+    downsampling_factor = downsampling_factor_prior)
+} 
 
 # WRANGLE STAN OUTPUT ----
 
-x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
+data.table::setnames(df_fit_wide_postonly, mastiff::rename_params_cmdstanfile_to_rstan)
+data.table::setnames(df_ps, mastiff::rename_params_cmdstanfile_to_rstan)
 
 df_fit_wide_postonly[, density_type := "posterior"]
 df_fit_wide_postonly[, sample := 1:nrow(df_fit_wide_postonly)]
@@ -287,7 +98,7 @@ if (data_was_simulated) {
     skip_stanfit_to_dt = TRUE)
 }
 p
- 
+
 # Compare true and estimated sample x 
 quantiles <- c(0.025, 0.5, 0.975)
 df_sam_x <- df_fit_wide_postonly %>%
