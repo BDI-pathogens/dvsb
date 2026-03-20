@@ -2,7 +2,7 @@ library(data.table)
 library(tidyverse)
 theme_set(theme_classic())
 
-data_was_simulated <- TRUE
+data_was_simulated <- FALSE
 read_posterior_from_file <- FALSE
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-13-21h38m27_chain*.csv") # v19 on all data with 1500 iter, with sex as p_pos predictor, slow but OK convergence 
 #files_out_stan <- Sys.glob("/Users/cwymant/enable/samples_full_run_2025-11-25-18h44m40_chain*.csv") # v20 with age as a predictor for all 5 params, with cluster and site and job for p_pos
@@ -19,9 +19,9 @@ num_mc_chains <- 5
 num_mc_iterations_posterior <- 500 # per chain, half of them warmup
 num_mc_iterations_prior <- 2000
 # one of: "rstan", "cmdstanr", "cmdstan". cmdstan uses cmdstanr for prior sampling.
-stan_method <- "cmdstan" 
+stan_interface <- "rstan" 
 file_stan_temp <- "/Users/cwymant/foo.json" # for writing the data for cmdstan
-file_out_stan_basename <- "/Users/cwymant/enable/samples_full_run_"
+file_out_stan_basename <- "/Users/cwymant/enable/samples_"
 
 # Upper and lower bounds for priors
 df_priors_scalars <- tribble(
@@ -61,15 +61,20 @@ file_input_simulate_code <- file.path(path_here, "R", "dvsb_simulate.R")
 file_input_code_prepare <- file.path(path_here, "R", "dvsb_prepare_data_for_stan.R")
 file_input_code_rename <- file.path(path_here, "R", "dvsb_rename_params_from_stan.R")
 file_input_code_wrangle_true <- file.path(path_here, "R", "dvsb_wrangle_true_params.R")
+file_input_code_run_stan <- file.path(path_here, "R", "dvsb_run_stan_interfaces.R")
+file_input_code_read_cmdstan <- file.path(path_here, "R", "dvsb_read_cmdstan_out_files.R")
 stopifnot(dir.exists(path_here))
 stopifnot(file.exists(file_input_stan))
 stopifnot(file.exists(file_input_simulate_code))
 stopifnot(file.exists(file_input_code_prepare))
 stopifnot(file.exists(file_input_code_wrangle_true))
+stopifnot(file.exists(file_input_code_run_stan))
 source(file_input_simulate_code)
 source(file_input_code_prepare)
 source(file_input_code_rename)
 source(file_input_code_wrangle_true)
+source(file_input_code_run_stan)
+source(file_input_code_read_cmdstan)
 
 # GET DATA ----
 
@@ -83,7 +88,7 @@ if (data_was_simulated) {
   x_mix_pred_vars_names <- data$x_mix_pred_vars_names
   p_pos_binary_pred_vars <- data$p_pos_binary_pred_vars
   x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
-} else {
+} else if (! read_posterior_from_file) {
   source(file_input_code_wrangle_real_data)
   data <- prepare_real_enable_data()
   df_sam <- data$df_sam
@@ -92,6 +97,7 @@ if (data_was_simulated) {
 
 # FINISH PREPARING FOR STAN ----
 
+if (! read_posterior_from_file) {
 data_wrangled <- prepare_data_for_stan(
   df_sam = df_sam, 
   df_cal = df_cal, 
@@ -102,8 +108,28 @@ data_wrangled <- prepare_data_for_stan(
   p_pos_binary_pred_vars = p_pos_binary_pred_vars,
   f_pred_vars_names = f_pred_vars_names
   )
+# TODO: something cleaner? Adding in cols from wrangling
+df_sam <- data_wrangled$df_sam
+df_cal <- data_wrangled$df_cal
+if (data_was_simulated) {
+  df_plate <- left_join(df_plate, data_wrangled$df_plate, by = "plate") 
+} else {
+  df_plate <- data_wrangled$df_plate
+}
+}
 
 params_to_ignore <- c(
+  "accept_stat__",
+  "stepsize__",
+  "treedepth__",
+  "n_leapfrog__",
+  "divergent__",
+  "energy__",
+  "lp__",
+  "rho.1.1",
+  "rho.2.2",
+  "rho.3.3",
+  "rho.4.4",
   "f_plate_effects_unscaled",
   "y_cal_mean_per_obs",
   "y_cal_mean_per_obs",
@@ -135,7 +161,6 @@ params_to_ignore <- c(
   "rho[3,2]",
   "rho[4,2]",
   "rho[4,3]",
-  "lp__",
   "p_blank_log",
   "p_blank_log1m",
   ".chain",
@@ -150,160 +175,52 @@ params_to_ignore <- c(
 )
 
 # Set up Stan
-max_treedepth <- 14
-if (stan_method == "cmdstanr") {
-  model_compiled <- cmdstanr::cmdstan_model(file_input_stan)
-} else if (stan_method == "rstan") {
-  rstan::rstan_options(auto_write = TRUE)
-  options(mc.cores = parallel::detectCores())
-  model_compiled <- rstan::stan_model(file_input_stan)
-} else if (stan_method != "cmdstan") {
-  stop(paste("Unknown value", stan_method, "specified for stan_method"))
-}
 
-# GET THE POSTERIOR FROM STAN OR FROM FILE ----
+
+# SAMPLE THE POSTERIOR AND PRIOR WITH STAN IF DESIRED... ----
 
 if (! read_posterior_from_file) {
   
-  start_time <- Sys.time()
-  cat("Started running Stan at")
-  print(start_time)
+  time <- format(Sys.time(), "%Y-%m-%d-%Hh%Mm%S")
   
-  if (stan_method == "cmdstanr") {
-    samples_posterior <- model_compiled$sample(
-      data = data_wrangled$stan_input_posterior,
-      iter_warmup = num_mc_iterations_posterior / 2,
-      iter_sampling = num_mc_iterations_posterior / 2,
-      chains = num_mc_chains,
-      max_treedepth = max_treedepth,
-      parallel_chains = num_mc_chains
-    )
-    df_fit_wide_postonly <- samples_posterior$draws(format = "draws_df")
-    setDT(df_fit_wide_postonly)
-    keep_col <- rep(TRUE, ncol(df_fit_wide_postonly))
-    for (param in params_to_ignore) {
-      keep_based_on_this_param <- 
-        colnames(df_fit_wide_postonly) != param &
-        ! startsWith(colnames(df_fit_wide_postonly), paste0(param, ".")) 
-      keep_col <- keep_col & keep_based_on_this_param
-    }
-    df_fit_wide_postonly <- df_fit_wide_postonly[, ..keep_col]
-    
-  } else if (stan_method == "rstan") {
-    samples_posterior <- rstan::sampling(model_compiled,
-                                  data = data_wrangled$stan_input_posterior,
-                                  iter = num_mc_iterations_posterior,
-                                  chains = num_mc_chains,
-                                  control = list(max_treedepth = max_treedepth),
-                                  pars = params_to_ignore,
-                                  include = FALSE)
-    df_fit_wide_postonly <- samples_posterior %>%
-      as.data.frame()
-    setDT(df_fit_wide_postonly)
-  } else if (stan_method == "cmdstan") {
-    cmdstanr::write_stan_json(data_wrangled$stan_input_posterior, file = file_stan_temp)
-    stopifnot(endsWith(file_input_stan, ".stan"))
-    file_stan_exe <- str_remove(file_input_stan, ".stan$")
-    system(paste("cd", dir_stan, " && make STAN_THREADS=true", file_stan_exe))
-    time <- format(Sys.time(), "%Y-%m-%d-%Hh%Mm%S")
-    files_out_stan <- paste0(file_out_stan_basename, time, "_chain", 1:num_mc_chains, ".csv")
-    files_out_stan_summary <- paste0(file_out_stan_basename, time, "_summary.csv")
-    files_out_stan_profile <- paste0(file_out_stan_basename, time, "_profiles.csv")
-    files_out_r_image <- paste0(file_out_stan_basename, time, ".RData")
-    command <- paste0(file_stan_exe,
-                      " method=sample",
-                      " num_chains=", num_mc_chains,
-                      " num_warmup=", round(num_mc_iterations_posterior / 2),
-                      " num_samples=", round(num_mc_iterations_posterior / 2),
-                      " num_threads=", num_mc_chains,
-                      " data file=", file_stan_temp, 
-                      " output file=", paste(files_out_stan, collapse = ","),
-                      " profile_file=", files_out_stan_profile)
-    print("Running this command:")
-    print(command)
-    system(command)
-    system(paste0(dir_stan, "/bin/stansummary ", files_out_stan,
-                  " --percentiles 50",
-                  " --csv_filename ", files_out_stan_summary))
-    save.image(files_out_r_image)
-    
-  } else {
-    stop(paste("Unknown value", stan_method, "specified for stan_method"))
-  }
-  
-  end_time <- Sys.time()
-  cat("Finished running Stan at")
-  print(end_time)
-  print(end_time - start_time)
-  
-  #samples_posterior$save_output_files("/Users/cwymant/enable/", basename = "samples_full_run")
-  # rm(samples_posterior)
-  # save.image("/Users/cwymant/enable/samples_full_run_TODO_DATE.RData")
-  
-  # samples_posterior$profiles() 
-  
-}
-
-if (read_posterior_from_file || stan_method == "cmdstan") {
-  stopifnot(length(files_out_stan) > 0)
-  stopifnot(all(file.exists(files_out_stan)))
-  df_fit_wide_postonly <- map(files_out_stan, function(file_){
-    print(Sys.time())
-    cat("Now reading file", file_, "\n")
-    df_ <- data.table::fread(cmd = paste("grep -v '^#'", file_))
-    keep_col <- rep(TRUE, ncol(df_))
-    for (param in params_to_ignore) {
-      keep_based_on_this_param <- 
-        colnames(df_) != param &
-        ! startsWith(colnames(df_), paste0(param, ".")) 
-      keep_col <- keep_col & keep_based_on_this_param
-    }
-    df_ <- df_[, ..keep_col]
-    df_ <- df_[seq(1, .N, by = 2)] # Keep every other row for memory management
-    df_
-  }) %>% data.table::rbindlist()
-  
-  data.table::setnames(df_fit_wide_postonly, mastiff::rename_params_cmdstanfile_to_rstan)
-}
-
-# GET THE PRIOR FROM STAN ----
-
-if (stan_method %in% c("cmdstanr", "cmdstan")) {
-  model_compiled <- cmdstanr::cmdstan_model(file_input_stan)
-  df_ps <- model_compiled$sample(
-    data = data_wrangled$stan_input_prior,
-    iter_warmup = num_mc_iterations_prior / 2,
-    iter_sampling = num_mc_iterations_prior / 2,
+  df_fit_wide_postonly <- run_stan_interfaces(
+    input_to_stan = data_wrangled$stan_input_posterior,
+    path_to_stan_code = file_input_stan,
+    interface = stan_interface,
+    iterations = num_mc_iterations_posterior,
     chains = num_mc_chains,
-    max_treedepth = max_treedepth,
-    parallel_chains = num_mc_chains
-  )
-  df_ps <- df_ps$draws(format = "draws_df")
-  setDT(df_ps)
-  keep_col <- rep(TRUE, ncol(df_ps))
-  for (param in params_to_ignore) {
-    keep_based_on_this_param <- 
-      colnames(df_ps) != param &
-      ! startsWith(colnames(df_ps), paste0(param, ".")) &
-      ! startsWith(colnames(df_ps), paste0(param, "[")) 
-    keep_col <- keep_col & keep_based_on_this_param
+    cores = parallel::detectCores(),
+    params_to_ignore = params_to_ignore,
+    cmdstan_path_to_installation = dir_stan,
+    cmdstan_path_to_json = file_stan_temp, 
+    cmdstan_overwrite_json = TRUE,
+    cmdstan_path_to_output = paste0(file_out_stan_basename, time, "_posterior"))
+  
+  df_ps <- run_stan_interfaces(
+    input_to_stan = data_wrangled$stan_input_prior,
+    path_to_stan_code = file_input_stan,
+    interface = stan_interface,
+    iterations = num_mc_iterations_prior,
+    chains = num_mc_chains,
+    cores = parallel::detectCores(),
+    params_to_ignore = params_to_ignore,
+    cmdstan_path_to_installation = dir_stan,
+    cmdstan_path_to_json = file_stan_temp, 
+    cmdstan_overwrite_json = TRUE,
+    cmdstan_path_to_output = paste0(file_out_stan_basename, time, "_prior"))
+
   }
-  df_ps <- df_ps[, ..keep_col]
-} else if (stan_method == "rstan") {
-  df_ps <- rstan::sampling(model_compiled,
-                    data = data_wrangled$stan_input_prior,
-                    iter = num_mc_iterations_prior,
-                    chains = num_mc_chains,
-                    control = list(max_treedepth = max_treedepth),
-                    pars = params_to_ignore,
-                    include = FALSE)
-  df_ps <- as.data.frame(df_ps)
-  setDT(df_ps)
-} else {
-  stop(paste("Unknown value", stan_method, "specified for stan_method"))
-}
-df_ps[, sample := 1:nrow(df_ps)]
-df_ps[, density_type := "prior"]
+
+
+
+#save.image(paste0(file_out_stan_basename, time, ".RData"))
+
+# ...OR READ THE POSTERIOR AND PRIOR FROM FILE IF DESIRED ----
+
+# TODO
+
+data.table::setnames(df_fit_wide_postonly, mastiff::rename_params_cmdstanfile_to_rstan)
+data.table::setnames(df_ps, mastiff::rename_params_cmdstanfile_to_rstan)
 
 
 # WRANGLE STAN OUTPUT ----
@@ -312,6 +229,8 @@ x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
 
 df_fit_wide_postonly[, density_type := "posterior"]
 df_fit_wide_postonly[, sample := 1:nrow(df_fit_wide_postonly)]
+df_ps[, density_type := "prior"]
+df_ps[, sample := 1:nrow(df_ps)]
 
 # Merge prior and posterior samples
 desired_cols <- names(df_ps)
@@ -375,19 +294,19 @@ df_sam_x <- df_fit_wide_postonly %>%
   select(sample, starts_with("xlog_sam[")) %>%
   pivot_longer(-sample, names_to = "param") %>%
   tidyr::extract(param, 
-                 into = "id_sam", 
+                 into = "id_sam_int", 
                  regex = "xlog_sam\\[([0-9]+)\\]") %>%
-  mutate(id_sam = as.integer(id_sam)) %>%
-  group_by(id_sam) %>%
+  mutate(id_sam_int = as.integer(id_sam_int)) %>%
+  group_by(id_sam_int) %>%
   reframe(value = quantile(value, probs = quantiles),
           quantile = quantiles) %>%
   pivot_wider(names_from = quantile, names_prefix = "x_q_")
 if (data_was_simulated) {
   df_sam_x %>%
     left_join(df_sam %>%
-                select(id_sam, xlog) %>%
+                select(id_sam_int, xlog) %>%
                 distinct(),
-              by = "id_sam") %>%
+              by = "id_sam_int") %>%
     ggplot() +
     geom_errorbar(aes(xlog, ymin = x_q_0.025, ymax = x_q_0.975)) +
     geom_point(aes(xlog, x_q_0.5)) +
@@ -402,17 +321,17 @@ df_prob_pos <- df_fit_wide_postonly %>%
   select(sample, starts_with("p_sam_is_pos[")) %>%
   pivot_longer(-sample, names_to = "param") %>%
   tidyr::extract(param, 
-                 into = "id_sam", 
+                 into = "id_sam_int", 
                  regex = "p_sam_is_pos\\[([0-9]+)\\]") %>%
-  mutate(id_sam = as.integer(id_sam)) %>%
-  group_by(id_sam) %>%
+  mutate(id_sam_int = as.integer(id_sam_int)) %>%
+  group_by(id_sam_int) %>%
   reframe(value = quantile(value, probs = quantiles),
           quantile = quantiles) %>%
   pivot_wider(names_from = quantile, names_prefix = "prob_pos_q_")
 if (data_was_simulated) {
   inner_join(df_prob_pos,
-             df_sam %>% summarise(.by = id_sam, pos = unique(pos)), 
-             by = "id_sam") %>%
+             df_sam %>% summarise(.by = id_sam_int, pos = unique(pos)), 
+             by = "id_sam_int") %>%
     mutate(pos = if_else(pos, "pos", "neg")) %>%
     ggplot() +
     geom_histogram(aes(prob_pos_q_0.5, fill = pos), #y = after_stat(density))
@@ -428,15 +347,15 @@ if (data_was_simulated) {
 
 # Compare prob positivity vs OD
 inner_join(df_prob_pos,
-           df_sam %>% summarise(.by = id_sam, y = mean(y)), 
-           by = "id_sam") %>%
+           df_sam %>% summarise(.by = id_sam_int, y = mean(y)), 
+           by = "id_sam_int") %>%
   ggplot() +
   geom_point(aes(y, prob_pos_q_0.5)) +
   labs(x = "Mean observed OD",
        y = "Estimated probability of being positive")  
 
 # Compare prob positivity vs x
-inner_join(df_sam_x, df_prob_pos, by = "id_sam") %>%
+inner_join(df_sam_x, df_prob_pos, by = "id_sam_int") %>%
   ggplot() +
   geom_point(aes(x_q_0.5, prob_pos_q_0.5)) +
   labs(x = "Estimated concentration",
@@ -453,7 +372,6 @@ ggplot() +
   theme(axis.text.x = element_text(angle = -45, vjust = 0.5, hjust=0)) 
 
 # The posteriors for the 4PL function by plate
-df_plate <- left_join(df_plate, data_wrangled$df_plate, by = "plate") # TODO: something cleaner?
 xlog_range <- seq(log(0.002), log(40), length.out = 50)
 df_4pl <- df_fit_wide_postonly %>%
   select(sample, starts_with("f_per_plate[")) %>%

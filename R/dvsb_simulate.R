@@ -333,7 +333,7 @@ x_mix_baseline <- c(p_pos  = p_pos,
 df_sam <- df_plate %>%
   slice(rep(row_number(), num_sam_per_plate)) %>%
   arrange(plate) %>%
-  mutate(id_sam = row_number())
+  mutate(id_sam = as.character(row_number()))
 x_mix_pred_vars_num_cats <- list()
 x_mix_pred_vars_num_cats_tots <- integer()
 for (param in x_mix_params) {
