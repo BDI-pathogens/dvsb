@@ -31,7 +31,9 @@ df_true_pop_params <- tribble(
   "y_obs_sd_cal_min", p$y_obs_sd_cal_min,
   "y_obs_sd_cal_jump", p$y_obs_sd_cal_jump,
   "y_obs_sd_sam_min", p$y_obs_sd_sam_min,
-  "y_obs_sd_sam_jump", p$y_obs_sd_sam_jump
+  "y_obs_sd_sam_jump", p$y_obs_sd_sam_jump,
+  "y_obs_sd_min_log_shift_sd", p$y_obs_sd_min_log_shift_sd,
+  "y_obs_sd_jump_log_shift_sd", p$y_obs_sd_jump_log_shift_sd
 ) 
 
 if (d$predict_f) {
