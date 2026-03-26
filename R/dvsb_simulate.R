@@ -33,10 +33,10 @@ PL4 <- function(xlog, f_1, f_2, f_3, f_4) {
 
 simulate_data <- function(
     seed = 1234567,
-    num_plate = 4, 
+    num_plate = 4,
     num_sam_per_plate = 20,
     num_rep_per_sam = 2,
-    num_rep_per_cal = 2
+    num_rep_per_cal = 2 
 ){
 
 # INPUT ----
@@ -54,7 +54,7 @@ sd_neg <- 1
 mu_pos <- 0.8
 sd_pos <- 1.1
 p_pos <- 0.5
-p_blank <- 0.2
+p_blank <- 0.03
 
 # The four parameters of the logistic regression (f_1, f_2, f_3, f_4)
 # which control the OD, y, through
@@ -114,20 +114,23 @@ for (x_mix_pred_var_ in x_mix_params) {
 # sigma_p_pos_pred_vars should be a list with the same names as f_pred_vars.
 # Each element in sigma_p_pos_pred_vars is a standard deviation of the
 # variability in p_pos (on a logit scale) associated with that predictor variable.
-x_mix_pred_vars$p_pos <- list(letter = letters[1:7])
+x_mix_pred_vars$p_pos <- list(letter = letters[1:4])
 x_mix_pred_vars_sds$p_pos <- c(letter = 1)
-x_mix_pred_vars$mu_neg <- list(letter = letters[1:7])
+x_mix_pred_vars$mu_neg <- list(letter = letters[1:4])
 x_mix_pred_vars_sds$mu_neg <- c(letter = 1)
-x_mix_pred_vars$mu_pos <- list(letter = letters[1:7])
+x_mix_pred_vars$mu_pos <- list(letter = letters[1:4])
 x_mix_pred_vars_sds$mu_pos <- c(letter = 1)
-x_mix_pred_vars$sd_neg <- list(letter = letters[1:7])
+x_mix_pred_vars$sd_neg <- list(letter = letters[1:4])
 x_mix_pred_vars_sds$sd_neg <- c(letter = 1)
-x_mix_pred_vars$sd_pos <- list(letter = letters[1:7])
+x_mix_pred_vars$sd_pos <- list(letter = letters[1:4])
 x_mix_pred_vars_sds$sd_pos <- c(letter = 1)
 
 p_pos_binary_effects <- c("boolA" = -2,
                           "boolB" = 0,
                           "boolC" = 2)
+
+y_obs_sd_min_log_shift_sd <- 1
+y_obs_sd_jump_log_shift_sd <- 0.5
 
 # INPUT CHECKS ----
 
@@ -297,6 +300,18 @@ for (f_pred_var in f_pred_vars_names) {
 df_plate <- df_plate %>%
   unnest_wider(f, names_sep = "_")
 
+df_plate <- df_plate %>%
+  mutate(y_obs_sd_min_multiplier_per_plate =
+           exp(rnorm(num_plate) * 
+                 y_obs_sd_min_log_shift_sd - y_obs_sd_min_log_shift_sd^2 / 2),
+         y_obs_sd_jump_multiplier_per_plate =
+           exp(rnorm(num_plate) * 
+                 y_obs_sd_jump_log_shift_sd - y_obs_sd_jump_log_shift_sd^2 / 2),
+         y_obs_sd_cal_min = y_obs_sd_cal_min * y_obs_sd_min_multiplier_per_plate,
+         y_obs_sd_cal_jump = y_obs_sd_cal_jump * y_obs_sd_jump_multiplier_per_plate,
+         y_obs_sd_sam_min = y_obs_sd_sam_min * y_obs_sd_min_multiplier_per_plate,
+         y_obs_sd_sam_jump = y_obs_sd_sam_jump * y_obs_sd_jump_multiplier_per_plate)
+
 # Label plates for plotting
 df_plate$label <- paste("plate", df_plate$plate)
 for (f_pred_var in f_pred_vars_names) {
@@ -315,7 +330,7 @@ df_cal <- df_plate %>%
 
 # Draw observed y
 df_cal <- df_cal %>%
-  mutate(y_obs_sd = PL4(xlog, f_1, y_obs_sd_cal_min, y_obs_sd_cal_max, f_4),
+  mutate(y_obs_sd = PL4(xlog, f_1, y_obs_sd_cal_min, y_obs_sd_cal_min + y_obs_sd_cal_jump, f_4),
          y = rnorm(nrow(.), mean = y_mean, sd = y_obs_sd))
 
 # SIMULATE SAMS ----
@@ -479,7 +494,9 @@ return(list(
   x_mix_effects = x_mix_effects,
   f_effects_by_pred_var = f_effects_by_pred_var,
   sigma_f_pred_vars = sigma_f_pred_vars,
-  p_pos_binary_effects = p_pos_binary_effects
+  p_pos_binary_effects = p_pos_binary_effects,
+  y_obs_sd_min_log_shift_sd = y_obs_sd_min_log_shift_sd,
+  y_obs_sd_jump_log_shift_sd = y_obs_sd_jump_log_shift_sd
   )))
 
 }

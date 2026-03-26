@@ -7,12 +7,13 @@ theme_set(theme_classic())
 # If read_files_from_stan=FALSE, you must run dvsb_do_stan.R first to define
 # the required variables in your current R session's memory.
 read_files_from_stan <- FALSE
-files_from_stan_basename <- "/Users/cwymant/enable/samples_full_run_2026-03-20-17h43m15"
-downsampling_factor_posterior <- 2L
+#files_from_stan_basename <- "/Users/cwymant/enable/samples_full_run_2026-03-23-11h59m48" # baseline data downsampled by 2
+#files_from_stan_basename <- "/Users/cwymant/enable/samples_full_run_2026-03-23-16h51m56" 
+files_from_stan_basename <- "/Users/cwymant/enable/samples_full_run_2026-03-25-18h04m08" 
+downsampling_factor_posterior <- 1L
 downsampling_factor_prior <- 1L
 
 path_here <- "~/repos/dvsb/"
-data_was_simulated <- FALSE
 
 # READ FILES FROM STAN IF DESIRED ----
 
@@ -99,6 +100,7 @@ if (data_was_simulated) {
 }
 p
 
+
 # Compare true and estimated sample x 
 quantiles <- c(0.025, 0.5, 0.975)
 df_sam_x <- df_fit_wide_postonly %>%
@@ -126,7 +128,7 @@ if (data_was_simulated) {
          y = "Estimated Ab")
 }
 
-# Classification plot
+# The distribution of probabilty of being positive
 quantiles <- c(0.025, 0.5, 0.975)
 df_prob_pos <- df_fit_wide_postonly %>%
   select(sample, starts_with("p_sam_is_pos[")) %>%
@@ -140,21 +142,30 @@ df_prob_pos <- df_fit_wide_postonly %>%
           quantile = quantiles) %>%
   pivot_wider(names_from = quantile, names_prefix = "prob_pos_q_")
 if (data_was_simulated) {
-  inner_join(df_prob_pos,
+  p <- inner_join(df_prob_pos,
              df_sam %>% summarise(.by = id_sam_int, pos = unique(pos)), 
              by = "id_sam_int") %>%
     mutate(pos = if_else(pos, "pos", "neg")) %>%
-    ggplot() +
-    geom_histogram(aes(prob_pos_q_0.5, fill = pos), #y = after_stat(density))
-                   position = "identity",
-                   alpha = 0.6,
-                   bins = 30) +
-    labs(y = "Number of samples",
-         x = "Probability sample is positive",
-         fill = "Truth:") +
-    coord_cartesian(expand = FALSE) +
-    scale_x_continuous(limits = c(NA, NA))
+    ggplot() 
+} else {
+  p <- df_prob_pos %>%
+    ggplot() 
 }
+p +
+  geom_histogram(aes(prob_pos_q_0.5), #y = after_stat(density)),
+                 bins = 100) +
+  labs(y = "Number of samples",
+       x = "Probability sample is positive") +
+  coord_cartesian(expand = FALSE) +
+  scale_x_continuous(limits = c(NA, NA))
+ggsave("~/enable/enable_prob_positive_histogram.pdf", height = 5, width = 5)
+p + stat_ecdf(aes(prob_pos_q_0.5)) +
+  labs(y = "c.d.f. (Proportion of samples\nwhose probability of being\npositive is less than that)",
+       x = "Probability sample is positive") +
+  scale_x_continuous(limits = c(-0.01, 1.01), expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0))
+ggsave("~/enable/enable_prob_positive_cdf.pdf", height = 5, width = 5)
+
 
 # Compare prob positivity vs OD
 inner_join(df_prob_pos,
@@ -221,7 +232,7 @@ p
 # Plot P(x | pos), P(x | neg), P(x), P(pos | x) again but now with logx
 xlogs_plot <- log(10) * -90:60 / 30
 df_xlog_distributions <- df_fit_wide_postonly %>%
-  filter(sample %% 10 == 0) %>%
+  filter(sample %% 100 == 0) %>%
   select("sample", "mu_pos", "sd_pos",
          "mu_neg", "sd_neg", "p_pos") %>%
   full_join(tibble(xlog = xlogs_plot,
@@ -241,7 +252,7 @@ p <- ggplot() +
   labs(x = "log_e(Ab concentration)",
        y = "") +
   scale_x_continuous(expand = c(0, 0), limits = c(NA, NA)) +
-  scale_y_continuous(expand = c(0, 0), limits = c(NA, NA))
+  scale_y_continuous(limits = c(NA, NA))
 if (data_was_simulated) {
   df_x_distributions_truth <-
     tibble(xlog = xlogs_plot,
@@ -279,25 +290,31 @@ df_fit_wide_postonly %>%
 # Plot the posterior distribution of the population level distribution of 
 # stochastically redrawn y_sam_sim_conditional 
 df_fit_wide_postonly %>%
-  filter(sample %% 30 == 0) %>%
+  filter(sample %% 3 == 0) %>%
   select(sample, starts_with("y_sam_sim_conditional[")) %>%
   pivot_longer(-c("sample"), names_to = "param") %>%
   mutate(value = log10(value)) %>%
   ggplot() +
   geom_histogram(data = df_sam, 
-                 aes(x = log10(y), y = after_stat(density)), 
-                 bins = 60) +
+                 aes(#x = y,
+                     x = log10(y),
+                     y = after_stat(density)), 
+                 bins = 100) +
   geom_density(aes(value, group = sample), alpha = 0.01) +
   coord_cartesian(expand = F) +
   scale_x_continuous(limits = c(-3, 1)) +
-  labs(x = "log10(OD value)",
+  labs(#x = "OD value",
+       x = "log10(OD value)",
        y = "probability density") +
   NULL 
+#ggsave("~/enable/enable_retrodictive_check_linear.pdf", height = 4, width = 6)
+ggsave("~/enable/enable_retrodictive_check_logarithmic.pdf", height = 4, width = 6)
 
 # Plot the posterior distribution of the population level distribution of 
 # stochastically redrawn y_sam_sim_unconditional 
 df_fit_wide_postonly %>%
-  filter(sample %% 100 == 0) %>%
+  filter(sample %% 30 == 0) %>%
+  #filter(sample == 1000 ) %>%
   select(sample, starts_with("y_sam_sim_unconditional[")) %>%
   pivot_longer(-c("sample"), names_to = "param") %>%
   tidyr::extract(param, 
@@ -305,16 +322,56 @@ df_fit_wide_postonly %>%
                  regex = "y_sam_sim_unconditional\\[([0-9]+)\\]") %>%
   mutate(which_sam_rep = as.integer(which_sam_rep)) %>%
   left_join(df_sam, by = "which_sam_rep") %>%
-  mutate(value = log10(value)) %>%
+  #mutate(value = log10(value)) %>%
   ggplot() +
-  geom_density(aes(value, group = sample), alpha = 0.01) +
-  geom_histogram(data = df_sam, 
-                 aes(x = log10(y), y = after_stat(density)),
-                 col = "blue", fill = NA,
-                 bins = 60) +
+  #geom_density(aes(value, group = sample), alpha = 0.01) +
+  #geom_histogram(aes(value, y = after_stat(density)), fill = NA, col = "black", alpha = 0.2, bins = 100) +
+  geom_step(aes(x = value,
+                y = after_stat(density),
+                group = sample),
+            stat="bin",
+            fill="white", color="black",
+            bins = 100,
+            alpha = 0.1) +
+  geom_step(data = df_sam,
+            aes(x = y,
+                y = after_stat(density)),
+            stat="bin",
+            bins = 100,
+            fill="white", color="blue") +
   coord_cartesian(expand = F) +
-  scale_x_continuous(limits = c(-3, 1)) +
+  scale_x_continuous(limits = c(-0.2, 3)) +
   labs(x = "log10(OD value)",
        y = "probability density") +
   NULL 
+ggsave("~/enable/enable_retrodictive_check_linear.pdf", height = 4, width = 6)
 
+# Plot plate-level random effects on the stochastic noise in OD values
+if (data_was_simulated) {
+  df_fit_wide_postonly %>%
+    select(sample, starts_with("y_obs_sd_min_multiplier_per_plate")) %>%
+    pivot_longer(-sample, names_to = "param") %>%
+    tidyr::extract(param, 
+                   into = "plate_int", 
+                   regex = "y_obs_sd_min_multiplier_per_plate\\[([0-9]+)\\]") %>%
+    mutate(plate_int = as.integer(plate_int)) %>%
+    ggplot() +
+    geom_violin(aes(as.factor(plate_int), log10(value))) +
+    geom_point(data = df_plate,
+               aes(plate_int, log10(y_obs_sd_min_multiplier_per_plate))) +
+    labs(x = "plate index",
+         y = "OD stochastic noise multiplier for lower asymptote")
+  df_fit_wide_postonly %>%
+    select(sample, starts_with("y_obs_sd_jump_multiplier_per_plate")) %>%
+    pivot_longer(-sample, names_to = "param") %>%
+    tidyr::extract(param, 
+                   into = "plate_int", 
+                   regex = "y_obs_sd_jump_multiplier_per_plate\\[([0-9]+)\\]") %>%
+    mutate(plate_int = as.integer(plate_int)) %>%
+    ggplot() +
+    geom_violin(aes(as.factor(plate_int), log10(value))) +
+    geom_point(data = df_plate,
+               aes(plate_int, log10(y_obs_sd_jump_multiplier_per_plate))) +
+    labs(x = "plate index",
+         y = "OD stochastic noise multiplier for difference in asymptotes")
+}

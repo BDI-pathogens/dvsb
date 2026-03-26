@@ -1,16 +1,16 @@
 library(data.table)
 library(tidyverse)
 
-data_was_simulated <- FALSE
+data_was_simulated <- TRUE
 
 # INPUT ABOUT STAN ----
 
 path_here <- "~/repos/dvsb/"
 file_input_code_wrangle_real_data <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_PrepareEnable_v7.R"
 dir_stan <- "~/.cmdstan/cmdstan-2.37.0/"
-num_mc_chains <- 5
+num_mc_chains <- 4
 num_mc_iterations_posterior <- 500 # per chain, half of them warmup
-num_mc_iterations_prior <- 1000
+num_mc_iterations_prior <- 5000
 # one of: "rstan", "cmdstanr", "cmdstan". cmdstan uses cmdstanr for prior sampling.
 stan_interface <- "cmdstanr" 
 file_stan_temp <- "/Users/cwymant/foo.json" # for writing the data for cmdstan
@@ -34,12 +34,14 @@ df_priors_scalars <- tribble(
   "sigma_sd_pos_pred_vars", 0, 1,
   "sigma_mu_neg_pred_vars", 0, 2,
   "sigma_sd_neg_pred_vars", 0, 1,
-  "p_pos_binary_effects", -4, 4
+  "p_pos_binary_effects", -4, 4,
+  "y_obs_sd_min_log_shift_sd", 0, 2, 
+  "y_obs_sd_jump_log_shift_sd", 0, 2
 )
 df_priors_vectors <- tribble(
   ~param, ~lower, ~upper,
   "sigma_f_plate", c(0, 0, 0, 0), c(0.25, 0.025, 2.5, 2),
-  "f", c(0.8, -0.05, 3, 2.2), c(1.1, 0.05, 5.5, 3.8),
+  "f", c(0.8, -0.05, 2, 1.5), c(1.1, 0.05, 5, 3.8),
   "sigma_f_pred_vars", c(0, 0, 0, 0), c(0.6, 0.1, 4, 3)
 )
   
@@ -72,7 +74,7 @@ source(file_input_code_read_cmdstan)
 # GET DATA ----
 
 if (data_was_simulated) {
-  data <- simulate_data(num_plate = 2, num_sam_per_plate = 3)
+  data <- simulate_data(num_plate = 50, num_sam_per_plate = 20)
   df_sam <- data$df_sam
   df_plate <- data$df_plate
   df_cal <- data$df_cal
@@ -121,6 +123,12 @@ params_to_ignore <- c(
   "rho.2.2",
   "rho.3.3",
   "rho.4.4",
+  "rho.2.1",
+  "rho.3.1",
+  "rho.4.1",
+  "rho.3.2",
+  "rho.4.2",
+  "rho.4.3",
   "f_plate_effects_unscaled",
   "y_cal_mean_per_obs",
   "y_cal_mean_per_obs",
@@ -154,6 +162,12 @@ params_to_ignore <- c(
   "rho[4,3]",
   "p_blank_log",
   "p_blank_log1m",
+  "y_obs_sd_min_log_shift_unscaled",
+  "y_obs_sd_jump_log_shift_unscaled",
+  "y_obs_sd_sam_min_per_plate",
+  "y_obs_sd_cal_min_per_plate",
+  "y_obs_sd_sam_jump_per_plate",
+  "y_obs_sd_cal_jump_per_plate",
   ".chain",
   ".iteration",
   ".draw",
@@ -165,7 +179,7 @@ params_to_ignore <- c(
   "xlog_sam_sim_unconditional"
 )
 
-# SAMPLE THE POSTERIOR AND PRIOR WITH STAN 
+# SAMPLE THE POSTERIOR AND PRIOR WITH STAN ----
 
   time <- format(Sys.time(), "%Y-%m-%d-%Hh%Mm%S")
   
