@@ -6,11 +6,13 @@ theme_set(theme_classic())
 
 # If read_files_from_stan=FALSE, you must run dvsb_do_stan.R first to define
 # the required variables in your current R session's memory.
-read_files_from_stan <- FALSE
+read_files_from_stan <- TRUE
 #files_from_stan_basename <- "/Users/cwymant/enable/samples_full_run_2026-03-23-11h59m48" # baseline data downsampled by 2
 #files_from_stan_basename <- "/Users/cwymant/enable/samples_full_run_2026-03-23-16h51m56" 
-files_from_stan_basename <- "/Users/cwymant/enable/samples_full_run_2026-03-25-18h04m08" 
-downsampling_factor_posterior <- 1L
+#files_from_stan_basename <- "/Users/cwymant/enable/samples_full_run_2026-03-25-18h04m08" 
+files_from_stan_basename <- "/Users/cwymant/enable/samples_full_run_2026-03-26-20h28m32" # latest run on all baseline
+#files_from_stan_basename <- "/Users/cwymant/enable/samples_full_run_2026-04-08-19h50m36" # without covariates
+downsampling_factor_posterior <- 2L
 downsampling_factor_prior <- 1L
 
 path_here <- "~/repos/dvsb/"
@@ -180,8 +182,10 @@ inner_join(df_prob_pos,
 inner_join(df_sam_x, df_prob_pos, by = "id_sam_int") %>%
   ggplot() +
   geom_point(aes(x_q_0.5, prob_pos_q_0.5)) +
-  labs(x = "Estimated concentration",
+  labs(x = "Estimated log Ab concentration",
        y = "Estimated probability of being positive") 
+ggsave("~/enable/enable_prob_positive_vs_Ab.pdf", height = 10, width = 10)
+
 
 # Plot cal data by plate  
 ggplot() +
@@ -232,7 +236,7 @@ p
 # Plot P(x | pos), P(x | neg), P(x), P(pos | x) again but now with logx
 xlogs_plot <- log(10) * -90:60 / 30
 df_xlog_distributions <- df_fit_wide_postonly %>%
-  filter(sample %% 100 == 0) %>%
+  filter(sample %% 10 == 0) %>%
   select("sample", "mu_pos", "sd_pos",
          "mu_neg", "sd_neg", "p_pos") %>%
   full_join(tibble(xlog = xlogs_plot,
@@ -272,7 +276,7 @@ p
 # estimates of x_sam and the posterior distribution of the parametric
 # pop-level distribution of x_sam
 df_fit_wide_postonly %>%
-  filter(sample %% 20 == 0) %>%
+  filter(sample %% 10 == 0) %>%
   select(sample, starts_with("xlog_sam[")) %>%
   pivot_longer(-c("sample"), names_to = "param") %>%
   mutate(value = exp(value)) %>%
@@ -290,17 +294,27 @@ df_fit_wide_postonly %>%
 # Plot the posterior distribution of the population level distribution of 
 # stochastically redrawn y_sam_sim_conditional 
 df_fit_wide_postonly %>%
-  filter(sample %% 3 == 0) %>%
+  filter(sample %% 10 == 0) %>%
   select(sample, starts_with("y_sam_sim_conditional[")) %>%
   pivot_longer(-c("sample"), names_to = "param") %>%
   mutate(value = log10(value)) %>%
   ggplot() +
-  geom_histogram(data = df_sam, 
+ geom_step(aes(x = value,
+                y = after_stat(density),
+                group = sample),
+            stat="bin",
+            fill="white", color="black",
+            bins = 50,
+            alpha = 0.1) +
+  geom_step(data = df_sam, 
                  aes(#x = y,
                      x = log10(y),
-                     y = after_stat(density)), 
-                 bins = 100) +
-  geom_density(aes(value, group = sample), alpha = 0.01) +
+                     y = after_stat(density)
+                     ), 
+            stat="bin",
+            bins = 50,
+            fill = "white",
+            col = "blue") +
   coord_cartesian(expand = F) +
   scale_x_continuous(limits = c(-3, 1)) +
   labs(#x = "OD value",
@@ -322,7 +336,7 @@ df_fit_wide_postonly %>%
                  regex = "y_sam_sim_unconditional\\[([0-9]+)\\]") %>%
   mutate(which_sam_rep = as.integer(which_sam_rep)) %>%
   left_join(df_sam, by = "which_sam_rep") %>%
-  #mutate(value = log10(value)) %>%
+  mutate(value = log10(value)) %>%
   ggplot() +
   #geom_density(aes(value, group = sample), alpha = 0.01) +
   #geom_histogram(aes(value, y = after_stat(density)), fill = NA, col = "black", alpha = 0.2, bins = 100) +
@@ -334,44 +348,72 @@ df_fit_wide_postonly %>%
             bins = 100,
             alpha = 0.1) +
   geom_step(data = df_sam,
-            aes(x = y,
+            aes(x = log10(y), # y,
                 y = after_stat(density)),
             stat="bin",
             bins = 100,
             fill="white", color="blue") +
   coord_cartesian(expand = F) +
-  scale_x_continuous(limits = c(-0.2, 3)) +
+  #scale_x_continuous(limits = c(-0.2, 3)) +
   labs(x = "log10(OD value)",
        y = "probability density") +
   NULL 
 ggsave("~/enable/enable_retrodictive_check_linear.pdf", height = 4, width = 6)
 
 # Plot plate-level random effects on the stochastic noise in OD values
+quantiles <- c(0.025, 0.5, 0.975)
+p <- df_fit_wide_postonly %>%
+  select(sample, starts_with("y_obs_sd_min_multiplier_per_plate")) %>%
+  pivot_longer(-sample, names_to = "param") %>%
+  tidyr::extract(param, 
+                 into = "plate_int", 
+                 regex = "y_obs_sd_min_multiplier_per_plate\\[([0-9]+)\\]") %>%
+  mutate(plate_int = as.integer(plate_int)) %>%
+  filter(plate_int %% 5 == 0) %>%
+  group_by(plate_int) %>%
+  reframe(value = quantile(value, probs = quantiles),
+          quantile = quantiles) %>%
+  pivot_wider(names_from = quantile, names_prefix = "multiplier_q_") %>%
+  mutate(plate_int = as.factor(plate_int),
+         plate_int = fct_reorder(plate_int, multiplier_q_0.5)) %>%
+  ggplot() +
+  #geom_violin(aes(plate_int, value)) +
+  geom_errorbar(aes(plate_int, ymin = multiplier_q_0.025, ymax = multiplier_q_0.975)) +
+  geom_point(aes(plate_int, multiplier_q_0.5)) +
+  scale_y_log10() +
+  labs(x = "plate index",
+       y = "OD stochastic noise multiplier for lower asymptote")
 if (data_was_simulated) {
-  df_fit_wide_postonly %>%
-    select(sample, starts_with("y_obs_sd_min_multiplier_per_plate")) %>%
-    pivot_longer(-sample, names_to = "param") %>%
-    tidyr::extract(param, 
-                   into = "plate_int", 
-                   regex = "y_obs_sd_min_multiplier_per_plate\\[([0-9]+)\\]") %>%
-    mutate(plate_int = as.integer(plate_int)) %>%
-    ggplot() +
-    geom_violin(aes(as.factor(plate_int), log10(value))) +
-    geom_point(data = df_plate,
-               aes(plate_int, log10(y_obs_sd_min_multiplier_per_plate))) +
-    labs(x = "plate index",
-         y = "OD stochastic noise multiplier for lower asymptote")
-  df_fit_wide_postonly %>%
+p <- p + 
+  geom_point(data = df_plate,
+             aes(plate_int, y_obs_sd_min_multiplier_per_plate)) 
+}
+p
+p <- df_fit_wide_postonly %>%
     select(sample, starts_with("y_obs_sd_jump_multiplier_per_plate")) %>%
     pivot_longer(-sample, names_to = "param") %>%
     tidyr::extract(param, 
                    into = "plate_int", 
                    regex = "y_obs_sd_jump_multiplier_per_plate\\[([0-9]+)\\]") %>%
     mutate(plate_int = as.integer(plate_int)) %>%
-    ggplot() +
-    geom_violin(aes(as.factor(plate_int), log10(value))) +
-    geom_point(data = df_plate,
-               aes(plate_int, log10(y_obs_sd_jump_multiplier_per_plate))) +
+  filter(plate_int %% 10 == 0) %>%
+  group_by(plate_int) %>%
+  reframe(value = quantile(value, probs = quantiles),
+          quantile = quantiles) %>%
+  pivot_wider(names_from = quantile, names_prefix = "multiplier_q_") %>%
+  mutate(plate_int = as.factor(plate_int),
+         plate_int = fct_reorder(plate_int, multiplier_q_0.5)) %>%
+  ggplot() +
+  #geom_violin(aes(plate_int, value)) +
+  geom_errorbar(aes(plate_int, ymin = multiplier_q_0.025, ymax = multiplier_q_0.975)) +
+  geom_point(aes(plate_int, multiplier_q_0.5)) +
+  scale_y_log10(expand = c(0,0)) +
     labs(x = "plate index",
-         y = "OD stochastic noise multiplier for difference in asymptotes")
+         y = "OD stochastic noise multiplier\nfor difference in asymptotes")
+if (data_was_simulated) {
+  p <- p +
+    geom_point(data = df_plate,
+               aes(plate_int, y_obs_sd_jump_multiplier_per_plate))
 }
+p
+ggsave("~/enable/enable_plate_effects_on_noise.pdf", height = 4, width = 10)
