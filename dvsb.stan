@@ -420,6 +420,7 @@ generated quantities {
   // (un)conditional refers to that sam's observed y values.
   // We always condition on population-level parameters and any x mix pred vars.
   array[num_sam_rep] real y_sam_sim_conditional;
+  array[num_sam_id] int pos_sam_sim_unconditional;
   vector[num_sam_id] xlog_sam_sim_unconditional;
   vector[num_sam_rep]   y_sam_sim_unconditional;
   profile("simulation") {
@@ -436,8 +437,9 @@ generated quantities {
     //}
   //}
   
+  pos_sam_sim_unconditional = bernoulli_rng(p_pos_per_sam_id);
   for (sam_id in 1:num_sam_id) {
-    if (bernoulli_rng(p_pos_per_sam_id[sam_id])) {
+    if (pos_sam_sim_unconditional[sam_id]) {
       xlog_sam_sim_unconditional[sam_id] = 
       normal_rng(mu_pos_per_sam_id[sam_id], sd_pos_per_sam_id[sam_id]);
     } else {
