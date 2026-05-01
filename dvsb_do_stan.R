@@ -1,18 +1,18 @@
 library(data.table)
 library(tidyverse)
 
-data_was_simulated <- TRUE
+data_was_simulated <- FALSE
 
 # INPUT ABOUT STAN ----
 
 path_here <- "~/repos/dvsb/"
-file_input_code_wrangle_real_data <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_PrepareEnable_v7.R"
+file_input_code_wrangle_real_data <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_PrepareEnable_v8.R"
 dir_stan <- "~/.cmdstan/cmdstan-2.37.0/"
 num_mc_chains <- 4
-num_mc_iterations_posterior <- 500 # per chain, half of them warmup
+num_mc_iterations_posterior <- 2000 # per chain, half of them warmup
 num_mc_iterations_prior <- 5000
 # one of: "rstan", "cmdstanr", "cmdstan". cmdstan uses cmdstanr for prior sampling.
-stan_interface <- "cmdstanr" 
+stan_interface <- "cmdstan" 
 file_stan_temp <- "/Users/cwymant/foo.json" # for writing the data for cmdstan
 file_out_stan_basename <- "/Users/cwymant/enable/samples_full_run_"
 
@@ -27,15 +27,15 @@ df_priors_scalars <- tribble(
   "p_blank", 0, 0.05,
   "y_obs_sd_cal_min", 0, 0.015,
   "y_obs_sd_cal_jump", 0.1, 1,
-  "y_obs_sd_sam_min", 0, 0.03,
-  "y_obs_sd_sam_jump", 0.1, 1,
+  "y_obs_sd_sam_min", 0, 0.06,
+  "y_obs_sd_sam_jump", 0.1, 2,
   "sigma_p_pos_pred_vars", 0, 3,
   "sigma_mu_pos_pred_vars", 0, 2,
   "sigma_sd_pos_pred_vars", 0, 1,
   "sigma_mu_neg_pred_vars", 0, 2,
   "sigma_sd_neg_pred_vars", 0, 1,
   "p_pos_binary_effects", -4, 4,
-  "y_obs_sd_min_log_shift_sd", 0, 2, 
+  "y_obs_sd_min_log_shift_sd", 0, 3, 
   "y_obs_sd_jump_log_shift_sd", 0, 2
 )
 df_priors_vectors <- tribble(
@@ -74,7 +74,7 @@ source(file_input_code_read_cmdstan)
 # GET DATA ----
 
 if (data_was_simulated) {
-  data <- simulate_data(num_plate = 50, num_sam_per_plate = 20)
+  data <- simulate_data(num_plate = 100, num_sam_per_plate = 20)
   df_sam <- data$df_sam
   df_plate <- data$df_plate
   df_cal <- data$df_cal
@@ -180,6 +180,14 @@ params_to_ignore <- c(
 )
 
 # SAMPLE THE POSTERIOR AND PRIOR WITH STAN ----
+
+# Manually write the cmdstan json input files and save image now if desired 
+# (if skipping the running of stan here, to do it elsewhere)
+sites_string <- paste(unique(df_sam$site_), collapse = "_")
+cmdstanr::write_stan_json(data_wrangled$stan_input_posterior, file = paste0("~/enable_input_posterior_", sites_string, ".json"))
+cmdstanr::write_stan_json(data_wrangled$stan_input_prior, file = paste0("~/enable_input_prior_", sites_string, ".json"))
+save.image(paste0("~/enable_", sites_string, ".RData"))
+# Then restart your R session to ensure the image has only what's wanted
 
   time <- format(Sys.time(), "%Y-%m-%d-%Hh%Mm%S")
   
