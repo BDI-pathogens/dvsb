@@ -34,6 +34,6 @@ read_cmdstan_out_files <- function(file_paths,
       df_ <- df_[seq(1, .N, by = downsampling_factor)] 
     }
     df_
-  }) %>% data.table::rbindlist()
+  }) %>% data.table::rbindlist(use.names = TRUE)
 
 }
