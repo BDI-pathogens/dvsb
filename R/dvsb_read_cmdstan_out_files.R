@@ -1,6 +1,7 @@
 read_cmdstan_out_files <- function(file_paths,
                                    params_to_ignore = character(),
                                    downsampling_factor = 1L,
+                                   comment_lines = TRUE,
                                    verbose = TRUE) {
   
   stopifnot(is.character(file_paths))
@@ -14,12 +15,16 @@ read_cmdstan_out_files <- function(file_paths,
       print(Sys.time())
       cat("Now reading file", file_, "\n")
     }
-    if (endsWith(file_, "gz")) {
-      cmd <- paste("gunzip -c", file_, "| grep -v '^#'")
+    if (comment_lines) {
+      if (endsWith(file_, "gz")) {
+        cmd <- paste("gunzip -c", file_, "| grep -v '^#'")
+      } else {
+        cmd <- paste("grep -v '^#'", file_)
+      }
+      df_ <- data.table::fread(cmd = cmd)
     } else {
-      cmd <- paste("grep -v '^#'", file_)
+      df_ <- data.table::fread(file_)
     }
-    df_ <- data.table::fread(cmd = cmd)
     if (length(params_to_ignore)) {
       keep_col <- rep(TRUE, ncol(df_))
       for (param in params_to_ignore) {
