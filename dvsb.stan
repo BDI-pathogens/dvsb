@@ -337,19 +337,19 @@ transformed parameters{
   }
   }
   
-  //vector[num_sam_rep] y_sam_loglik_per_obs_from_blank;
-  //vector[num_sam_rep] y_sam_loglik_per_obs_from_notblank;
+  vector[num_sam_rep] y_sam_loglik_per_obs_from_blank;
+  vector[num_sam_rep] y_sam_loglik_per_obs_from_notblank;
   vector[num_sam_rep] y_sam_loglik_per_obs;
   profile("likelihood_sam") {
   for (sam_rep in 1:num_sam_rep) {
     int plate = which_plate_sam[sam_rep];
-    real y_sam_loglik_per_obs_from_blank = p_blank_log + normal_lpdf(
+    y_sam_loglik_per_obs_from_blank[sam_rep] = p_blank_log + normal_lpdf(
     y_sam[sam_rep] | f_per_plate[which_plate_sam[sam_rep], 2], y_obs_sd_sam_min_per_plate[plate]);
-    real y_sam_loglik_per_obs_from_notblank = p_blank_log1m + normal_lpdf(
+    y_sam_loglik_per_obs_from_notblank[sam_rep] = p_blank_log1m + normal_lpdf(
     y_sam[sam_rep] | y_sam_mean_per_obs[sam_rep], y_obs_sd_sam[sam_rep]);
     y_sam_loglik_per_obs[sam_rep] =
-    log_sum_exp(y_sam_loglik_per_obs_from_blank,
-    y_sam_loglik_per_obs_from_notblank);
+    log_sum_exp(y_sam_loglik_per_obs_from_blank[sam_rep],
+    y_sam_loglik_per_obs_from_notblank[sam_rep]);
   }
   }
   
@@ -423,19 +423,18 @@ generated quantities {
   array[num_sam_id] int pos_sam_sim_unconditional;
   vector[num_sam_id] xlog_sam_sim_unconditional;
   vector[num_sam_rep]   y_sam_sim_unconditional;
+  array[num_sam_rep] real p_sam_rep_is_blank;
   profile("simulation") {
-      y_sam_sim_conditional = normal_rng(y_sam_mean_per_obs, y_obs_sd_sam);
-  //array[num_sam_rep] real p_sam_rep_is_blank;
-  //for (sam_rep in 1:num_sam_rep) {
-    //real p_sam_rep_is_blank = exp(y_sam_loglik_per_obs_from_blank[sam_rep] - 
-    //log_sum_exp(y_sam_loglik_per_obs_from_blank[sam_rep],
-    //y_sam_loglik_per_obs_from_notblank[sam_rep]));
-    //if (bernoulli_rng(p_sam_rep_is_blank)) {
-    //  y_sam_sim[sam_rep] = normal_rng(f_per_plate[which_plate_sam[sam_rep], 2], y_obs_sd_sam_min);
-    //} else {
-    //  y_sam_sim[sam_rep] = normal_rng(y_sam_mean_per_obs[sam_rep], y_obs_sd_sam[sam_rep]);
-    //}
-  //}
+  for (sam_rep in 1:num_sam_rep) {
+    p_sam_rep_is_blank[sam_rep] = exp(y_sam_loglik_per_obs_from_blank[sam_rep] - 
+    log_sum_exp(y_sam_loglik_per_obs_from_blank[sam_rep],
+    y_sam_loglik_per_obs_from_notblank[sam_rep]));
+    if (bernoulli_rng(p_sam_rep_is_blank[sam_rep])) {
+      y_sam_sim_conditional[sam_rep] = normal_rng(f_per_plate[which_plate_sam[sam_rep], 2], y_obs_sd_sam_min);
+    } else {
+      y_sam_sim_conditional[sam_rep] = normal_rng(y_sam_mean_per_obs[sam_rep], y_obs_sd_sam[sam_rep]);
+    }
+  }
   
   pos_sam_sim_unconditional = bernoulli_rng(p_pos_per_sam_id);
   for (sam_id in 1:num_sam_id) {
