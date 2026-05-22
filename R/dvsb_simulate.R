@@ -54,7 +54,7 @@ sd_neg <- 1
 mu_pos <- 0.8
 sd_pos <- 1.1
 p_pos <- 0.5
-p_blank <- 0.03
+p_blank <- 0
 
 # The four parameters of the logistic regression (f_1, f_2, f_3, f_4)
 # which control the OD, y, through
@@ -129,8 +129,8 @@ p_pos_binary_effects <- c("boolA" = -2,
                           "boolB" = 0,
                           "boolC" = 2)
 
-y_obs_sd_min_log_shift_sd <- 1
-y_obs_sd_jump_log_shift_sd <- 0.5
+y_obs_sd_min_log_shift_sd <- 0
+y_obs_sd_jump_log_shift_sd <- 0
 
 # INPUT CHECKS ----
 
@@ -300,16 +300,24 @@ for (f_pred_var in f_pred_vars_names) {
 df_plate <- df_plate %>%
   unnest_wider(f, names_sep = "_")
 
+y_obs_sd_min_multiplier_per_plate_unscaled <- rnorm(num_plate)
+y_obs_sd_min_multiplier_per_plate_unscaled <-
+  y_obs_sd_min_multiplier_per_plate_unscaled -
+  mean(y_obs_sd_min_multiplier_per_plate_unscaled)
+y_obs_sd_jump_multiplier_per_plate_unscaled <- rnorm(num_plate)
+y_obs_sd_jump_multiplier_per_plate_unscaled <-
+  y_obs_sd_jump_multiplier_per_plate_unscaled -
+  mean(y_obs_sd_jump_multiplier_per_plate_unscaled)
 df_plate <- df_plate %>%
   mutate(y_obs_sd_min_multiplier_per_plate =
-           exp(rnorm(num_plate) * 
+           exp(y_obs_sd_min_multiplier_per_plate_unscaled * 
                  y_obs_sd_min_log_shift_sd - y_obs_sd_min_log_shift_sd^2 / 2),
          y_obs_sd_jump_multiplier_per_plate =
-           exp(rnorm(num_plate) * 
+           exp(y_obs_sd_jump_multiplier_per_plate_unscaled * 
                  y_obs_sd_jump_log_shift_sd - y_obs_sd_jump_log_shift_sd^2 / 2),
-         y_obs_sd_cal_min = y_obs_sd_cal_min * y_obs_sd_min_multiplier_per_plate,
+         y_obs_sd_cal_min  = y_obs_sd_cal_min  * y_obs_sd_min_multiplier_per_plate,
          y_obs_sd_cal_jump = y_obs_sd_cal_jump * y_obs_sd_jump_multiplier_per_plate,
-         y_obs_sd_sam_min = y_obs_sd_sam_min * y_obs_sd_min_multiplier_per_plate,
+         y_obs_sd_sam_min  = y_obs_sd_sam_min  * y_obs_sd_min_multiplier_per_plate,
          y_obs_sd_sam_jump = y_obs_sd_sam_jump * y_obs_sd_jump_multiplier_per_plate)
 
 # Label plates for plotting
