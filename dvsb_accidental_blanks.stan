@@ -62,11 +62,6 @@ data {
   real<lower = y_obs_sd_sam_min_lower> y_obs_sd_sam_min_upper;
   real y_obs_sd_sam_jump_lower;
   real<lower = y_obs_sd_sam_jump_lower> y_obs_sd_sam_jump_upper;
-  real<lower = 0> y_obs_sd_min_log_shift_sd_lower;
-  real<lower = y_obs_sd_min_log_shift_sd_lower> y_obs_sd_min_log_shift_sd_upper;
-  real<lower = 0> y_obs_sd_jump_log_shift_sd_lower;
-  real<lower = y_obs_sd_jump_log_shift_sd_lower> y_obs_sd_jump_log_shift_sd_upper;
-
   
   real mu_neg_lower;
   real<lower = mu_neg_lower> mu_neg_upper;
@@ -152,9 +147,7 @@ parameters {
   real<lower = y_obs_sd_cal_jump_lower, upper = y_obs_sd_cal_jump_upper> y_obs_sd_cal_jump;
   real<lower = y_obs_sd_sam_min_lower,  upper = y_obs_sd_sam_min_upper>  y_obs_sd_sam_min;
   real<lower = y_obs_sd_sam_jump_lower, upper = y_obs_sd_sam_jump_upper> y_obs_sd_sam_jump;
-  real<lower = y_obs_sd_min_log_shift_sd_lower, upper = y_obs_sd_min_log_shift_sd_upper> y_obs_sd_min_log_shift_sd;
-  real<lower = y_obs_sd_jump_log_shift_sd_lower, upper = y_obs_sd_jump_log_shift_sd_upper> y_obs_sd_jump_log_shift_sd;
-  
+
   // Enforce that mu_pos > mu_neg
   real<lower = max([mu_pos_lower, mu_neg]), upper = mu_pos_upper> mu_pos;
 
@@ -173,8 +166,6 @@ parameters {
   mu_pos_effects_by_pred_var_cat_unscaled;
   vector<upper = (mu_pos - mu_neg) / (2 * sigma_mu_neg_pred_vars[1])>[tot_cat_per_mu_neg_pred_var]
   mu_neg_effects_by_pred_var_cat_unscaled;
-  vector[num_plate] y_obs_sd_min_log_shift_unscaled;
-  vector[num_plate] y_obs_sd_jump_log_shift_unscaled;
 }
 
 transformed parameters{
@@ -204,23 +195,6 @@ transformed parameters{
   }
   
   vector[num_plate] f_3_min_f_2_per_plate = f_per_plate[, 3] - f_per_plate[, 2];
-  
-  // Make the y_obs_sd parameters (in cal/sam and min/jump varieties) vary by
-  // plate. They're multiplied by lognormally distributed plate-level random
-  // effects that have mean 1 on the linear scale (rather than mean 0 on the log
-  // scale).
-  vector[num_plate] y_obs_sd_min_multiplier_per_plate = 
-  exp(y_obs_sd_min_log_shift_unscaled * y_obs_sd_min_log_shift_sd - y_obs_sd_min_log_shift_sd^2 / 2);
-  vector[num_plate] y_obs_sd_jump_multiplier_per_plate = 
-  exp(y_obs_sd_jump_log_shift_unscaled * y_obs_sd_jump_log_shift_sd - y_obs_sd_jump_log_shift_sd^2 / 2);
-  vector[num_plate] y_obs_sd_sam_min_per_plate = rep_vector(y_obs_sd_sam_min, num_plate)
-  .* y_obs_sd_min_multiplier_per_plate;
-  vector[num_plate] y_obs_sd_cal_min_per_plate = rep_vector(y_obs_sd_cal_min, num_plate)
-  .* y_obs_sd_min_multiplier_per_plate;
-  vector[num_plate] y_obs_sd_sam_jump_per_plate = rep_vector(y_obs_sd_sam_jump, num_plate)
-  .* y_obs_sd_jump_multiplier_per_plate;
-  vector[num_plate] y_obs_sd_cal_jump_per_plate = rep_vector(y_obs_sd_cal_jump, num_plate)
-  .* y_obs_sd_jump_multiplier_per_plate;
 
   vector[tot_cat_per_p_pos_pred_var]  p_pos_effects_by_pred_var_cat;
   vector[tot_cat_per_sd_pos_pred_var] sd_pos_effects_by_pred_var_cat;
@@ -324,7 +298,7 @@ transformed parameters{
       (1 + exp(-f_per_plate[plate, 1] * (xlog_cal[cal_rep] - f_per_plate[plate, 4])));
       y_cal_mean_per_obs[cal_rep] =
       f_per_plate[plate, 2] + f_3_min_f_2_per_plate[plate] / denominator;
-      y_obs_sd_cal[cal_rep] = y_obs_sd_cal_min_per_plate[plate] + y_obs_sd_cal_jump_per_plate[plate] / denominator;
+      y_obs_sd_cal[cal_rep] = y_obs_sd_cal_min + y_obs_sd_cal_jump / denominator;
     }
   }
   for (sam_rep in 1:num_sam_rep) {
@@ -333,7 +307,7 @@ transformed parameters{
     y_sam_mean_per_obs[sam_rep] =
     f_per_plate[plate, 2] + f_3_min_f_2_per_plate[plate] / denominator;
     y_obs_sd_sam[sam_rep] =
-    y_obs_sd_sam_min_per_plate[plate] + y_obs_sd_sam_jump_per_plate[plate] / denominator;
+    y_obs_sd_sam_min + y_obs_sd_sam_jump / denominator;
   }
   }
   
@@ -344,7 +318,7 @@ transformed parameters{
   for (sam_rep in 1:num_sam_rep) {
     int plate = which_plate_sam[sam_rep];
     y_sam_loglik_per_obs_from_blank[sam_rep] = p_blank_log + normal_lpdf(
-    y_sam[sam_rep] | f_per_plate[which_plate_sam[sam_rep], 2], y_obs_sd_sam_min_per_plate[plate]);
+    y_sam[sam_rep] | f_per_plate[which_plate_sam[sam_rep], 2], y_obs_sd_sam_min);
     y_sam_loglik_per_obs_from_notblank[sam_rep] = p_blank_log1m + normal_lpdf(
     y_sam[sam_rep] | y_sam_mean_per_obs[sam_rep], y_obs_sd_sam[sam_rep]);
     y_sam_loglik_per_obs[sam_rep] =
@@ -358,9 +332,7 @@ transformed parameters{
   vector[num_plate] logprob_f_effects_per_plate;
   for (plate in 1:num_plate) {
     logprob_f_effects_per_plate[plate] =
-    multi_normal_lpdf(f_plate_effects_unscaled[plate] | zeros_4, rho) +
-    normal_lpdf(y_obs_sd_min_log_shift_unscaled[plate] | 0, 1) +
-    normal_lpdf(y_obs_sd_jump_log_shift_unscaled[plate] | 0, 1);
+    multi_normal_lpdf(f_plate_effects_unscaled[plate] | zeros_4, rho);
   }
   for (cal_rep in 1:num_cal_tot) {
     if (x_cal_is_zero[cal_rep]) {
@@ -450,13 +422,13 @@ generated quantities {
     int plate = which_plate_sam[sam_rep];
     if (bernoulli_rng(p_blank)) {
       y_sam_sim_unconditional[sam_rep] = normal_rng(
-      f_per_plate[which_plate_sam[sam_rep], 2], y_obs_sd_sam_min_per_plate[plate]);
+      f_per_plate[which_plate_sam[sam_rep], 2], y_obs_sd_sam_min);
     } else {
       real denominator = (1 + exp(-f_per_plate[plate, 1] *
       (xlog_sam_sim_unconditional[which_id_sam[sam_rep]] - f_per_plate[plate, 4])));
       y_sam_sim_unconditional[sam_rep] = normal_rng(
         f_per_plate[plate, 2] + f_3_min_f_2_per_plate[plate] / denominator,
-        y_obs_sd_sam_min_per_plate[plate] + y_obs_sd_sam_jump_per_plate[plate] / denominator);
+        y_obs_sd_sam_min + y_obs_sd_sam_jump / denominator);
     }
   }
   }
