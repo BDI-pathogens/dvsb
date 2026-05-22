@@ -81,6 +81,8 @@ data {
 
   real p_pos_lower;
   real<lower = p_pos_lower> p_pos_upper;
+  real p_blank_lower;
+  real<lower = p_blank_lower> p_blank_upper;
   real rho_prior_eta;
   
 }
@@ -145,6 +147,7 @@ parameters {
   real<lower = sd_neg_lower, upper = sd_neg_upper> sd_neg;
   real<lower = sd_pos_lower, upper = sd_pos_upper> sd_pos;
   real<lower = p_pos_lower,    upper = p_pos_upper>    p_pos;
+  real<lower = p_blank_lower,  upper = p_blank_upper>  p_blank;
   real<lower = y_obs_sd_cal_min_lower,  upper = y_obs_sd_cal_min_upper>  y_obs_sd_cal_min;
   real<lower = y_obs_sd_cal_jump_lower, upper = y_obs_sd_cal_jump_upper> y_obs_sd_cal_jump;
   real<lower = y_obs_sd_sam_min_lower,  upper = y_obs_sd_sam_min_upper>  y_obs_sd_sam_min;
@@ -175,6 +178,9 @@ parameters {
 }
 
 transformed parameters{
+  
+  real p_blank_log   = log(  p_blank);
+  real p_blank_log1m = log1m(p_blank);
   
   matrix[tot_cat_per_f_pred_var, 4] f_effects_by_pred_var_cat;
   {
@@ -331,11 +337,19 @@ transformed parameters{
   }
   }
   
+  vector[num_sam_rep] y_sam_loglik_per_obs_from_blank;
+  vector[num_sam_rep] y_sam_loglik_per_obs_from_notblank;
   vector[num_sam_rep] y_sam_loglik_per_obs;
   profile("likelihood_sam") {
   for (sam_rep in 1:num_sam_rep) {
-    y_sam_loglik_per_obs[sam_rep] = normal_lpdf(
+    int plate = which_plate_sam[sam_rep];
+    y_sam_loglik_per_obs_from_blank[sam_rep] = p_blank_log + normal_lpdf(
+    y_sam[sam_rep] | f_per_plate[which_plate_sam[sam_rep], 2], y_obs_sd_sam_min_per_plate[plate]);
+    y_sam_loglik_per_obs_from_notblank[sam_rep] = p_blank_log1m + normal_lpdf(
     y_sam[sam_rep] | y_sam_mean_per_obs[sam_rep], y_obs_sd_sam[sam_rep]);
+    y_sam_loglik_per_obs[sam_rep] =
+    log_sum_exp(y_sam_loglik_per_obs_from_blank[sam_rep],
+    y_sam_loglik_per_obs_from_notblank[sam_rep]);
   }
   }
   
@@ -409,9 +423,18 @@ generated quantities {
   array[num_sam_id] int pos_sam_sim_unconditional;
   vector[num_sam_id] xlog_sam_sim_unconditional;
   vector[num_sam_rep]   y_sam_sim_unconditional;
+  array[num_sam_rep] real p_sam_rep_is_blank;
   profile("simulation") {
-  
-  y_sam_sim_conditional = normal_rng(y_sam_mean_per_obs, y_obs_sd_sam);
+  for (sam_rep in 1:num_sam_rep) {
+    p_sam_rep_is_blank[sam_rep] = exp(y_sam_loglik_per_obs_from_blank[sam_rep] - 
+    log_sum_exp(y_sam_loglik_per_obs_from_blank[sam_rep],
+    y_sam_loglik_per_obs_from_notblank[sam_rep]));
+    if (bernoulli_rng(p_sam_rep_is_blank[sam_rep])) {
+      y_sam_sim_conditional[sam_rep] = normal_rng(f_per_plate[which_plate_sam[sam_rep], 2], y_obs_sd_sam_min);
+    } else {
+      y_sam_sim_conditional[sam_rep] = normal_rng(y_sam_mean_per_obs[sam_rep], y_obs_sd_sam[sam_rep]);
+    }
+  }
   
   pos_sam_sim_unconditional = bernoulli_rng(p_pos_per_sam_id);
   for (sam_id in 1:num_sam_id) {
@@ -425,11 +448,16 @@ generated quantities {
   }
   for (sam_rep in 1:num_sam_rep) {
     int plate = which_plate_sam[sam_rep];
-    real denominator = (1 + exp(-f_per_plate[plate, 1] *
-    (xlog_sam_sim_unconditional[which_id_sam[sam_rep]] - f_per_plate[plate, 4])));
-    y_sam_sim_unconditional[sam_rep] = normal_rng(
-      f_per_plate[plate, 2] + f_3_min_f_2_per_plate[plate] / denominator,
-      y_obs_sd_sam_min_per_plate[plate] + y_obs_sd_sam_jump_per_plate[plate] / denominator);
+    if (bernoulli_rng(p_blank)) {
+      y_sam_sim_unconditional[sam_rep] = normal_rng(
+      f_per_plate[which_plate_sam[sam_rep], 2], y_obs_sd_sam_min_per_plate[plate]);
+    } else {
+      real denominator = (1 + exp(-f_per_plate[plate, 1] *
+      (xlog_sam_sim_unconditional[which_id_sam[sam_rep]] - f_per_plate[plate, 4])));
+      y_sam_sim_unconditional[sam_rep] = normal_rng(
+        f_per_plate[plate, 2] + f_3_min_f_2_per_plate[plate] / denominator,
+        y_obs_sd_sam_min_per_plate[plate] + y_obs_sd_sam_jump_per_plate[plate] / denominator);
+    }
   }
   }
 
