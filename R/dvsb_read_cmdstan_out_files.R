@@ -38,6 +38,10 @@ read_cmdstan_out_files <- function(file_paths,
     if (downsampling_factor > 1L) {
       df_ <- df_[seq(1, .N, by = downsampling_factor)] 
     }
+    chain <- stringr::str_match(file_, "chain_([0-9+])")[,2]
+    if (!is.na(chain)) {
+      df_[, chain := as.integer(chain)]
+    }
     df_
   }) %>% data.table::rbindlist(use.names = TRUE)
 
