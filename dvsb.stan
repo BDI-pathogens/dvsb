@@ -18,13 +18,13 @@ data {
   int<lower = 0> num_p_pos_pred_vars;
   array[num_p_pos_pred_vars] int<lower = 2> num_cat_per_p_pos_pred_var;
   matrix<lower = 0, upper = 1>[num_sam_id, sum(num_cat_per_p_pos_pred_var)] design_matrix_p_pos;
-  int<lower = 0, upper = 1> num_mu_pos_pred_vars; // upper = 1 for now, for non-centered parameterisation
+  int<lower = 1, upper = 1> num_mu_pos_pred_vars; // upper = 1 for now, for non-centered parameterisation
   array[num_mu_pos_pred_vars] int<lower = 2> num_cat_per_mu_pos_pred_var;
   matrix<lower = 0, upper = 1>[num_sam_id, sum(num_cat_per_mu_pos_pred_var)] design_matrix_mu_pos;
   int<lower = 0> num_sd_pos_pred_vars;
   array[num_sd_pos_pred_vars] int<lower = 2> num_cat_per_sd_pos_pred_var;
   matrix<lower = 0, upper = 1>[num_sam_id, sum(num_cat_per_sd_pos_pred_var)] design_matrix_sd_pos;
-  int<lower = 0, upper = 1> num_mu_neg_pred_vars; // upper = 1 for now, for non-centered parameterisation
+  int<lower = 1, upper = 1> num_mu_neg_pred_vars; // upper = 1 for now, for non-centered parameterisation
   array[num_mu_neg_pred_vars] int<lower = 2> num_cat_per_mu_neg_pred_var;
   matrix<lower = 0, upper = 1>[num_sam_id, sum(num_cat_per_mu_neg_pred_var)] design_matrix_mu_neg;
   int<lower = 0> num_sd_neg_pred_vars;
