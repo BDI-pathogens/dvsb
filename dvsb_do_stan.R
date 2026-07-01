@@ -6,6 +6,7 @@ data_was_simulated <- FALSE
 # INPUT ABOUT STAN ----
 
 path_here <- "~/repos/dvsb/"
+file_input_priors <- "~/repos/dvsb/priors.csv"
 file_input_code_wrangle_real_data <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_PrepareEnable_v9.R"
 dir_stan <- "~/.cmdstan/cmdstan-2.37.0/"
 num_mc_chains <- 4
@@ -16,40 +17,6 @@ stan_interface <- "cmdstan"
 file_stan_temp <- "/Users/cwymant/foo.json" # for writing the data for cmdstan
 file_out_stan_basename <- "/Users/cwymant/enable/samples_full_run_"
 
-# Upper and lower bounds for priors
-df_priors_scalars <- tribble(
-  ~param, ~lower, ~upper,
-  #"mu_neg", -3.5, -1.75,
-  #"sd_neg", 0.25, 1.8,
-  #"sd_pos", 0, 2.5, 
-  #"mu_pos", -1.25, 2.25,
-  "mu_neg", -4, -2.1, # BEN
-  "sd_neg", 0.2, 1, # BEN
-  "sd_pos", 0.8, 1.4, # BEN
-  "mu_pos", 0.3, 1.2, # BEN
-  "p_pos", 0, 1,
-  "p_blank", 0, 0.02,
-  "y_obs_sd_cal_min", 0, 0.015,
-  "y_obs_sd_cal_jump", 0, 1.5,
-  "y_obs_sd_sam_min", 0, 0.06,
-  "y_obs_sd_sam_jump", 0, 2,
-  "sigma_p_pos_pred_vars", 0, 4,
-  "sigma_mu_pos_pred_vars", 0, 2,
-  "sigma_sd_pos_pred_vars", 0, 1,
-  "sigma_mu_neg_pred_vars", 0, 2,
-  "sigma_sd_neg_pred_vars", 0, 1,
-  "p_pos_binary_effects", -4, 4
-)
-df_priors_vectors <- tribble(
-  ~param, ~lower, ~upper,
-  "sigma_f_plate", c(0, 0, 0, 0), c(0.25, 0.015, 2.5, 1),
-  "f", c(0.6, -0.05, 0.5, 1.5), c(1.1, 0.05, 7, 3.8),
-  "sigma_f_pred_vars", c(0, 0, 0, 0), c(0.6, 0.1, 4, 3)
-)
-  
-# The eta parameter of the LKJ prior for rho
-rho_prior_eta <- 1
-
 # SOURCE CODE IN OTHER FILES ----
 
 file_input_stan <- file.path(path_here, "dvsb.stan")
@@ -59,6 +26,7 @@ file_input_code_rename <- file.path(path_here, "R", "dvsb_rename_params_from_sta
 file_input_code_wrangle_true <- file.path(path_here, "R", "dvsb_wrangle_true_params.R")
 file_input_code_run_stan <- file.path(path_here, "R", "dvsb_run_stan_interfaces.R")
 file_input_code_read_cmdstan <- file.path(path_here, "R", "dvsb_read_cmdstan_out_files.R")
+file_input_code_read_priors <- file.path(path_here, "R", "dvsb_read_priors.R")
 stopifnot(dir.exists(path_here))
 stopifnot(file.exists(file_input_stan))
 stopifnot(file.exists(file_input_simulate_code))
@@ -66,12 +34,14 @@ stopifnot(file.exists(file_input_code_prepare))
 stopifnot(file.exists(file_input_code_wrangle_true))
 stopifnot(file.exists(file_input_code_run_stan))
 stopifnot(file.exists(file_input_code_read_cmdstan))
+stopifnot(file.exists(file_input_code_read_priors))
 source(file_input_simulate_code)
 source(file_input_code_prepare)
 source(file_input_code_rename)
 source(file_input_code_wrangle_true)
 source(file_input_code_run_stan)
 source(file_input_code_read_cmdstan)
+source(file_input_code_read_priors)
 
 
 # GET DATA ----
@@ -91,6 +61,11 @@ if (data_was_simulated) {
   df_sam <- data$df_sam
   df_cal <- data$df_cal
 }
+
+priors_list <- read_priors(file_input_priors)
+df_priors_scalars <- priors_list$df_priors_scalars
+df_priors_vectors <- priors_list$df_priors_vectors
+rho_prior_eta <- priors_list$rho_prior_eta
 
 # FINISH PREPARING FOR STAN ----
 

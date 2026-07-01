@@ -1,0 +1,30 @@
+parameter,min,max,explanation
+mu_neg,-3.5,-1.75,the population mean log_e antibody level (in standardised units) for seronegatives
+sd_neg,0.25,1.8,the standard deviation of the population distribution of log_e antibody levels (in standardised units) for seronegatives
+sd_pos,0,2.5,the standard deviation of the population distribution of log_e antibody levels (in standardised units) for seropositives
+mu_pos,-1.25,2.25,the population mean log_e antibody level (in standardised units) for seropositives
+p_pos,0,1,the probability of a sample being seropositive (i.e. seroprevalence) before addition of subpopulation-specific deviations
+p_blank,0,0.02,only relevant if using dvsb_accidental_blanks: the probability that any given sample replicate is an accidental blank
+y_obs_sd_cal_min,0,0.015,"the limit, as antibody levels tend to zero, of the scale of stochastic observational noise in OD values for calibrators"
+y_obs_sd_cal_jump,0,1.5,"the difference between the lower and upper limits, as antibody levels tend to zero and infinity, of the scale of stochastic observational noise in OD values for calibrators"
+y_obs_sd_sam_min,0,0.06,"the limit, as antibody levels tend to zero, of the scale of stochastic observational noise in OD values for samples"
+y_obs_sd_sam_jump,0,2,"the difference between the lower and upper limits, as antibody levels tend to zero and infinity, of the scale of stochastic observational noise in OD values for samples"
+sigma_p_pos_pred_vars,0,4,"only relevant if a regression model is used (i.e. covariates or predictor variables are specified) for p_pos: the scale of normal variability (on a logit scale, to keep p_pos between 0 and 1) between the regression coefficients for different categories of the same categorical variable"
+sigma_mu_pos_pred_vars,0,2,only relevant if a regression model is used (i.e. covariates or predictor variables are specified) for mu_pos: the scale of normal variability between the regression coefficients for different categories of the same categorical variable
+sigma_sd_pos_pred_vars,0,1,"only relevant if a regression model is used (i.e. covariates or predictor variables are specified) for sd_pos: the scale of normal variability (on a log scale, to keep sd_pos positive) between the regression coefficients for different categories of the same categorical variable"
+sigma_mu_neg_pred_vars,0,2,only relevant if a regression model is used (i.e. covariates or predictor variables are specified) for mu_neg: the scale of normal variability between the regression coefficients for different categories of the same categorical variable
+sigma_sd_neg_pred_vars,0,1,"only relevant if a regression model is used (i.e. covariates or predictor variables are specified) for sd_neg: the scale of normal variability (on a log scale, to keep sd_neg positive) between the regression coefficients for different categories of the same categorical variable"
+p_pos_binary_effects,-4,4,"only relevant if a regression model is used (i.e. covariates or predictor variables are specified) for p_pos: the value (on a logit scale, to keep p_pos between 0 and 1) of regression coefficients distinguishing binary covariates"
+rho_prior_eta,1,1,the eta parameter of the LKJ distribution used as the prior for the correlation matrix between different values of the f vector for different plates
+sigma_f_plate[1],0,0.25,the scale of normal variability between plates of f[1]
+sigma_f_plate[2],0,0.015,the scale of normal variability between plates of f[2]
+sigma_f_plate[3],0,2.5,the scale of normal variability between plates of f[3]
+sigma_f_plate[4],0,1,the scale of normal variability between plates of f[4]
+f[1],0.6,1.1,the steepness parameter of the 4PL function from log antibody levels to OD values (see mathematical details)
+f[2],-0.05,0.05,the lower asymptote parameter of the 4PL function from log antibody levels to OD values (see mathematical details)
+f[3],0.5,7,the upper asymptote parameter of the 4PL function from log antibody levels to OD values (see mathematical details)
+f[4],1.5,3.8,the step location parameter of the 4PL function from log antibody levels to OD values (see mathematical details)
+sigma_f_pred_vars[1],0,0.6,"only relevant if a regression model is used (i.e. covariates or predictor variables are specified) for p_f: the scale of normal variability between the regression coefficients for different categories of the same categorical variable, for f[1]"
+sigma_f_pred_vars[2],0,0.1,"only relevant if a regression model is used (i.e. covariates or predictor variables are specified) for p_f: the scale of normal variability between the regression coefficients for different categories of the same categorical variable, for f[2]"
+sigma_f_pred_vars[3],0,4,"only relevant if a regression model is used (i.e. covariates or predictor variables are specified) for p_f: the scale of normal variability between the regression coefficients for different categories of the same categorical variable, for f[3]"
+sigma_f_pred_vars[4],0,3,"only relevant if a regression model is used (i.e. covariates or predictor variables are specified) for p_f: the scale of normal variability between the regression coefficients for different categories of the same categorical variable, for f[4]"
