@@ -6,7 +6,7 @@ data_was_simulated <- FALSE
 # INPUT ABOUT STAN ----
 
 path_here <- "~/repos/dvsb/"
-file_input_code_wrangle_real_data <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_PrepareEnable_v8.R"
+file_input_code_wrangle_real_data <- "~/PathogenDynamics Dropbox/Vaccine Work/Lassa/code_serology_model/Xsectional_PrepareEnable_v9.R"
 dir_stan <- "~/.cmdstan/cmdstan-2.37.0/"
 num_mc_chains <- 4
 num_mc_iterations_posterior <- 2000 # per chain, half of them warmup
@@ -19,29 +19,31 @@ file_out_stan_basename <- "/Users/cwymant/enable/samples_full_run_"
 # Upper and lower bounds for priors
 df_priors_scalars <- tribble(
   ~param, ~lower, ~upper,
-  "mu_neg", -5, -1,
-  "sd_neg", 0.5, 2,
-  "sd_pos", 0, 2.5, 
-  "mu_pos", -1.5, 3,
+  #"mu_neg", -3.5, -1.75,
+  #"sd_neg", 0.25, 1.8,
+  #"sd_pos", 0, 2.5, 
+  #"mu_pos", -1.25, 2.25,
+  "mu_neg", -4, -2.1, # BEN
+  "sd_neg", 0.2, 1, # BEN
+  "sd_pos", 0.8, 1.4, # BEN
+  "mu_pos", 0.3, 1.2, # BEN
   "p_pos", 0, 1,
-  "p_blank", 0, 0.05,
+  "p_blank", 0, 0.02,
   "y_obs_sd_cal_min", 0, 0.015,
-  "y_obs_sd_cal_jump", 0.1, 1,
+  "y_obs_sd_cal_jump", 0, 1.5,
   "y_obs_sd_sam_min", 0, 0.06,
-  "y_obs_sd_sam_jump", 0.1, 2,
-  "sigma_p_pos_pred_vars", 0, 3,
+  "y_obs_sd_sam_jump", 0, 2,
+  "sigma_p_pos_pred_vars", 0, 4,
   "sigma_mu_pos_pred_vars", 0, 2,
   "sigma_sd_pos_pred_vars", 0, 1,
   "sigma_mu_neg_pred_vars", 0, 2,
   "sigma_sd_neg_pred_vars", 0, 1,
-  "p_pos_binary_effects", -4, 4,
-  "y_obs_sd_min_log_shift_sd", 0, 3, 
-  "y_obs_sd_jump_log_shift_sd", 0, 2
+  "p_pos_binary_effects", -4, 4
 )
 df_priors_vectors <- tribble(
   ~param, ~lower, ~upper,
-  "sigma_f_plate", c(0, 0, 0, 0), c(0.25, 0.025, 2.5, 2),
-  "f", c(0.8, -0.05, 2, 1.5), c(1.1, 0.05, 5, 3.8),
+  "sigma_f_plate", c(0, 0, 0, 0), c(0.25, 0.015, 2.5, 1),
+  "f", c(0.6, -0.05, 0.5, 1.5), c(1.1, 0.05, 7, 3.8),
   "sigma_f_pred_vars", c(0, 0, 0, 0), c(0.6, 0.1, 4, 3)
 )
   
@@ -70,6 +72,7 @@ source(file_input_code_rename)
 source(file_input_code_wrangle_true)
 source(file_input_code_run_stan)
 source(file_input_code_read_cmdstan)
+
 
 # GET DATA ----
 
@@ -183,6 +186,7 @@ params_to_ignore <- c(
 
 # Manually write the cmdstan json input files and save image now if desired 
 # (if skipping the running of stan here, to do it elsewhere)
+#sites_string <- "allsites"
 sites_string <- paste(unique(df_sam$site_), collapse = "_")
 cmdstanr::write_stan_json(data_wrangled$stan_input_posterior, file = paste0("~/enable_input_posterior_", sites_string, ".json"))
 cmdstanr::write_stan_json(data_wrangled$stan_input_prior, file = paste0("~/enable_input_prior_", sites_string, ".json"))
