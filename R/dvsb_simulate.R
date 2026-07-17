@@ -20,7 +20,6 @@
 # param = parameter
 # p = prob = probability
 
-#rm(list = ls())
 
 library(tidyverse)
 library(mvtnorm)
@@ -30,110 +29,105 @@ theme_set(theme_classic())
 PL4 <- function(xlog, f_1, f_2, f_3, f_4) {
   f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4)))
 }
+x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
 
+#' Title
+#'
+#' @param seed seed used for random number generation
+#' @param num_plate number of plates
+#' @param num_sam_per_plate number of samples per plate
+#' @param num_rep_per_sam number of replicates per sample
+#' @param num_rep_per_cal number of replicates per calibrator
+#' @param x_cals the antibody levels of the set of calibrators on each plate
+#' @param y_obs_sd_cal_min the limit, as antibody levels tend to zero, of the scale of stochastic observational noise in OD values for calibrators
+#' @param y_obs_sd_cal_jump the difference between the lower and upper limits, as antibody levels tend to zero and infinity, of the scale of stochastic observational noise in OD values for calibrators
+#' @param y_obs_sd_sam_min the limit, as antibody levels tend to zero, of the scale of stochastic observational noise in OD values for samples
+#' @param y_obs_sd_sam_jump the difference between the lower and upper limits, as antibody levels tend to zero and infinity, of the scale of stochastic observational noise in OD values for samples
+#' @param mu_neg the population mean log_e antibody level (in standardised units) for seronegatives
+#' @param sd_neg the standard deviation of the population distribution of log_e antibody levels (in standardised units) for seronegatives
+#' @param mu_pos the population mean log_e antibody level (in standardised units) for seropositives
+#' @param sd_pos the standard deviation of the population distribution of log_e antibody levels (in standardised units) for seropositives
+#' @param p_pos the probability of a sample being seropositive (i.e. seroprevalence) before addition of subpopulation-specific deviations
+#' @param p_blank the probability that any given sample replicate is an accidental blank. Beware: in the main dvsb inference model this is assumed to be zero, so values greater than zero introduce model misspecification for inference. The dvsb_accidental_blanks inference model does not assume `p_blank` is zero.
+#' @param f a vector with the four parameters of the four-parameter logistic (4PL) function 
+#'   that link log antibody level, xlog, to OD value, y, through
+#'   f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4))) 
+#' @param sigma_f_plate a vector with the four scales of normal variability between plates of the four elements of the f vector
+#' @param rho 4x4 correlation matrix for the variability between plates of the four elements of the f vector
+#' @param f_pred_vars a list (whose names are the names of categorical variables) of character vectors (whose values are the different categories of a given categorical variable). Each plate has one category randomly allocated for each categorical variable. Categories differ systematically in their f vector (in addition to the random variability between plates).
+#' @param sigma_f_pred_vars a list (whose names are the names of categorical variables, matching those of `f_pred_vars`) of length-4 numeric vectors. Each of these vectors specifies the scales of normal variability in the f vector between different categories of the corresponding categorical variable.
+#' @param x_mix_pred_vars a list (whose names can include the parameters p_pos, mu_neg, mu_pos, sd_neg, sd_pos) of lists (whose names are the names of categorical variables) of character vectors (whose values are the different categories of a given categorical variable). Each parameter has a regression model specified by additively combining its categorical variables. For each categorical variable, each sample has one of the categories randomly allocated.
+#' @param x_mix_pred_vars_sds a list (whose names must match those of `x_mix_pred_vars`) of named numeric vectors (whose names must match the categorical variables named in the inner lists of `x_mix_pred_vars`). Each {name, numeric value} pair specifies the scale of variability between the regression coefficients for the different categories of named categorical variable.
+#' @param p_pos_binary_effects a named numeric vector. Each {name, numeric value} pair specifies the name of a logical variable and the additive shift in seroprevalence (on a logit scale) between when this variable is true and when it is false. Each sample will be randomly allocated a value of true or false for each such variable.
+#' @param y_obs_sd_min_log_shift_sd the standard deviation (on a log scale) of the multipicative variability in both y_obs_sd_cal_min and y_obs_sd_sam_min between plates. Beware: such variability is assumed to be zero in the inference model, so values greater than the default of zero introduce model misspecification for inference (which may be of interest for testing purposes). 
+#' @param y_obs_sd_jump_log_shift_sd the standard deviation (on a log scale) of the multipicative variability in both y_obs_sd_cal_jump and y_obs_sd_sam_jump between plates. Beware: such variability is assumed to be zero in the inference model, so values greater than the default of zero introduce model misspecification for inference (which may be of interest for testing purposes).  
+#'
+#' @returns a named list whose elements are: df_sam (a dataframe with one row per simulated sample replicate), df_plate (a dataframe with one row per simulated plate), df_cal (a dataframe with one row per simulated calibrator replicate), TODO: explain f_pred_vars_names, x_mix_pred_vars_names, p_pos_binary_pred_vars, params
+#' @export
+#'
+#' @examples
 simulate_data <- function(
     seed = 1234567,
     num_plate = 4,
     num_sam_per_plate = 20,
     num_rep_per_sam = 2,
-    num_rep_per_cal = 2 
+    num_rep_per_cal = 2,
+    x_cals = c(0, 0.5, 1.5, 4.5, 13, 40),
+    y_obs_sd_cal_min = 0.01,
+    y_obs_sd_cal_jump = 0.4,
+    y_obs_sd_sam_min = 0.002,
+    y_obs_sd_sam_jump = 0.4,
+    mu_neg = -2.75,
+    sd_neg = 1,
+    mu_pos = 0.8,
+    sd_pos = 1.1,
+    p_pos = 0.5,
+    p_blank = 0,
+    f = c(0.95,
+           0.01,
+           3.35,
+           2.45),
+    sigma_f_plate = c(0.0065,
+                       0.0009,
+                       0.09,
+                       0.035),
+    rho = matrix(c(1, 0, 0, 0,
+                    0, 1, 0, 0,
+                    0, 0, 1, 0,
+                    0, 0, 0, 1),
+                  4, 4, byrow = TRUE),
+    f_pred_vars = list(),
+    sigma_f_pred_vars = list(),
+    x_mix_pred_vars = list(
+      p_pos  = list(letter = letters[1:4]),
+      mu_neg = list(letter = letters[1:4]),
+      mu_pos = list(letter = letters[1:4]),
+      sd_neg = list(letter = letters[1:4]),
+      sd_pos = list(letter = letters[1:4])
+    ),
+    x_mix_pred_vars_sds = list(
+      p_pos = c(letter = 1),
+      mu_neg = c(letter = 1),
+      mu_pos = c(letter = 1),
+      sd_neg = c(letter = 1),
+      sd_pos = c(letter = 1)
+    ),
+    p_pos_binary_effects = c("boolA" = -2,
+                              "boolB" = 0,
+                              "boolC" = 2),
+    y_obs_sd_min_log_shift_sd = 0,
+    y_obs_sd_jump_log_shift_sd = 0
 ){
 
-# INPUT ----
 
 set.seed(seed)
 
-xlogs <- log(c(0, 0.5, 1.5, 4.5, 13, 40)) #c(-0.7055697, 0.3930426, 1.4916549, 2.5902672, 3.6888795) # concentrations of cals
-
-y_obs_sd_cal_min <- 0.01
-y_obs_sd_cal_jump <- 0.4
-y_obs_sd_sam_min <- 0.002
-y_obs_sd_sam_jump <- 0.4
-mu_neg <- -3.4
-sd_neg <- 1
-mu_pos <- 0.8
-sd_pos <- 1.1
-p_pos <- 0.5
-p_blank <- 0
-
-# The four parameters of the logistic regression (f_1, f_2, f_3, f_4)
-# which control the OD, y, through
-# f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4))) 
-f <- c(0.95,
-       0.01,
-       3.35,
-       2.45)
-
-# The covariance matrix for the plate-level random effects on f, parameterised
-# by the square root of the diagonal entries and the dimensionless correlation
-# matrix.
-sigma_f_plate <- c(0.0065,
-                   0.0009,
-                   0.09,
-                   0.035)
-rho <- matrix(c(1, 0, 0, 0,
-                0, 1, 0, 0,
-                0, 0, 1, 0,
-                0, 0, 0, 1),
-              4, 4, byrow = TRUE)
-stopifnot(isSymmetric(rho))
-stopifnot(all(diag(rho) == 1))
-
-# f_pred_vars should either be an empty list, or a named list in which 
-# each element is a character vector of length at least 2 with no duplicates.
-# Each character vector consists of categories that systematically differ in
-# their f values. 
-# We randomly assign each plate exactly one element from each character vector.
-# sigma_f_pred_vars should be a list with the same names as f_pred_vars.
-# Each element in sigma_f_pred_vars is a 4-vector of standard deviations of the
-# elements of f associated with that predictor variable.
-f_pred_vars <- list(
-  #op_ = letters[1:10]  #c("chris", "anton"),
-  #lab_ = c("ben", "gui", "lib")
-)
-sigma_f_pred_vars <- list(
-  #op_ = 2 * sigma_f_plate
-  #lab_ = 3 * sigma_f_plate
-)
-
-# Initialise empty predictor vars for the x mix distribution (unnecessary
-# because we'll overwrite them next, but it shows the structure when empty).
-x_mix_pred_vars <- list()
-x_mix_pred_vars_sds <- list()
-x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
-for (x_mix_pred_var_ in x_mix_params) {
-  x_mix_pred_vars[[x_mix_pred_var_]]  <- list()
-  x_mix_pred_vars_sds[[x_mix_pred_var_]] <- numeric()
-}
-
-# p_pos_pred_vars should either be an empty list, or a named list in which 
-# each element is a character vector of length at least 2 with no duplicates.
-# Each character vector consists of categories that systematically differ in
-# their p_pos values. 
-# We randomly assign each sample exactly one element from each character vector.
-# sigma_p_pos_pred_vars should be a list with the same names as f_pred_vars.
-# Each element in sigma_p_pos_pred_vars is a standard deviation of the
-# variability in p_pos (on a logit scale) associated with that predictor variable.
-x_mix_pred_vars$p_pos <- list(letter = letters[1:4])
-x_mix_pred_vars_sds$p_pos <- c(letter = 1)
-x_mix_pred_vars$mu_neg <- list(letter = letters[1:4])
-x_mix_pred_vars_sds$mu_neg <- c(letter = 1)
-x_mix_pred_vars$mu_pos <- list(letter = letters[1:4])
-x_mix_pred_vars_sds$mu_pos <- c(letter = 1)
-x_mix_pred_vars$sd_neg <- list(letter = letters[1:4])
-x_mix_pred_vars_sds$sd_neg <- c(letter = 1)
-x_mix_pred_vars$sd_pos <- list(letter = letters[1:4])
-x_mix_pred_vars_sds$sd_pos <- c(letter = 1)
-
-p_pos_binary_effects <- c("boolA" = -2,
-                          "boolB" = 0,
-                          "boolC" = 2)
-
-y_obs_sd_min_log_shift_sd <- 0
-y_obs_sd_jump_log_shift_sd <- 0
-
 # INPUT CHECKS ----
 
+stopifnot(isSymmetric(rho))
+stopifnot(all(diag(rho) == 1))
+  
+  
 # Check f_pred_vars 
 f_pred_vars_names <- names(f_pred_vars)
 stopifnot(! any(f_pred_vars_names %in% # avoid name clashes with variables
@@ -242,7 +236,9 @@ if (length(p_pos_binary_effects)) {
 y_obs_sd_cal_max <- y_obs_sd_cal_min + y_obs_sd_cal_jump
 y_obs_sd_sam_max <- y_obs_sd_sam_min + y_obs_sd_sam_jump
 
-xs <- exp(xlogs)
+xs <- exp(x_cals_log)
+x_cals_log <- log(x_cals)
+
 
 # Make a df with one row per plate.
 # Sample each plate's f predictor variables.
@@ -331,7 +327,7 @@ df_plate <- df_plate %>%
 
 # Expand to one row per cal (one for each x). Calculate y expected.
 df_cal <- df_plate %>%
-  expand_grid(xlog = xlogs, cal = 1:num_rep_per_cal) %>%
+  expand_grid(xlog = x_cals_log, cal = 1:num_rep_per_cal) %>%
   mutate(x = exp(xlog),
          which_cal = row_number(),
          y_mean = PL4(xlog, f_1, f_2, f_3, f_4))
