@@ -112,6 +112,7 @@ simulate_data <- function(
       sd_neg = c(letter = 1),
       sd_pos = c(letter = 1)
     ),
+    x_mix_effects = NA,
     p_pos_binary_effects = c("boolA" = -2,
                               "boolB" = 0,
                               "boolC" = 2),
@@ -126,8 +127,7 @@ set.seed(seed)
 
 stopifnot(isSymmetric(rho))
 stopifnot(all(diag(rho) == 1))
-  
-  
+
 # Check f_pred_vars 
 f_pred_vars_names <- names(f_pred_vars)
 stopifnot(! any(f_pred_vars_names %in% # avoid name clashes with variables
@@ -187,6 +187,26 @@ for (param in x_mix_params) {
   }
 }
 
+# Check a manually specified x_mix_effects
+if (! identical(x_mix_effects, NA)) {
+  stopifnot(is.list(x_mix_effects))
+  stopifnot(identical(sort(names(x_mix_effects)),
+                      sort(x_mix_params)))
+  for (param in x_mix_params) {
+    stopifnot(is.list(x_mix_effects[[param]]))
+    stopifnot(identical(sort(names(x_mix_effects[[param]])),
+                        sort(names(x_mix_pred_vars[[param]]))))
+    for (param_inner in names(x_mix_effects[[param]])) {
+      vector_ <- x_mix_effects[[param]][[param_inner]]
+      stopifnot(is.numeric(vector_))
+      stopifnot(identical(sort(names(vector_)),
+                          sort(x_mix_pred_vars[[param]][[param_inner]])))
+      stopifnot(all(is.finite(vector_)))
+      stopifnot(abs(sum(vector_)) < 1e-5)
+    }
+  }
+}  
+
 for (i in seq(1, 4)) {
   param_1 <- x_mix_params[[i]]
   if (is.null(x_mix_pred_vars_names[[param_1]])) next
@@ -236,7 +256,6 @@ if (length(p_pos_binary_effects)) {
 y_obs_sd_cal_max <- y_obs_sd_cal_min + y_obs_sd_cal_jump
 y_obs_sd_sam_max <- y_obs_sd_sam_min + y_obs_sd_sam_jump
 
-xs <- exp(x_cals_log)
 x_cals_log <- log(x_cals)
 
 
@@ -402,16 +421,23 @@ for (pred_var in p_pos_binary_pred_vars) {
 }
 
 # Draw effects on the x mix params from each pred var
-x_mix_effects <- list()
+if (identical(x_mix_effects, NA)) {
+  x_mix_effects <- list()
+  for (param in x_mix_params) {
+    x_mix_effects[[param]] <- list()
+    for (pred_var in x_mix_pred_vars_names[[param]]) {
+      sigma_ <- x_mix_pred_vars_sds[[param]][[pred_var]]
+      num_cats <- x_mix_pred_vars_num_cats[[param]][[pred_var]]
+      effects_ <- rnorm(num_cats, 0, sigma_)
+      effects_ <- effects_ - mean(effects_)
+      names(effects_) <- x_mix_pred_vars[[param]][[pred_var]]
+      x_mix_effects[[param]][[pred_var]] <- effects_
+    }
+  }
+} 
 for (param in x_mix_params) {
-  x_mix_effects[[param]] <- list()
   for (pred_var in x_mix_pred_vars_names[[param]]) {
-    sigma_ <- x_mix_pred_vars_sds[[param]][[pred_var]]
-    num_cats <- x_mix_pred_vars_num_cats[[param]][[pred_var]]
-    effects_ <- rnorm(num_cats, 0, sigma_)
-    effects_ <- effects_ - mean(effects_)
-    names(effects_) <- x_mix_pred_vars[[param]][[pred_var]]
-    x_mix_effects[[param]][[pred_var]] <- effects_
+    effects_ <- x_mix_effects[[param]][[pred_var]]
     df_sam[[paste0(param, "_effect_", pred_var)]] <- map_dbl(
       df_sam[[pred_var]], ~ effects_[[.x]])
   }
