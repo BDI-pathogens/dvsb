@@ -24,6 +24,7 @@
 library(tidyverse)
 library(mvtnorm)
 library(ggforce)
+library(mastiff)
 theme_set(theme_classic())
 
 PL4 <- function(xlog, f_1, f_2, f_3, f_4) {
@@ -31,38 +32,109 @@ PL4 <- function(xlog, f_1, f_2, f_3, f_4) {
 }
 x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
 
-#' Title
+#' Simulate x and y values for samples and calibrators across different plates
 #'
 #' @param seed seed used for random number generation
 #' @param num_plate number of plates
 #' @param num_sam_per_plate number of samples per plate
 #' @param num_rep_per_sam number of replicates per sample
 #' @param num_rep_per_cal number of replicates per calibrator
-#' @param x_cals the antibody levels of the set of calibrators on each plate
-#' @param y_obs_sd_cal_min the limit, as antibody levels tend to zero, of the scale of stochastic observational noise in OD values for calibrators
-#' @param y_obs_sd_cal_jump the difference between the lower and upper limits, as antibody levels tend to zero and infinity, of the scale of stochastic observational noise in OD values for calibrators
-#' @param y_obs_sd_sam_min the limit, as antibody levels tend to zero, of the scale of stochastic observational noise in OD values for samples
-#' @param y_obs_sd_sam_jump the difference between the lower and upper limits, as antibody levels tend to zero and infinity, of the scale of stochastic observational noise in OD values for samples
-#' @param mu_neg the population mean log_e antibody level (in standardised units) for seronegatives
-#' @param sd_neg the standard deviation of the population distribution of log_e antibody levels (in standardised units) for seronegatives
-#' @param mu_pos the population mean log_e antibody level (in standardised units) for seropositives
-#' @param sd_pos the standard deviation of the population distribution of log_e antibody levels (in standardised units) for seropositives
-#' @param p_pos the probability of a sample being seropositive (i.e. seroprevalence) before addition of subpopulation-specific deviations
-#' @param p_blank the probability that any given sample replicate is an accidental blank. Beware: in the main dvsb inference model this is assumed to be zero, so values greater than zero introduce model misspecification for inference. The dvsb_accidental_blanks inference model does not assume `p_blank` is zero.
-#' @param f a vector with the four parameters of the four-parameter logistic (4PL) function 
-#'   that link log antibody level, xlog, to OD value, y, through
-#'   f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4))) 
-#' @param sigma_f_plate a vector with the four scales of normal variability between plates of the four elements of the f vector
-#' @param rho 4x4 correlation matrix for the variability between plates of the four elements of the f vector
-#' @param f_pred_vars a list (whose names are the names of categorical variables) of character vectors (whose values are the different categories of a given categorical variable). Each plate has one category randomly allocated for each categorical variable. Categories differ systematically in their f vector (in addition to the random variability between plates).
-#' @param sigma_f_pred_vars a list (whose names are the names of categorical variables, matching those of `f_pred_vars`) of length-4 numeric vectors. Each of these vectors specifies the scales of normal variability in the f vector between different categories of the corresponding categorical variable.
-#' @param x_mix_pred_vars a list (whose names can include the parameters p_pos, mu_neg, mu_pos, sd_neg, sd_pos) of lists (whose names are the names of categorical variables) of character vectors (whose values are the different categories of a given categorical variable). Each parameter has a regression model specified by additively combining its categorical variables. For each categorical variable, each sample has one of the categories randomly allocated.
-#' @param x_mix_pred_vars_sds a list (whose names must match those of `x_mix_pred_vars`) of named numeric vectors (whose names must match the categorical variables named in the inner lists of `x_mix_pred_vars`). Each {name, numeric value} pair specifies the scale of variability between the regression coefficients for the different categories of named categorical variable.
-#' @param p_pos_binary_effects a named numeric vector. Each {name, numeric value} pair specifies the name of a logical variable and the additive shift in seroprevalence (on a logit scale) between when this variable is true and when it is false. Each sample will be randomly allocated a value of true or false for each such variable.
-#' @param y_obs_sd_min_log_shift_sd the standard deviation (on a log scale) of the multipicative variability in both y_obs_sd_cal_min and y_obs_sd_sam_min between plates. Beware: such variability is assumed to be zero in the inference model, so values greater than the default of zero introduce model misspecification for inference (which may be of interest for testing purposes). 
-#' @param y_obs_sd_jump_log_shift_sd the standard deviation (on a log scale) of the multipicative variability in both y_obs_sd_cal_jump and y_obs_sd_sam_jump between plates. Beware: such variability is assumed to be zero in the inference model, so values greater than the default of zero introduce model misspecification for inference (which may be of interest for testing purposes).  
+#' @param x_cals the x values of the set of calibrators on each plate
+#' @param y_obs_sd_cal_min the limit, as x tends to zero, of the scale of
+#'   stochastic observational noise in y for calibrators
+#' @param y_obs_sd_cal_jump the difference between the lower and upper limits,
+#'   as x tends to zero and infinity, of the scale of stochastic observational
+#'   noise in y for calibrators
+#' @param y_obs_sd_sam_min the limit, as x tends to zero, of the scale of
+#'   stochastic observational noise in y for samples
+#' @param y_obs_sd_sam_jump the difference between the lower and upper limits,
+#'   as x tends to zero and infinity, of the scale of stochastic observational
+#'   noise in y for samples
+#' @param mu_neg the population mean log_e(x) for seronegatives
+#' @param sd_neg the standard deviation of the population distribution of
+#'   log_e(x) for seronegatives
+#' @param mu_pos the population mean log_e(x) for seropositives
+#' @param sd_pos the standard deviation of the population distribution of
+#'   log_e(x) for seropositives
+#' @param p_pos the probability of a sample being seropositive (i.e.
+#'   seroprevalence) before addition of subpopulation-specific deviations
+#' @param p_blank the probability that any given sample replicate is an
+#'   accidental blank. Beware: in the main dvsb inference model this is assumed
+#'   to be zero, so values greater than zero introduce model misspecification
+#'   for inference. The dvsb_accidental_blanks inference model does not assume
+#'   `p_blank` is zero.
+#' @param f a vector with the four parameters of the four-parameter logistic
+#'   (4PL) function that link log_e(x) to the expected value of y through y =
+#'   f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (log_e(x) - f_4)))
+#' @param sigma_f_plate a vector with the four scales of normal variability
+#'   between plates of the four elements of the f vector
+#' @param rho 4x4 correlation matrix for the variability between plates of the
+#'   four elements of the f vector
+#' @param f_pred_vars a list (whose names are the names of categorical
+#'   variables) of character vectors (whose values are the different categories
+#'   of a given categorical variable). Each plate has one category randomly
+#'   allocated for each categorical variable. Categories differ systematically
+#'   in their f vector (in addition to the random variability between plates).
+#' @param sigma_f_pred_vars a list (whose names are the names of categorical
+#'   variables, matching those of `f_pred_vars`) of length-4 numeric vectors.
+#'   Each of these vectors specifies the scales of normal variability in the f
+#'   vector between different categories of the corresponding categorical
+#'   variable.
+#' @param x_mix_pred_vars a list (whose names are the parameters p_pos, mu_neg,
+#'   mu_pos, sd_neg, sd_pos) of lists (whose names are the names of categorical
+#'   variables) of character vectors (whose values are the different categories
+#'   of a given categorical variable). Each parameter has a regression model
+#'   specified by additively combining its categorical variables. For each
+#'   categorical variable, each sample has one of the categories randomly
+#'   allocated.
+#' @param x_mix_pred_vars_sds a list (whose names are the parameters p_pos,
+#'   mu_neg, mu_pos, sd_neg, sd_pos) of named numeric vectors (whose names must
+#'   match the categorical variables named in the inner lists of
+#'   `x_mix_pred_vars`). Each {name, numeric value} pair within one of these
+#'   vectors specifies the scale of variability between the regression
+#'   coefficients for the different categories of named categorical variable.
+#' @param x_mix_effects Normally you will want to leave this at its default
+#'   value of NA, in which case we will randomly draw regression coefficients
+#'   for the parameters of the regression model for the x distribution according
+#'   to the values specified in `x_mix_pred_vars_sds`. Alternatively, this
+#'   argument can be used to specify values for all these coefficients; this may
+#'   be useful to keep them fixed over several different simulations of a
+#'   dataset, e.g. with different stochastic seeds, to compare inference with
+#'   these random effects fixed. If used, this argument should be a list (whose
+#'   names are the x mixture parameters p_pos, mu_neg, mu_pos, sd_neg, sd_pos)
+#'   of lists (whose names match those of the same parameter in x_mix_pred_vars)
+#'   of named numeric vectors (one per categorical variable used in a regression
+#'   model for this parameter; the names, one per category of this variable,
+#'   must match those for the variable as specified in x_mix_pred_vars).
+#' @param p_pos_binary_effects a named numeric vector. Each {name, numeric
+#'   value} pair within this vector specifies the name of a logical variable and
+#'   the additive shift in seroprevalence (on a logit scale) between when this
+#'   variable is true and when it is false. Each sample will be randomly
+#'   allocated a value of true or false for each such variable.
+#' @param y_obs_sd_min_log_shift_sd the standard deviation (on a log scale) of
+#'   the multiplicative variability in both y_obs_sd_cal_min and
+#'   y_obs_sd_sam_min between plates. Beware: such variability is assumed to be
+#'   zero in the inference model, so values greater than the default of zero
+#'   will introduce model misspecification for inference (which may be of
+#'   interest for testing purposes).
+#' @param y_obs_sd_jump_log_shift_sd the standard deviation (on a log scale) of
+#'   the multiplicative variability in both y_obs_sd_cal_jump and
+#'   y_obs_sd_sam_jump between plates. Beware: such variability is assumed to be
+#'   zero in the inference model, so values greater than the default of zero
+#'   will introduce model misspecification for inference (which may be of
+#'   interest for testing purposes).
 #'
-#' @returns a named list whose elements are: df_sam (a dataframe with one row per simulated sample replicate), df_plate (a dataframe with one row per simulated plate), df_cal (a dataframe with one row per simulated calibrator replicate), TODO: explain f_pred_vars_names, x_mix_pred_vars_names, p_pos_binary_pred_vars, params
+#' @returns a named list whose elements are: df_sam (a dataframe with one row
+#'   per simulated sample replicate), df_plate (a dataframe with one row per
+#'   simulated plate), df_cal (a dataframe with one row per simulated calibrator
+#'   replicate), params (a list of the values of parameters used for
+#'   simulation), f_pred_vars_names (a character vector of the names of any
+#'   variables used for a regression model for the four vector f),
+#'   x_mix_pred_vars_names (a named list whose names are the five parameters of
+#'   the normal mixture model for x; each one of the elements is a character
+#'   vector naming the variables used in a regression model for that parameter),
+#'   p_pos_binary_pred_vars (a character vector of the names of any variables
+#'   used for a regression model for p_pos, using only binary fixed effects).
 #' @export
 #'
 #' @examples
@@ -120,15 +192,46 @@ simulate_data <- function(
     y_obs_sd_jump_log_shift_sd = 0
 ){
 
-
-set.seed(seed)
-
 # INPUT CHECKS ----
 
-stopifnot(isSymmetric(rho))
-stopifnot(all(diag(rho) == 1))
+  # Check numeric scalars  
+  check_numeric(seed)
+  check_numeric(num_plate, lower = 0)
+  check_numeric(num_sam_per_plate, lower = 0)
+  check_numeric(num_rep_per_sam, lower = 0)
+  check_numeric(num_rep_per_cal, lower = 0)
+  check_numeric(y_obs_sd_cal_min, lower = 0)
+  check_numeric(y_obs_sd_cal_jump, lower = 0)
+  check_numeric(y_obs_sd_sam_min, lower = 0)
+  check_numeric(y_obs_sd_sam_jump, lower = 0)
+  check_numeric(mu_neg)
+  check_numeric(mu_pos, lower = mu_neg, lower_inclusive = FALSE)
+  check_numeric(sd_neg, lower = 0)
+  check_numeric(sd_pos, lower = 0)
+  check_numeric(p_pos, lower = 0, upper = 1)
+  check_numeric(p_blank, lower = 0, upper = 1)
+  check_numeric(y_obs_sd_min_log_shift_sd, lower = 0)
+  check_numeric(y_obs_sd_jump_log_shift_sd, lower = 0)
+  
+  # Check vectors and matrices
+  stopifnot(is.numeric(x_cals))
+  stopifnot(!anyDuplicated(x_cals))
+  stopifnot(all(x_cals >= 0))
+  stopifnot(is.numeric(f))
+  stopifnot(length(f) == 4)
+  stopifnot(is.numeric(sigma_f_plate))
+  stopifnot(length(sigma_f_plate) == 4)
+  stopifnot(all(sigma_f_plate >= 0))
+  stopifnot(is.matrix(rho))
+  stopifnot(is.numeric(rho))
+  stopifnot(isSymmetric(rho))
+  stopifnot(all(diag(rho) == 1))
+  stopifnot(all(rho >= -1))
+  stopifnot(all(rho <= 1))
 
-# Check f_pred_vars 
+  # Then check more complicated objects...
+
+# Check f_pred_vars and sigma_f_pred_vars
 f_pred_vars_names <- names(f_pred_vars)
 stopifnot(! any(f_pred_vars_names %in% # avoid name clashes with variables
                   c("plate", "f", "f_1", "f_2", "f_3", "f_4", "label")))
@@ -143,6 +246,9 @@ if (predict_f) {
     stopifnot(is.character(f_pred_vars[[name_]]))
     stopifnot(length(f_pred_vars[[name_]]) >= 2L)
     stopifnot(!anyDuplicated(f_pred_vars[[name_]]))
+    stopifnot(is.numeric(sigma_f_pred_vars[[name_]]))
+    stopifnot(length(sigma_f_pred_vars[[name_]]) == 4)
+    stopifnot(all(sigma_f_pred_vars[[name_]] >= 0))
   }
 }
 
@@ -183,6 +289,13 @@ for (param in x_mix_params) {
                     "found it equal to ", 
                     paste(x_mix_pred_vars[[param]][[pred_var]], collapse = " ")))
       }
+      if (! (is.numeric(x_mix_pred_vars_sds[[param_]][[pred_var]]) &&
+             length(x_mix_pred_vars_sds[[param_]][[pred_var]]) == 1 &&
+             is.finite(x_mix_pred_vars_sds[[param_]][[pred_var]]) &&
+             x_mix_pred_vars_sds[[param_]][[pred_var]] >= 0 )) {
+        stop(paste('x_mix_pred_vars_sds[["', param_, '"]][["', pred_var,
+                   '"]] must be a non-negative number'))
+      }
     }
   }
 }
@@ -207,6 +320,8 @@ if (! identical(x_mix_effects, NA)) {
   }
 }  
 
+# Check that if the same predictor variable is specified for different params,
+# it has the same categories, to avoid confusing output.
 for (i in seq(1, 4)) {
   param_1 <- x_mix_params[[i]]
   if (is.null(x_mix_pred_vars_names[[param_1]])) next
@@ -251,6 +366,8 @@ if (length(p_pos_binary_effects)) {
 } 
 
 # SIMULATE PLATE VARIABILITY AND CALS ----
+
+set.seed(seed)
 
 # Derived params
 y_obs_sd_cal_max <- y_obs_sd_cal_min + y_obs_sd_cal_jump
