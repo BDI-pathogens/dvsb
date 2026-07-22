@@ -1,7 +1,56 @@
+#' Run one of rstan, cmdstanr or cmdstan on a file of Stan code
+#'
+#' @param input_to_stan a list containing all the input the Stan code expects.
+#' @param path_to_stan_code the path to the file containing the Stan code.
+#' @param interface one of "rstan", "cmdstanr" or "cmdstan".
+#' @param iter_warmup a positive integer: the number of warmup iterations per
+#'   chain (during which the sampling algorithm adapts; these are excluded from
+#'   the output).
+#' @param iter_sampling a positive integer: the number of sampling iterations
+#'   per chain (which are included in the output).
+#' @param chains a positive integer: the number of chains used for sampling.
+#' @param cores a positive integer: the number cores used in parallel for
+#'   computation.
+#' @param params_to_ignore a character vector naming parameters to be excluded
+#'   from output (if possible; interface dependent).
+#' @param downsampling_factor a positive integer: the factor by which to
+#'   downsample the posterior. e.g. if a value of 2 is specified, we keep 1 in
+#'   every 2 samples. The default of 1 means we keep all samples. TODO:
+#'   currently only implemented for cmdstan.
+#' @param cmdstan_path_to_installation the path to where cmdstan is installed on
+#'   your system; you need to specify this if `interface="cmdstan"`, but not
+#'   otherwise. Inside this directory there should be an executable file named
+#'   `make` (which we use to compile Stan code).
+#' @param cmdstan_path_to_output the path to where we will write output files
+#'   from cmdstan; you need to specify this if `interface="cmdstan"`, but not
+#'   otherwise. Several files will be created with things appended to this path:
+#'   _chain1.csv, _chain2.csv etc.
+#' @param cmdstan_path_to_json the path to where we will write a temporary json
+#'   file to hold the input for cmdstan; you need to specify this if
+#'   `interface="cmdstan"`, but not otherwise.
+#' @param cmdstan_overwrite_json a single logical value: should we overwrite a
+#'   file at `cmdstan_path_to_json` if it exists already?
+#' @param cmdstan_path_to_compiled_model the path where we will create the
+#'   compiled version of the stan code. Some value (such as the default) is
+#'   needed if `interface="cmdstan"`, but not otherwise.
+#' @param cmdstan_read_output_into_df a single logical value: should we read
+#'   cmdstan output files into a dataframe that is returned by this function? If
+#'   a value `FALSE` is specified, this function returns a value `NULL`.
+#' @param ... additional arguments will be passed to [rstan::sampling()] (if
+#'   `interface="rstan"`) or to the `$sample()` method of the
+#'   [cmdstanr::CmdStanModel()] object (if `interface="cmdstanr"`).
+#'
+#' @returns a dataframe with one row per sample from the posterior and one
+#'   column per parameter (unless `interface` is set to `cmdstan` and
+#'   `cmdstan_read_output_into_df` is set to `FALSE`).
+#' @export
+#'
+#' @examples
 run_stan_interfaces <- function(input_to_stan,
                                 path_to_stan_code,
                                 interface = c("rstan", "cmdstanr", "cmdstan"),
-                                iterations = 500,
+                                iter_warmup = 250,
+                                iter_sampling = 250,
                                 chains = 4,
                                 cores = parallel::detectCores(),
                                 params_to_ignore = character(),
@@ -77,7 +126,8 @@ run_stan_interfaces <- function(input_to_stan,
   if (interface == "rstan") {
     df_samples <- rstan::sampling(model_compiled,
                                   data = input_to_stan,
-                                  iter = iterations,
+                                  iter = iter_warmup + iter_sampling,
+                                  warmup = iter_warmup,
                                   chains = chains,
                                   cores = cores,
                                   pars = params_to_ignore,
@@ -89,8 +139,8 @@ run_stan_interfaces <- function(input_to_stan,
   } else if (interface == "cmdstanr") {
     samples <- model_compiled$sample(
       data = input_to_stan,
-      iter_warmup = round(iterations / 2),
-      iter_sampling = round(iterations / 2),
+      iter_warmup = iter_warmup,
+      iter_sampling = iter_sampling,
       chains = chains,
       parallel_chains = cores,
       ...
@@ -114,8 +164,8 @@ run_stan_interfaces <- function(input_to_stan,
     command <- paste0(cmdstan_path_to_compiled_model,
                       " method=sample",
                       " num_chains=", chains,
-                      " num_warmup=", round(iterations / 2),
-                      " num_samples=", round(iterations / 2),
+                      " num_warmup=", iter_warmup,
+                      " num_samples=", iter_sampling,
                       " num_threads=", cores,
                       " data file=", cmdstan_path_to_json, 
                       " output file=", paste(files_out_stan, collapse = ","),
