@@ -1,4 +1,18 @@
-# Rename params for interpretability
+#' Change parameter names from Stan format to be more human readable
+#'
+#' @param original_names a character vector of parameter names as they are
+#'   output by stan. Tensor parameters are expected to be named as they are in
+#'   rstan output, e.g. my_matrix[1,2], not as they are named in cmdstan output,
+#'   e.g. my_matrix.1.2. The latter can be converted to the former using
+#'   [mastiff::rename_params_cmdstanfile_to_rstan()].
+#' @param data_descriptors a list of things describing the dataset, of the
+#'   format output by [prepare_data_for_stan()] (inside its list of outputs).
+#'
+#' @returns a character vector containing the renamed parameters, of the same
+#'   length and in the same order as `original_names`.
+#' @export
+#'
+#' @examples
 rename_params_from_stan <- function(original_names, data_descriptors) {
   
   stopifnot(is.character(original_names))
@@ -64,6 +78,7 @@ rename_params_from_stan <- function(original_names, data_descriptors) {
       )) %>%
       select(orig, new)
   }
+  
   if (d$predict_p_pos_binary) {
     df_param_names <- df_param_names %>%
       tidyr::extract(orig, 
@@ -80,5 +95,6 @@ rename_params_from_stan <- function(original_names, data_descriptors) {
       )) %>%
       select(orig, new)
   }
+  
   df_param_names$new
 }

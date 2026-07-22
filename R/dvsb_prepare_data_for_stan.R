@@ -1,3 +1,49 @@
+#' Wrangles inputs into the format required for [run_stan_interfaces()]
+#'
+#' @param df_sam a dataframe of the format output by [simulate_data()] (inside
+#'   its list of outputs): with one row per sample replicate, including columns
+#'   id_sam, y, and plate. y should be numeric.
+#' @param df_cal a dataframe of the format output by [simulate_data()] (inside
+#'   its list of outputs): with one row per calibrator replicate, including
+#'   columns x, y, and plate. x and y should be numeric.
+#' @param df_priors_scalars,df_priors_vectors dataframes of the format output by
+#'   [read_priors()] (inside its list of outputs): each having one row per
+#'   parameter, including columns param, lower, and upper. param should be
+#'   character, lower and upper should be numeric.
+#' @param rho_prior_eta the single positive number 'eta' that is a
+#'   hyperparameter of the LKJ distribution used as the prior for the
+#'   correlation matrix for variability in the parameters of the x<->y
+#'   relationship between plates. See the Stan docs on the LKJ distribution for
+#'   the definition of eta.
+#' @param x_mix_pred_vars_names a list (whose names are the parameters p_pos,
+#'   mu_neg, mu_pos, sd_neg, sd_pos) of character vectors (each one naming the
+#'   categorical predictor variables used in the regression model for that
+#'   parameter). The default value of a list with all empty character vectors is
+#'   appropriate for using no regression model for any of these five parameters.
+#' @param p_pos_binary_pred_vars a character vector containing the names of
+#'   binary variables used as fixed effects in the regression mode for
+#'   seroprevalence. The default value of an empty character vector is
+#'   appropriate for using no such regression model.
+#' @param f_pred_vars_names a character vector containing the names of
+#'   variables used for a regression model for the four vector f. The default
+#'   value of an empty character vector is appropriate for using no regression
+#'   model.
+#'
+#' @returns a list whose elements are df_plate (a dataframe with one row per
+#'   plate), data_descriptors (a list of things required as input for
+#'   [rename_params_from_stan()] and [wrangle_true_params()]),
+#'   stan_input_posterior (a list of things required as input for
+#'   [run_stan_interfaces()] if you want to sample from the posterior),
+#'   stan_input_prior (a list of things required as input for
+#'   [run_stan_interfaces()] if you want to sample from the prior; this reduces
+#'   the number of samples to zero but keeps the same 'shape' of the dataset in
+#'   terms of covariates used, to more efficiently sample population-level
+#'   parameters while avoiding sampling individual-level parameters such as x),
+#'   df_sam and df_cal (as provided as input but with extra columns added for
+#'   Stan indexing).
+#' @export
+#'
+#' @examples
 prepare_data_for_stan <- function(
     df_sam,
     df_cal,

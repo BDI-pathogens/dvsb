@@ -1,3 +1,15 @@
+#' Gets the true parameter values from simulated data into dataframe format
+#'
+#' @param param_true_values_list a list with the true parameter values, in the
+#'   format output by [simulate_data()] (inside its list of outputs).
+#' @param data_descriptors a list of things describing the dataset, of the
+#'   format output by [prepare_data_for_stan()] (inside its list of outputs).
+#'
+#' @returns A dataframe with columns `param` and `value`, with one row per
+#'   parameter.
+#' @export
+#'
+#' @examples
 wrangle_true_params <- function(param_true_values_list,
                                 data_descriptors) {
   

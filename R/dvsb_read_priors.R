@@ -1,6 +1,19 @@
 library(tidyverse)
 
-# Read and check the csv file containing min and max values for parameter priors
+#' Reads uniform prior distributions (specified with a min and max) from a csv
+#'
+#' @param path_to_csv path to a csv file with columns parameter, min and max,
+#'   and one row for each of the (top-level, fixed-effect) parameters in our
+#'   statistical model. Such a file is included in the github repository for
+#'   this code, with an additional column explaining the parameter.
+#'
+#' @returns a list with elements rho_prior_eta (a single number controlling the
+#'   prior for the eta parameter), df_priors_scalars and df_priors_vectors
+#'   (dataframes containing the priors for scalar and vector quantities
+#'   respectively).
+#' @export
+#'
+#' @examples
 read_priors <- function(path_to_csv) {
   
   stopifnot(file.exists(path_to_csv))
