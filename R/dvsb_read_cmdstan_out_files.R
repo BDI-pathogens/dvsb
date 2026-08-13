@@ -22,7 +22,6 @@
 #'   detected from the file names).
 #' @export
 #'
-#' @examples
 read_cmdstan_out_files <- function(file_paths,
                                    params_to_ignore = character(),
                                    downsampling_factor = 1L,
@@ -35,7 +34,7 @@ read_cmdstan_out_files <- function(file_paths,
   stopifnot(is.character(params_to_ignore))
   mastiff::check_numeric(downsampling_factor, lower = 1, upper_inclusive = FALSE)
 
-  map(file_paths, function(file_){
+  purrr::map(file_paths, function(file_){
     if (verbose) {
       print(Sys.time())
       cat("Now reading file", file_, "\n")

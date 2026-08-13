@@ -13,7 +13,6 @@ library(tidyverse)
 #'   respectively).
 #' @export
 #'
-#' @examples
 read_priors <- function(path_to_csv) {
   
   stopifnot(file.exists(path_to_csv))
@@ -92,12 +91,12 @@ read_priors <- function(path_to_csv) {
     "sigma_f_pred_vars[4]"  
   )
   
-  df_prior_limits <- read_csv(path_to_csv, col_types = cols_only(
-    parameter = col_character(),
-    min = col_double(),
-    max = col_double()
+  df_prior_limits <- readr::read_csv(path_to_csv, col_types = readr::cols_only(
+    parameter = readr::col_character(),
+    min = readr::col_double(),
+    max = readr::col_double()
   )) %>%
-    rename(param = parameter)
+    dplyr::rename(param = parameter)
   
   # Check for duplicated params
   problem_params <- df_prior_limits$param[duplicated(df_prior_limits$param)]
@@ -125,8 +124,8 @@ read_priors <- function(path_to_csv) {
   
   # Check for missing mins
   problem_params <- df_prior_limits %>% 
-    filter(is.na(min)) %>%
-    pull(param)
+    dplyr::filter(is.na(min)) %>%
+    dplyr::pull(param)
   if (length(problem_params)) {
     stop(paste("The following parameters had missing (NA) min:",
                paste(problem_params, collapse = ", ")))
@@ -134,8 +133,8 @@ read_priors <- function(path_to_csv) {
   
   # Check for missing maxs
   problem_params <- df_prior_limits %>% 
-    filter(is.na(max)) %>%
-    pull(param)
+    dplyr::filter(is.na(max)) %>%
+    dplyr::pull(param)
   if (length(problem_params)) {
     stop(paste("The following parameters had missing (NA) max:",
                paste(problem_params, collapse = ", ")))
@@ -143,9 +142,9 @@ read_priors <- function(path_to_csv) {
   
   # Check max > min
   problem_params <- df_prior_limits %>% 
-    filter(max <= min,
+    dplyr::filter(max <= min,
            param != "rho_prior_eta") %>%
-    pull(param)
+    dplyr::pull(param)
   if (length(problem_params)) {
     stop(paste("The following parameters had a max <= min:",
                paste(problem_params, collapse = ", ")))
@@ -153,9 +152,9 @@ read_priors <- function(path_to_csv) {
   
   # Check rho_prior_eta has min = max
   problem_params <- df_prior_limits %>% 
-    filter(param == "rho_prior_eta",
+    dplyr::filter(param == "rho_prior_eta",
            max != min) %>%
-    pull(param)
+    dplyr::pull(param)
   if (length(problem_params)) {
     stop(paste("For parameter rho_prior_eta only, min should equal max (see",
                "parameter explanation in the csv)"))
@@ -163,17 +162,17 @@ read_priors <- function(path_to_csv) {
   
   # Check mins and maxs are in allowable ranges
   problem_params <- df_prior_limits %>% 
-    filter(param %in% non_neg_params) %>%
-    filter(min < 0) %>%
-    pull(param)
+    dplyr::filter(param %in% non_neg_params) %>%
+    dplyr::filter(min < 0) %>%
+    dplyr::pull(param)
   if (length(problem_params)) {
     stop(paste("The following parameters, which can never be negative, had a",
                "negative min value:", paste(problem_params, collapse = ", ")))
   }
   problem_params <- df_prior_limits %>% 
-    filter(param %in% probability_params) %>%
-    filter(max > 1) %>%
-    pull(param)
+    dplyr::filter(param %in% probability_params) %>%
+    dplyr::filter(max > 1) %>%
+    dplyr::pull(param)
   if (length(problem_params)) {
     stop(paste("The following parameters, which must always be less than or",
                "equal to 1, had a max value greater than 1:", 
@@ -187,13 +186,13 @@ read_priors <- function(path_to_csv) {
   if (mu_pos_max < mu_neg_max) stop("mu_pos max must be greater than mu_neg max")
   
   df_prior_limits <- df_prior_limits %>%
-    rename(lower = min,
+    dplyr::rename(lower = min,
            upper = max)
   
   df_priors_scalars <- df_prior_limits %>%
-    filter(! param %in% c(vector_params, "rho_prior_eta"))
+    dplyr::filter(! param %in% c(vector_params, "rho_prior_eta"))
   df_priors_vectors <- df_prior_limits %>%
-    filter(param %in% vector_params)
+    dplyr::filter(param %in% vector_params)
   rho_prior_eta <- df_prior_limits$lower[df_prior_limits$param == "rho_prior_eta"]
   
   # Coerce separate rows for "f[1]", "f[2]" etc. into a single vector-valued
@@ -202,7 +201,7 @@ read_priors <- function(path_to_csv) {
     tidyr::extract(param, 
                    into = c("param", "index"), 
                    regex = "(.*)\\[([0-9]+)\\]$") %>%
-    pivot_wider(names_from = index, values_from = c("upper", "lower")) 
+    tidyr::pivot_wider(names_from = index, values_from = c("upper", "lower")) 
   df_priors_vectors$lower <- list(numeric(4), numeric(4), numeric(4))
   df_priors_vectors$upper <- list(numeric(4), numeric(4), numeric(4))
   for (index in 1:4) {
@@ -214,7 +213,7 @@ read_priors <- function(path_to_csv) {
     }
   }
   df_priors_vectors <- df_priors_vectors %>%
-    select(param, lower, upper)
+    dplyr::select(param, lower, upper)
   
   list(df_priors_scalars = df_priors_scalars,
        df_priors_vectors = df_priors_vectors,

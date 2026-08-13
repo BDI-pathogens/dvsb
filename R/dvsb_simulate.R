@@ -20,18 +20,6 @@
 # param = parameter
 # p = prob = probability
 
-
-library(tidyverse)
-library(mvtnorm)
-library(ggforce)
-library(mastiff)
-theme_set(theme_classic())
-
-PL4 <- function(xlog, f_1, f_2, f_3, f_4) {
-  f_2 + (f_3 - f_2) / (1 + exp(-f_1 * (xlog - f_4)))
-}
-x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
-
 #' Simulate x and y values for samples and calibrators across different plates
 #'
 #' @param seed seed used for random number generation
@@ -90,7 +78,7 @@ x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
 #' @param x_mix_pred_vars_sds a list (whose names are the parameters p_pos,
 #'   mu_neg, mu_pos, sd_neg, sd_pos) of named numeric vectors (whose names must
 #'   match the categorical variables named in the inner lists of
-#'   `x_mix_pred_vars`). Each {name, numeric value} pair within one of these
+#'   `x_mix_pred_vars`). Each \{name, numeric value\} pair within one of these
 #'   vectors specifies the scale of variability between the regression
 #'   coefficients for the different categories of named categorical variable.
 #' @param x_mix_effects Normally you will want to leave this at its default
@@ -106,8 +94,8 @@ x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
 #'   of named numeric vectors (one per categorical variable used in a regression
 #'   model for this parameter; the names, one per category of this variable,
 #'   must match those for the variable as specified in x_mix_pred_vars).
-#' @param p_pos_binary_effects a named numeric vector. Each {name, numeric
-#'   value} pair within this vector specifies the name of a logical variable and
+#' @param p_pos_binary_effects a named numeric vector. Each \{name, numeric
+#'   value\} pair within this vector specifies the name of a logical variable and
 #'   the additive shift in seroprevalence (on a logit scale) between when this
 #'   variable is true and when it is false. Each sample will be randomly
 #'   allocated a value of true or false for each such variable.
@@ -135,9 +123,9 @@ x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
 #'   vector naming the variables used in a regression model for that parameter),
 #'   p_pos_binary_pred_vars (a character vector of the names of any variables
 #'   used for a regression model for p_pos, using only binary fixed effects).
+#' @importFrom magrittr %>%
 #' @export
 #'
-#' @examples
 simulate_data <- function(
     seed = 1234567,
     num_plate = 4,
@@ -194,24 +182,26 @@ simulate_data <- function(
   
   # INPUT CHECKS ----
   
+  x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
+  
   # Check numeric scalars  
-  check_numeric(seed)
-  check_numeric(num_plate, lower = 0)
-  check_numeric(num_sam_per_plate, lower = 0)
-  check_numeric(num_rep_per_sam, lower = 0)
-  check_numeric(num_rep_per_cal, lower = 0)
-  check_numeric(y_obs_sd_cal_min, lower = 0)
-  check_numeric(y_obs_sd_cal_jump, lower = 0)
-  check_numeric(y_obs_sd_sam_min, lower = 0)
-  check_numeric(y_obs_sd_sam_jump, lower = 0)
-  check_numeric(mu_neg)
-  check_numeric(mu_pos, lower = mu_neg, lower_inclusive = FALSE)
-  check_numeric(sd_neg, lower = 0)
-  check_numeric(sd_pos, lower = 0)
-  check_numeric(p_pos, lower = 0, upper = 1)
-  check_numeric(p_blank, lower = 0, upper = 1)
-  check_numeric(y_obs_sd_min_log_shift_sd, lower = 0)
-  check_numeric(y_obs_sd_jump_log_shift_sd, lower = 0)
+  mastiff::check_numeric(seed)
+  mastiff::check_numeric(num_plate, lower = 0)
+  mastiff::check_numeric(num_sam_per_plate, lower = 0)
+  mastiff::check_numeric(num_rep_per_sam, lower = 0)
+  mastiff::check_numeric(num_rep_per_cal, lower = 0)
+  mastiff::check_numeric(y_obs_sd_cal_min, lower = 0)
+  mastiff::check_numeric(y_obs_sd_cal_jump, lower = 0)
+  mastiff::check_numeric(y_obs_sd_sam_min, lower = 0)
+  mastiff::check_numeric(y_obs_sd_sam_jump, lower = 0)
+  mastiff::check_numeric(mu_neg)
+  mastiff::check_numeric(mu_pos, lower = mu_neg, lower_inclusive = FALSE)
+  mastiff::check_numeric(sd_neg, lower = 0)
+  mastiff::check_numeric(sd_pos, lower = 0)
+  mastiff::check_numeric(p_pos, lower = 0, upper = 1)
+  mastiff::check_numeric(p_blank, lower = 0, upper = 1)
+  mastiff::check_numeric(y_obs_sd_min_log_shift_sd, lower = 0)
+  mastiff::check_numeric(y_obs_sd_jump_log_shift_sd, lower = 0)
   
   # Check vectors and matrices
   stopifnot(is.numeric(x_cals))
@@ -266,8 +256,8 @@ simulate_data <- function(
                   "\nrespectively. These must be identical.\n"))
     }
   }
-  x_mix_pred_vars_names <- map(x_mix_pred_vars, names)
-  x_mix_pred_vars_nums <- map_int(x_mix_pred_vars_names, length)
+  x_mix_pred_vars_names <- purrr::map(x_mix_pred_vars, names)
+  x_mix_pred_vars_nums <- purrr::map_int(x_mix_pred_vars_names, length)
   if (any(x_mix_pred_vars_nums) && num_sam_id == 0) {
     stop("You need some samples if the x mix parameters are to be predicted")
   }
@@ -380,7 +370,7 @@ simulate_data <- function(
   # Sample each plate's f predictor variables.
   # Ensure that we don't randomly sample the same category for every plate.
   # Delete any unsampled categories.
-  df_plate <- tibble(plate = 1:num_plate)
+  df_plate <- tibble::tibble(plate = 1:num_plate)
   for (f_pred_var in f_pred_vars_names) {
     sampled_pred_vars <- character()
     while(length(sampled_pred_vars) < 2) {
@@ -393,13 +383,13 @@ simulate_data <- function(
     } 
     df_plate[[f_pred_var]] <- sampled_pred_vars
   }
-  num_cat_per_f_pred_var <- map_int(f_pred_vars, length)
+  num_cat_per_f_pred_var <- purrr::map_int(f_pred_vars, length)
   num_f_pred_var_cats <- sum(num_cat_per_f_pred_var)
   
   # Draw plate-level variation in f
   Sigma_plate <- diag(sigma_f_plate) %*% rho %*% diag(sigma_f_plate)
-  f_plate_effects <- rmvnorm(num_plate, c(0, 0, 0, 0), Sigma_plate)
-  df_plate$f_effect_plate <- map(1:num_plate, ~ f_plate_effects[.x, ])
+  f_plate_effects <- mvtnorm::rmvnorm(num_plate, c(0, 0, 0, 0), Sigma_plate)
+  df_plate$f_effect_plate <- purrr::map(1:num_plate, ~ f_plate_effects[.x, ])
   
   # Draw variation in f due to f_pred_vars
   f_effects_by_pred_var <- list()
@@ -407,19 +397,19 @@ simulate_data <- function(
     sigma_f_ <- sigma_f_pred_vars[[f_pred_var]]
     Sigma_f_ <- diag(sigma_f_) %*% rho %*% diag(sigma_f_)
     num_cats <- length(f_pred_vars[[f_pred_var]])
-    f_effects_ <- rmvnorm(num_cats, c(0, 0, 0, 0), Sigma_f_)
+    f_effects_ <- mvtnorm::rmvnorm(num_cats, c(0, 0, 0, 0), Sigma_f_)
     f_effects_col_means <- colMeans(f_effects_)
     for (cat_num in 1:num_cats) {
       f_effects_[cat_num, ] <- f_effects_[cat_num, ] - f_effects_col_means
     }
     rownames(f_effects_) <- f_pred_vars[[f_pred_var]]
     f_effects_by_pred_var[[f_pred_var]] <- f_effects_
-    df_plate[[paste0("f_effect_", f_pred_var)]] <- map(
+    df_plate[[paste0("f_effect_", f_pred_var)]] <- purrr::map(
       df_plate[[f_pred_var]], ~ f_effects_[.x, ])
   }
   
   # Assign f by plate
-  df_plate$f <- map(1:num_plate, ~ f)
+  df_plate$f <- purrr::map(1:num_plate, ~ f)
   for (plate in 1:num_plate) {
     df_plate$f[[plate]] <- f + df_plate$f_effect_plate[[plate]]
   }
@@ -430,18 +420,18 @@ simulate_data <- function(
     }
   }
   df_plate <- df_plate %>%
-    unnest_wider(f, names_sep = "_")
+    tidyr::unnest_wider(f, names_sep = "_")
   
-  y_obs_sd_min_multiplier_per_plate_unscaled <- rnorm(num_plate)
+  y_obs_sd_min_multiplier_per_plate_unscaled <- stats::rnorm(num_plate)
   y_obs_sd_min_multiplier_per_plate_unscaled <-
     y_obs_sd_min_multiplier_per_plate_unscaled -
     mean(y_obs_sd_min_multiplier_per_plate_unscaled)
-  y_obs_sd_jump_multiplier_per_plate_unscaled <- rnorm(num_plate)
+  y_obs_sd_jump_multiplier_per_plate_unscaled <- stats::rnorm(num_plate)
   y_obs_sd_jump_multiplier_per_plate_unscaled <-
     y_obs_sd_jump_multiplier_per_plate_unscaled -
     mean(y_obs_sd_jump_multiplier_per_plate_unscaled)
   df_plate <- df_plate %>%
-    mutate(y_obs_sd_min_multiplier_per_plate =
+    dplyr::mutate(y_obs_sd_min_multiplier_per_plate =
              exp(y_obs_sd_min_multiplier_per_plate_unscaled * 
                    y_obs_sd_min_log_shift_sd - y_obs_sd_min_log_shift_sd^2 / 2),
            y_obs_sd_jump_multiplier_per_plate =
@@ -459,19 +449,19 @@ simulate_data <- function(
                              df_plate[[f_pred_var]])
   }
   df_plate <- df_plate %>%
-    mutate(label = fct_reorder(label, plate))
+    dplyr::mutate(label = forcats::fct_reorder(label, plate))
   
   # Expand to one row per cal (one for each x). Calculate y expected.
   df_cal <- df_plate %>%
-    expand_grid(xlog = x_cals_log, cal = 1:num_rep_per_cal) %>%
-    mutate(x = exp(xlog),
-           which_cal = row_number(),
+    tidyr::expand_grid(xlog = x_cals_log, cal = 1:num_rep_per_cal) %>%
+    dplyr::mutate(x = exp(xlog),
+           which_cal = dplyr::row_number(),
            y_mean = PL4(xlog, f_1, f_2, f_3, f_4))
   
   # Draw observed y
   df_cal <- df_cal %>%
-    mutate(y_obs_sd = PL4(xlog, f_1, y_obs_sd_cal_min, y_obs_sd_cal_min + y_obs_sd_cal_jump, f_4),
-           y = rnorm(nrow(.), mean = y_mean, sd = y_obs_sd))
+    dplyr::mutate(y_obs_sd = PL4(xlog, f_1, y_obs_sd_cal_min, y_obs_sd_cal_min + y_obs_sd_cal_jump, f_4),
+           y = stats::rnorm(nrow(.), mean = y_mean, sd = y_obs_sd))
   
   # SIMULATE SAMS ----
   
@@ -486,9 +476,9 @@ simulate_data <- function(
   # Delete any unsampled categories.
   # For those pred vars shared by multiple params, sample once only.
   df_sam <- df_plate %>%
-    slice(rep(row_number(), num_sam_per_plate)) %>%
-    arrange(plate) %>%
-    mutate(id_sam = as.character(row_number()))
+    dplyr::slice(rep(dplyr::row_number(), num_sam_per_plate)) %>%
+    dplyr::arrange(plate) %>%
+    dplyr::mutate(id_sam = as.character(dplyr::row_number()))
   x_mix_pred_vars_num_cats <- list()
   x_mix_pred_vars_num_cats_tots <- integer()
   for (param in x_mix_params) {
@@ -500,7 +490,7 @@ simulate_data <- function(
         next
       } 
       sampled_pred_vars <- character()
-      while(n_distinct(sampled_pred_vars) < 2) {
+      while(dplyr::n_distinct(sampled_pred_vars) < 2) {
         sampled_pred_vars <- sample(x_mix_pred_vars[[param]][[pred_var]],
                                     size = num_sam_id,
                                     replace = TRUE)
@@ -509,13 +499,13 @@ simulate_data <- function(
       df_sam[[pred_var]] <- sampled_pred_vars
     }
     x_mix_pred_vars_num_cats[[param]] <-
-      map_int(x_mix_pred_vars[[param]], length)
+      purrr::map_int(x_mix_pred_vars[[param]], length)
     x_mix_pred_vars_num_cats_tots[[param]] <- 
       sum(x_mix_pred_vars_num_cats[[param]])
   }
   for (pred_var in p_pos_binary_pred_vars) {
     sampled_pred_vars <- character()
-    while(n_distinct(sampled_pred_vars) < 2) {
+    while(dplyr::n_distinct(sampled_pred_vars) < 2) {
       sampled_pred_vars <- sample(c(TRUE, FALSE),
                                   size = num_sam_id,
                                   replace = TRUE)
@@ -523,15 +513,15 @@ simulate_data <- function(
     df_sam[[pred_var]] <- sampled_pred_vars
   }
   all_names_x_mix_pred_vars <- x_mix_pred_vars %>% 
-    map(names) %>%
+    purrr::map(names) %>%
     unlist() %>%
     unique()
   if (is.null(all_names_x_mix_pred_vars)) {
     df_sam <- df_sam %>%
-      mutate(x_mix_group = NA_character_)
+      dplyr::mutate(x_mix_group = NA_character_)
   } else {
     df_sam <- df_sam %>%
-      unite("x_mix_group", all_of(all_names_x_mix_pred_vars), sep = "_", remove = FALSE)
+      tidyr::unite("x_mix_group", tidyselect::all_of(all_names_x_mix_pred_vars), sep = "_", remove = FALSE)
   }
   for (pred_var in p_pos_binary_pred_vars) {
     df_sam$x_mix_group <- paste0(df_sam$x_mix_group, "_", pred_var, df_sam[[pred_var]])
@@ -545,7 +535,7 @@ simulate_data <- function(
       for (pred_var in x_mix_pred_vars_names[[param]]) {
         sigma_ <- x_mix_pred_vars_sds[[param]][[pred_var]]
         num_cats <- x_mix_pred_vars_num_cats[[param]][[pred_var]]
-        effects_ <- rnorm(num_cats, 0, sigma_)
+        effects_ <- stats::rnorm(num_cats, 0, sigma_)
         effects_ <- effects_ - mean(effects_)
         names(effects_) <- x_mix_pred_vars[[param]][[pred_var]]
         x_mix_effects[[param]][[pred_var]] <- effects_
@@ -555,7 +545,7 @@ simulate_data <- function(
   for (param in x_mix_params) {
     for (pred_var in x_mix_pred_vars_names[[param]]) {
       effects_ <- x_mix_effects[[param]][[pred_var]]
-      df_sam[[paste0(param, "_effect_", pred_var)]] <- map_dbl(
+      df_sam[[paste0(param, "_effect_", pred_var)]] <- purrr::map_dbl(
         df_sam[[pred_var]], ~ effects_[[.x]])
     }
   }
@@ -594,11 +584,11 @@ simulate_data <- function(
   # For each sam: draw x using x mix params, then calculate its mean y using its plate's
   # f parameters...
   df_sam <- df_sam %>%
-    mutate(pos = runif(num_sam_id) < p_pos,
-           xlog = if_else(pos,
-                          rnorm(num_sam_id, mean = mu_pos, 
+    dplyr::mutate(pos = stats::runif(num_sam_id) < p_pos,
+           xlog = dplyr::if_else(pos,
+                          stats::rnorm(num_sam_id, mean = mu_pos, 
                                 sd = sd_pos),
-                          rnorm(num_sam_id, mean = mu_neg, 
+                          stats::rnorm(num_sam_id, mean = mu_neg, 
                                 sd = sd_neg)),
            x = exp(xlog),
            y_mean = PL4(xlog, f_1, f_2, f_3, f_4))
@@ -606,13 +596,13 @@ simulate_data <- function(
   # ... then create the desired number of reps of each sample, and draw their ys
   num_sam_rep <- num_sam_id * num_rep_per_sam
   df_sam <- df_sam %>%
-    slice(rep(row_number(), num_rep_per_sam)) %>%
-    arrange(id_sam) %>%
-    mutate(y_obs_sd = PL4(xlog, f_1, y_obs_sd_sam_min, y_obs_sd_sam_max, f_4),
-           is_blank = runif(nrow(.)) < p_blank,
-           y = if_else(is_blank,
-                       rnorm(nrow(.), mean = f_2,    sd = y_obs_sd_sam_min),
-                       rnorm(nrow(.), mean = y_mean, sd = y_obs_sd)))
+    dplyr::slice(rep(dplyr::row_number(), num_rep_per_sam)) %>%
+    dplyr::arrange(id_sam) %>%
+    dplyr::mutate(y_obs_sd = PL4(xlog, f_1, y_obs_sd_sam_min, y_obs_sd_sam_max, f_4),
+           is_blank = stats::runif(nrow(.)) < p_blank,
+           y = dplyr::if_else(is_blank,
+                       stats::rnorm(nrow(.), mean = f_2,    sd = y_obs_sd_sam_min),
+                       stats::rnorm(nrow(.), mean = y_mean, sd = y_obs_sd)))
   
   return(list(
     df_sam = df_sam,

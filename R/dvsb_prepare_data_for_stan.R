@@ -43,7 +43,6 @@
 #'   Stan indexing).
 #' @export
 #'
-#' @examples
 prepare_data_for_stan <- function(
     df_sam,
     df_cal,
@@ -130,16 +129,16 @@ prepare_data_for_stan <- function(
   df_plate <- data.frame(plate = unique(df$plate))
   df_plate$plate_int <- seq(from = 1, length.out = nrow(df_plate))
   num_plate <- nrow(df_plate)
-  df_sam <- left_join(df_sam, df_plate, by = "plate")
-  df_cal <- left_join(df_cal, df_plate, by = "plate")
+  df_sam <- dplyr::left_join(df_sam, df_plate, by = "plate")
+  df_cal <- dplyr::left_join(df_cal, df_plate, by = "plate")
   
   num_sam_rep <- nrow(df_sam)
   
   # TODO: set int id cols 
   df_sam <- df_sam %>%
-    mutate(.by = id_sam, id_sam_int = cur_group_id()) %>% 
-    arrange(id_sam_int) %>%
-    mutate(which_sam_rep = row_number())
+    dplyr::mutate(.by = id_sam, id_sam_int = dplyr::cur_group_id()) %>% 
+    dplyr::arrange(id_sam_int) %>%
+    dplyr::mutate(which_sam_rep = dplyr::row_number())
   
   num_sam_id <- ifelse(num_sam_rep, max(df_sam$id_sam_int), 0)
   
@@ -163,14 +162,14 @@ prepare_data_for_stan <- function(
       if (anyNA(df_sam[[pred_var]])) {
         stop(paste("Some samples have missing", pred_var))
       }
-      if (n_distinct(df_sam[[pred_var]]) < 2L) stop(paste(
+      if (dplyr::n_distinct(df_sam[[pred_var]]) < 2L) stop(paste(
         "Fewer than 2 unique values of", pred_var, "found in df_sam;",
         "need at least 2 to use it as an x_mix_pred_var"
       ))
       x_mix_pred_vars[[param]][[pred_var]] <- unique(df_sam[[pred_var]])
     }
     x_mix_pred_vars_num_cats[[param]] <-
-      map_int(x_mix_pred_vars[[param]], length)
+      purrr::map_int(x_mix_pred_vars[[param]], length)
     x_mix_pred_vars_num_cats_tots[[param]] <- 
       sum(x_mix_pred_vars_num_cats[[param]])
   }
@@ -193,20 +192,20 @@ prepare_data_for_stan <- function(
       # Some pred vars
     } else {
       mat <- df_sam %>%
-        select(id_sam_int, all_of(x_mix_pred_vars_names[[param]])) %>%
-        distinct() # remove duplicates because of replicates...
+        dplyr::select(id_sam_int, tidyselect::all_of(x_mix_pred_vars_names[[param]])) %>%
+        dplyr::distinct() # remove duplicates because of replicates...
       stopifnot(identical(mat$id_sam_int, # ... and check one row per sam_id, in order
                           1:nrow(mat)))
       mat <- mat %>%
-        select(-id_sam_int) %>%
-        mutate(across(everything(), as.character)) %>%
-        mutate(across(everything(), as.factor)) %>%
-        {model.matrix(~ . - 1,
+        dplyr::select(-id_sam_int) %>%
+        dplyr::mutate(dplyr::across(tidyselect::everything(), as.character)) %>%
+        dplyr::mutate(dplyr::across(tidyselect::everything(), as.factor)) %>%
+        {stats::model.matrix(~ . - 1,
                       data = .,
                       contrasts.arg = lapply(.[, , drop = FALSE],
-                                             contrasts, contrasts = FALSE))}
+                                             stats::contrasts, contrasts = FALSE))}
       colnames_expected <-
-        map(x_mix_pred_vars_names[[param]],
+        purrr::map(x_mix_pred_vars_names[[param]],
             ~ paste0(.x, x_mix_pred_vars[[param]][[.x]])) %>%
         unlist
       stopifnot(identical(sort(colnames(mat)),
@@ -222,10 +221,10 @@ prepare_data_for_stan <- function(
   lookup_pred_var_int <- list()
   lookup_pred_var_cat_int <- list()
   for (param in x_mix_params) {
-    lookup_pred_var_int[[param]] <- tibble(
+    lookup_pred_var_int[[param]] <- tibble::tibble(
       pred_var = x_mix_pred_vars_names[[param]],
       pred_var_int = seq(from = 1, length.out = x_mix_pred_vars_nums[[param]]))
-    lookup_pred_var_cat_int[[param]] <- tibble(
+    lookup_pred_var_cat_int[[param]] <- tibble::tibble(
       pred_var_cat = colnames(x_mix_design_matrices[[param]]),
       pred_var_cat_int = seq(from = 1, length.out = x_mix_pred_vars_num_cats_tots[[param]]))
     if (nrow(lookup_pred_var_int[[param]]) == 0) {
@@ -241,7 +240,7 @@ prepare_data_for_stan <- function(
   # Check that we have both TRUE and FALSE values for each p_pos_binary_pred_var
   for (pred_var in p_pos_binary_pred_vars) {
     stopifnot(is.logical(df_sam[[pred_var]]))
-    if (n_distinct(df_sam[[pred_var]]) < 2L) stop(paste(
+    if (dplyr::n_distinct(df_sam[[pred_var]]) < 2L) stop(paste(
       "Fewer than 2 unique values of", pred_var, "found in df_sam;",
       "need at least 2 to use it as a p_pos_binary_pred_var"
     ))
@@ -253,13 +252,13 @@ prepare_data_for_stan <- function(
     p_pos_binary_design_matrix <- matrix(NA_real_, nrow = num_sam_id, ncol = 0)
   } else {
     mat <- df_sam %>%
-      select(id_sam_int, all_of(p_pos_binary_pred_vars)) %>%
-      distinct() 
+      dplyr::select(id_sam_int, tidyselect::all_of(p_pos_binary_pred_vars)) %>%
+      dplyr::distinct() 
     stopifnot(identical(mat$id_sam_int, 
                         1:nrow(mat)))
     mat <- mat %>%
-      select(-id_sam_int) %>%
-      mutate(across(everything(), as.integer))
+      dplyr::select(-id_sam_int) %>%
+      dplyr::mutate(dplyr::across(tidyselect::everything(), as.integer))
     stopifnot(identical(colnames(mat),
                         p_pos_binary_pred_vars))
     p_pos_binary_design_matrix <- mat
@@ -281,18 +280,18 @@ prepare_data_for_stan <- function(
     }
     f_pred_vars[[f_pred_var]] <- unique(df[[f_pred_var]])
   }
-  num_cat_per_f_pred_var <- map_int(f_pred_vars, length)
+  num_cat_per_f_pred_var <- purrr::map_int(f_pred_vars, length)
   num_f_pred_var_cats <- sum(num_cat_per_f_pred_var)
   
   # 0-or-1 encode each cat of f_pred_vars for every plate
   if (predict_f) {
     design_matrix_f <- df_plate %>%
-      select(all_of(f_pred_vars_names)) %>%
-      mutate(across(everything(), as.factor)) %>%
-      {model.matrix(~ . - 1,
+      dplyr::select(tidyselect::all_of(f_pred_vars_names)) %>%
+      dplyr::mutate(dplyr::across(tidyselect::everything(), as.factor)) %>%
+      {stats::model.matrix(~ . - 1,
                     data = .,
                     contrasts.arg = lapply(.[, , drop = FALSE],
-                                           contrasts, contrasts = FALSE))}
+                                           stats::contrasts, contrasts = FALSE))}
   } else {
     design_matrix_f <- matrix(NA_real_, nrow = num_plate, ncol = 0)
   }
@@ -300,7 +299,7 @@ prepare_data_for_stan <- function(
   # Count cats per f pred var. Ensure the col names of design_matrix_f are as 
   # expected.
   design_matrix_f_colnames_expected <-
-    map(f_pred_vars_names, ~ paste0(.x, f_pred_vars[[.x]])) %>%
+    purrr::map(f_pred_vars_names, ~ paste0(.x, f_pred_vars[[.x]])) %>%
     unlist
   stopifnot(identical(sort(colnames(design_matrix_f)),
                       sort(design_matrix_f_colnames_expected)))
@@ -311,9 +310,9 @@ prepare_data_for_stan <- function(
                       design_matrix_f_colnames_expected))
 
   # Look-ups between int and string encodings
-  df_f_pred_vars <- tibble(f_pred_var = f_pred_vars_names,
+  df_f_pred_vars <- tibble::tibble(f_pred_var = f_pred_vars_names,
                            f_pred_var_int = seq(1, length.out = num_f_pred_vars))
-  df_f_pred_vars_cats <- tibble(f_pred_var_cat = design_matrix_f_colnames_expected,
+  df_f_pred_vars_cats <- tibble::tibble(f_pred_var_cat = design_matrix_f_colnames_expected,
                                 f_pred_var_cat_int = seq(1, length.out = num_f_pred_var_cats))
 
   

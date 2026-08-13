@@ -45,7 +45,6 @@
 #'   `cmdstan_read_output_into_df` is set to `FALSE`).
 #' @export
 #'
-#' @examples
 run_stan_interfaces <- function(input_to_stan,
                                 path_to_stan_code,
                                 interface = c("rstan", "cmdstanr", "cmdstan"),
@@ -70,7 +69,8 @@ run_stan_interfaces <- function(input_to_stan,
   stopifnot(length(path_to_stan_code) == 1)
   stopifnot(file.exists(path_to_stan_code))
   stopifnot(endsWith(path_to_stan_code, ".stan"))
-  mastiff::check_numeric(iterations, lower = 1)
+  mastiff::check_numeric(iter_warmup, lower = 1)
+  mastiff::check_numeric(iter_sampling, lower = 1)
   mastiff::check_numeric(chains, lower = 1)
   mastiff::check_numeric(cores, lower = 1)
   stopifnot(is.character(params_to_ignore))
