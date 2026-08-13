@@ -116,7 +116,7 @@ run_stan_interfaces <- function(input_to_stan,
   } else if (interface == "cmdstanr") {
     model_compiled <- cmdstanr::cmdstan_model(path_to_stan_code)
   } else {
-    system(paste("cd", dir_stan, "&& make STAN_THREADS=true", cmdstan_path_to_compiled_model))
+    system(paste("cd", cmdstan_path_to_installation, "&& make STAN_THREADS=true", cmdstan_path_to_compiled_model))
   }
   
   start_time <- Sys.time()
