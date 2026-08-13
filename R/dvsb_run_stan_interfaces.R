@@ -155,7 +155,8 @@ run_stan_interfaces <- function(input_to_stan,
         ! startsWith(colnames(df_samples), paste0(param, "["))
       keep_col <- keep_col & keep_based_on_this_param
     }
-    df_samples <- df_samples[, ..keep_col]
+    cols_to_keep <- names(df_samples)[keep_col]
+    df_samples <- df_samples[, cols_to_keep]
 
   } else {
     cmdstanr::write_stan_json(input_to_stan, file = cmdstan_path_to_json)

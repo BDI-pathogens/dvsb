@@ -57,7 +57,8 @@ read_cmdstan_out_files <- function(file_paths,
           ! startsWith(colnames(df_), paste0(param, ".")) 
         keep_col <- keep_col & keep_based_on_this_param
       }
-      df_ <- df_[, ..keep_col]
+      cols_to_keep <- names(df_)[keep_col]      
+      df_ <- df_[, cols_to_keep]
     }
     if (downsampling_factor > 1L) {
       df_ <- df_[seq(1, .N, by = downsampling_factor)] 
