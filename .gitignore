@@ -39,3 +39,7 @@ dvsb.Rproj
 examples/.DS_Store
 
 *.rds
+
+inst/stan/dvsb
+inst/stan/dvsb_accidental_blanks
+inst/stan/dvsb_no_mu_x_predictors
