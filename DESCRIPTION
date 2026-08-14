@@ -1,0 +1,40 @@
+Package: dvsb
+Title: Disease Variability in Subpopulations from Biomarkers
+Version: 0.0.0.9000
+Authors@R: 
+    person("Chris", "Wymant", , "chris.wymant@bdi.ox.ac.uk",
+    role = c("aut", "cre"))
+Description: Estimates the prevalence of disease and how it varies between
+    subpopulations, using raw uncalibrated proxy measurements of biomarkers
+    (e.g. optical density measurements from ELISA experiments, for
+    seroprevalence).
+License: GPL (>= 3)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports: 
+    cmdstanr,
+    data.table,
+    dplyr,
+    forcats,
+    ggplot2,
+    magrittr,
+    mastiff,
+    mvtnorm,
+    purrr,
+    readr,
+    rstan,
+    stats,
+    stringr,
+    tibble,
+    tidyr,
+    tidyselect,
+    utils
+Remotes:
+    mastiff=github::BDI-pathogens/mastiff
+Suggests: 
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3
