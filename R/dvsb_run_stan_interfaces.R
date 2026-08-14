@@ -198,16 +198,6 @@ run_stan_interfaces <- function(input_to_stan,
     )
     df_samples <- samples$draws(format = "draws_df")
     data.table::setDT(df_samples)
-    keep_col <- rep(TRUE, ncol(df_samples))
-    for (param in params_to_ignore) {
-      keep_based_on_this_param <- 
-        colnames(df_samples) != param &
-        ! startsWith(colnames(df_samples), paste0(param, ".")) &
-        ! startsWith(colnames(df_samples), paste0(param, "["))
-      keep_col <- keep_col & keep_based_on_this_param
-    }
-    cols_to_keep <- names(df_samples)[keep_col]
-    df_samples <- df_samples[, cols_to_keep]
 
   } else {
     cmdstanr::write_stan_json(input_to_stan, file = cmdstan_path_to_json)
@@ -243,7 +233,20 @@ run_stan_interfaces <- function(input_to_stan,
   print(end_time)
   print(end_time - start_time)
   
+  # There is no dataframe to return in this case:
   if (interface == "cmdstan" && ! cmdstan_read_output_into_df) return(NULL)
+  
+  # Exclude cols if desired
+  keep_col <- rep(TRUE, ncol(df_samples))
+  for (param in params_to_ignore) {
+    keep_based_on_this_param <- 
+      colnames(df_samples) != param &
+      ! startsWith(colnames(df_samples), paste0(param, ".")) &
+      ! startsWith(colnames(df_samples), paste0(param, "["))
+    keep_col <- keep_col & keep_based_on_this_param
+  }
+  cols_to_keep <- names(df_samples)[keep_col]
+  df_samples <- df_samples[, cols_to_keep]
   
   df_samples
   
