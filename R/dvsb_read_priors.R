@@ -1,5 +1,3 @@
-library(tidyverse)
-
 #' Reads uniform prior distributions (specified with a min and max) from a csv
 #'
 #' @param path_to_csv path to a csv file with columns parameter, min and max,
