@@ -128,8 +128,8 @@
 #'
 simulate_data <- function(
     seed = 1234567,
-    num_plate = 4,
-    num_sam_per_plate = 20,
+    num_plate = 10,
+    num_sam_per_plate = 30,
     num_rep_per_sam = 2,
     num_rep_per_cal = 2,
     x_cals = c(0, 0.5, 1.5, 4.5, 13, 40),
@@ -140,7 +140,7 @@ simulate_data <- function(
     mu_neg = -2.75,
     sd_neg = 1,
     mu_pos = 0.8,
-    sd_pos = 1.1,
+    sd_pos = 1,
     p_pos = 0.5,
     p_blank = 0,
     f = c(0.95,
@@ -169,8 +169,8 @@ simulate_data <- function(
       p_pos = c(letter = 1),
       mu_neg = c(letter = 1),
       mu_pos = c(letter = 1),
-      sd_neg = c(letter = 1),
-      sd_pos = c(letter = 1)
+      sd_neg = c(letter = 0.2),
+      sd_pos = c(letter = 0.2)
     ),
     x_mix_effects = NA,
     p_pos_binary_effects = c("boolA" = -2,
