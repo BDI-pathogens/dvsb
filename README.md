@@ -10,7 +10,7 @@ If that more general case describes your application, substitute all of our ment
 
 ### Installation
 
-Install dvsb by running this in an R session:
+Install dvsb by running the following commands in an R session (running `options(pkg.build_vignettes = TRUE)` beforehand if you want to build the vignette):
 
 ```{r}
 install.packages("pak") # if not already installed
