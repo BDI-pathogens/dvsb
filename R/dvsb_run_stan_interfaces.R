@@ -103,7 +103,8 @@ run_stan_interfaces <- function(input_to_stan,
       "Could not find a make file inside", cmdstan_path_to_installation))
     if (! cmdstan_overwrite_json && file.exists(cmdstan_path_to_json)) stop(paste(
       cmdstan_path_to_json, 
-      "exists already; please move/rename/delete to prevent overwriting"
+      "exists already; please move/rename/delete to prevent overwriting,",
+      "or run again with cmdstan_overwrite_json set to TRUE"
     ))
   }  
   mastiff::check_logical(cmdstan_read_output_into_df)
@@ -111,8 +112,7 @@ run_stan_interfaces <- function(input_to_stan,
   
   # Compile
   if (interface == "rstan") {
-    #rstan::rstan_options(auto_write = TRUE) # TODO?
-    model_compiled <- rstan::stan_model(path_to_stan_code)
+    model_compiled <- rstan::stan_model(path_to_stan_code, auto_write = TRUE)
   } else if (interface == "cmdstanr") {
     model_compiled <- cmdstanr::cmdstan_model(path_to_stan_code)
   } else {
