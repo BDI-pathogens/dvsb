@@ -224,7 +224,7 @@ simulate_data <- function(
   # Check f_pred_vars and sigma_f_pred_vars
   f_pred_vars_names <- names(f_pred_vars)
   stopifnot(! any(f_pred_vars_names %in% # avoid name clashes with variables
-                    c("plate", "f", "f_1", "f_2", "f_3", "f_4", "label")))
+                    c("plate", "f", "f_1", "f_2", "f_3", "f_4")))
   stopifnot(identical(sort(f_pred_vars_names),
                       sort(names(sigma_f_pred_vars))))
   if (is.null(f_pred_vars_names)) f_pred_vars_names <- character() # more intuitive
@@ -441,15 +441,6 @@ simulate_data <- function(
            y_obs_sd_cal_jump = y_obs_sd_cal_jump * y_obs_sd_jump_multiplier_per_plate,
            y_obs_sd_sam_min  = y_obs_sd_sam_min  * y_obs_sd_min_multiplier_per_plate,
            y_obs_sd_sam_jump = y_obs_sd_sam_jump * y_obs_sd_jump_multiplier_per_plate)
-  
-  # Label plates for plotting
-  df_plate$label <- paste("plate", df_plate$plate)
-  for (f_pred_var in f_pred_vars_names) {
-    df_plate$label <- paste0(df_plate$label, ", ", f_pred_var, " ",
-                             df_plate[[f_pred_var]])
-  }
-  df_plate <- df_plate %>%
-    dplyr::mutate(label = forcats::fct_reorder(label, plate))
   
   # Expand to one row per cal (one for each x). Calculate y expected.
   df_cal <- df_plate %>%
