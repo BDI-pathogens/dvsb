@@ -182,7 +182,7 @@ simulate_data <- function(
   
   # INPUT CHECKS ----
   
-  x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
+  x_mix_params <- c("mu_neg", "mu_pos", "p_pos", "sd_neg", "sd_pos")
   
   # Check numeric scalars  
   mastiff::check_numeric(seed)
@@ -244,8 +244,8 @@ simulate_data <- function(
   
   # Check x mix pred vars 
   num_sam_id <- num_plate * num_sam_per_plate
-  stopifnot(identical(names(x_mix_pred_vars),     x_mix_params))
-  stopifnot(identical(names(x_mix_pred_vars_sds), x_mix_params))
+  stopifnot(identical(sort(names(x_mix_pred_vars)),     x_mix_params))
+  stopifnot(identical(sort(names(x_mix_pred_vars_sds)), x_mix_params))
   for (param_ in x_mix_params) {
     if (! identical(names(x_mix_pred_vars[[param_]]),
                     names(x_mix_pred_vars_sds[[param_]]))) {
