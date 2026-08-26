@@ -16,7 +16,6 @@ Imports:
     cmdstanr,
     data.table,
     dplyr,
-    forcats,
     magrittr,
     mastiff,
     mvtnorm,
