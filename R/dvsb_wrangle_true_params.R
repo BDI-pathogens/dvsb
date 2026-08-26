@@ -1,12 +1,11 @@
-#' Gets the true parameter values from simulated data into dataframe format
+#' Flattens true parameter values from a list into a vector and renames
 #'
 #' @param param_true_values_list a list with the true parameter values, in the
 #'   format output by [simulate_data()] (inside its list of outputs).
 #' @param data_descriptors a list of things describing the dataset, of the
 #'   format output by [prepare_data_for_stan()] (inside its list of outputs).
 #'
-#' @returns A dataframe with columns `param` and `value`, with one row per
-#'   parameter.
+#' @returns A named numeric vector, with one element per parameter.
 #' @export
 #'
 wrangle_true_params <- function(param_true_values_list,
@@ -112,5 +111,10 @@ if (d$predict_p_pos_binary) {
       value = p$p_pos_binary_effects)) 
 }
 
-df_true_pop_params
+df_true_pop_params$param <- rename_params_from_stan(
+  df_true_pop_params$param, data_descriptors = data_wrangled$data_descriptors)
+vector_true_pop_params <- df_true_pop_params$value
+names(vector_true_pop_params) <- df_true_pop_params$param
+
+vector_true_pop_params
 }
