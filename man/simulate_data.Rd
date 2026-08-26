@@ -5,7 +5,7 @@
 \title{Simulate x and y values for samples and calibrators across different plates}
 \usage{
 simulate_data(
-  seed = 1234567,
+  seed = NA,
   num_plate = 10,
   num_sam_per_plate = 30,
   num_rep_per_sam = 2,
@@ -38,7 +38,8 @@ simulate_data(
 )
 }
 \arguments{
-\item{seed}{seed used for random number generation}
+\item{seed}{seed used for random number generation (if no seed is provided,
+none is used)}
 
 \item{num_plate}{number of plates}
 

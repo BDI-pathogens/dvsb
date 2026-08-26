@@ -22,7 +22,8 @@
 
 #' Simulate x and y values for samples and calibrators across different plates
 #'
-#' @param seed seed used for random number generation
+#' @param seed seed used for random number generation (if no seed is provided,
+#'   none is used)
 #' @param num_plate number of plates
 #' @param num_sam_per_plate number of samples per plate
 #' @param num_rep_per_sam number of replicates per sample
@@ -127,7 +128,7 @@
 #' @export
 #'
 simulate_data <- function(
-    seed = 1234567,
+    seed = NA,
     num_plate = 10,
     num_sam_per_plate = 30,
     num_rep_per_sam = 2,
@@ -185,7 +186,7 @@ simulate_data <- function(
   x_mix_params <- c("mu_neg", "mu_pos", "p_pos", "sd_neg", "sd_pos")
   
   # Check numeric scalars  
-  mastiff::check_numeric(seed)
+  if (! identical(seed, NA)) mastiff::check_numeric(seed)
   mastiff::check_numeric(num_plate, lower = 0)
   mastiff::check_numeric(num_sam_per_plate, lower = 0)
   mastiff::check_numeric(num_rep_per_sam, lower = 0)
@@ -357,7 +358,7 @@ simulate_data <- function(
   
   # SIMULATE PLATE VARIABILITY AND CALS ----
   
-  set.seed(seed)
+  if (! identical(seed, NA)) set.seed(seed)
   
   # Derived params
   y_obs_sd_cal_max <- y_obs_sd_cal_min + y_obs_sd_cal_jump
