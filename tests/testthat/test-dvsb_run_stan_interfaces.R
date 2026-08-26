@@ -22,9 +22,9 @@ test_that("cmdstan works", {
   df_plate <- dplyr::left_join(data$df_plate, data_wrangled$df_plate, by = "plate") 
   
   iterations <- 10 
-  cmdstan_installation_dir <- "~/.cmdstan/cmdstan-2.37.0/"
-  cmdstan_temp_file <- "~/temp_dvsb.json" 
-  cmdstan_output_basename <- "~/temp_dvsb_out"
+  cmdstan_installation_dir <- "/Users/cwymant/.cmdstan/cmdstan-2.37.0/"
+  cmdstan_temp_file <- "/Users/cwymant/temp_dvsb.json" 
+  cmdstan_output_basename <- "/Users/cwymant/temp_dvsb_out"
   
   df_posterior <- run_stan_interfaces(
     input_to_stan = data_wrangled$stan_input_posterior,
