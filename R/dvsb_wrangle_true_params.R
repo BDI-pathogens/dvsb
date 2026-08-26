@@ -112,7 +112,7 @@ if (d$predict_p_pos_binary) {
 }
 
 df_true_pop_params$param <- rename_params_from_stan(
-  df_true_pop_params$param, data_descriptors = data_wrangled$data_descriptors)
+  df_true_pop_params$param, data_descriptors = d)
 vector_true_pop_params <- df_true_pop_params$value
 names(vector_true_pop_params) <- df_true_pop_params$param
 
