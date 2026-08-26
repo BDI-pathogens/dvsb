@@ -6,8 +6,8 @@
 \usage{
 simulate_data(
   seed = 1234567,
-  num_plate = 4,
-  num_sam_per_plate = 20,
+  num_plate = 10,
+  num_sam_per_plate = 30,
   num_rep_per_sam = 2,
   num_rep_per_cal = 2,
   x_cals = c(0, 0.5, 1.5, 4.5, 13, 40),
@@ -18,7 +18,7 @@ simulate_data(
   mu_neg = -2.75,
   sd_neg = 1,
   mu_pos = 0.8,
-  sd_pos = 1.1,
+  sd_pos = 1,
   p_pos = 0.5,
   p_blank = 0,
   f = c(0.95, 0.01, 3.35, 2.45),
@@ -30,7 +30,7 @@ simulate_data(
     letters[1:4]), mu_pos = list(letter = letters[1:4]), sd_neg = list(letter =
     letters[1:4]), sd_pos = list(letter = letters[1:4])),
   x_mix_pred_vars_sds = list(p_pos = c(letter = 1), mu_neg = c(letter = 1), mu_pos =
-    c(letter = 1), sd_neg = c(letter = 1), sd_pos = c(letter = 1)),
+    c(letter = 1), sd_neg = c(letter = 0.2), sd_pos = c(letter = 0.2)),
   x_mix_effects = NA,
   p_pos_binary_effects = c(boolA = -2, boolB = 0, boolC = 2),
   y_obs_sd_min_log_shift_sd = 0,

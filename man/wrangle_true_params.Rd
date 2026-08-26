@@ -2,7 +2,7 @@
 % Please edit documentation in R/dvsb_wrangle_true_params.R
 \name{wrangle_true_params}
 \alias{wrangle_true_params}
-\title{Gets the true parameter values from simulated data into dataframe format}
+\title{Flattens true parameter values from a list into a vector and renames}
 \usage{
 wrangle_true_params(param_true_values_list, data_descriptors)
 }
@@ -14,9 +14,8 @@ format output by \code{\link[=simulate_data]{simulate_data()}} (inside its list 
 format output by \code{\link[=prepare_data_for_stan]{prepare_data_for_stan()}} (inside its list of outputs).}
 }
 \value{
-A dataframe with columns \code{param} and \code{value}, with one row per
-parameter.
+A named numeric vector, with one element per parameter.
 }
 \description{
-Gets the true parameter values from simulated data into dataframe format
+Flattens true parameter values from a list into a vector and renames
 }
