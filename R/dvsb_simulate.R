@@ -301,12 +301,11 @@ simulate_data <- function(
       stopifnot(identical(sort(names(x_mix_effects[[param]])),
                           sort(names(x_mix_pred_vars[[param]]))))
       for (param_inner in names(x_mix_effects[[param]])) {
-        vector_ <- x_mix_effects[[param]][[param_inner]]
-        stopifnot(is.numeric(vector_))
-        stopifnot(identical(sort(names(vector_)),
+        stopifnot(is.numeric(x_mix_effects[[param]][[param_inner]]))
+        stopifnot(identical(sort(names(x_mix_effects[[param]][[param_inner]])),
                             sort(x_mix_pred_vars[[param]][[param_inner]])))
-        stopifnot(all(is.finite(vector_)))
-        stopifnot(abs(sum(vector_)) < 1e-5)
+        stopifnot(all(is.finite(x_mix_effects[[param]][[param_inner]])))
+        stopifnot(abs(sum(x_mix_effects[[param]][[param_inner]])) < 1e-5)
       }
     }
   }  
@@ -338,8 +337,8 @@ simulate_data <- function(
   
   # Check p_pos_binary_pred_vars
   stopifnot(is.numeric(p_pos_binary_effects))
-  p_pos_binary_pred_vars <- names(p_pos_binary_effects)
   if (length(p_pos_binary_effects)) {
+    p_pos_binary_pred_vars <- names(p_pos_binary_effects)
     stopifnot(!is.null(p_pos_binary_pred_vars))
     stopifnot(!anyNA(p_pos_binary_pred_vars))
     stopifnot(!anyNA(p_pos_binary_effects))
@@ -354,7 +353,9 @@ simulate_data <- function(
                     paste(pred_vars_shared, collapse = " ")))
       }
     }
-  } 
+  } else {
+    p_pos_binary_pred_vars <- character()
+  }
   
   # SIMULATE PLATE VARIABILITY AND CALS ----
   
