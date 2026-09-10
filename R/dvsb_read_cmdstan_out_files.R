@@ -58,6 +58,10 @@ read_cmdstan_out_files <- function(file_paths,
         keep_col <- keep_col & keep_based_on_this_param
       }
       df_ <- df_[, ..keep_col]
+      if (verbose) {
+        cat("Reduced from", length(keep_col), "to", ncol(df_),
+            "columns due to params_to_ignore\n")
+      }
     }
     if (downsampling_factor > 1L) {
       df_ <- df_[seq(1, .N, by = downsampling_factor)] 
