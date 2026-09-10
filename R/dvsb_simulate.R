@@ -124,7 +124,6 @@
 #'   vector naming the variables used in a regression model for that parameter),
 #'   p_pos_binary_pred_vars (a character vector of the names of any variables
 #'   used for a regression model for p_pos, using only binary fixed effects).
-#' @importFrom magrittr %>%
 #' @export
 #'
 simulate_data <- function(
