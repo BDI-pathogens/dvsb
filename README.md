@@ -10,12 +10,21 @@ If that more general case describes your application, substitute all of our ment
 
 ### Installation
 
-Install dvsb by running the following commands in an R session (running `options(pkg.build_vignettes = TRUE)` beforehand if you want to build the vignette):
+Install dvsb by running the following commands in an R session:
 
-`install.packages("pak") # if not already installed`
+```r
+install.packages("pak") # if not already installed
+pak::pak("BDI-pathogens/mastiff")
+pak::pak("BDI-pathogens/dvsb")
+```
 
-`pak::pak("BDI-pathogens/dvsb")`
-
+To interface to its Stan code, dvsb can use cmdstanr or cmdstan instead of rstan, if you desire.
+This requires that you have cmdstan installed.
+Do that by running
+```r
+install.packages("cmdstanr", repos = c('https://stan-dev.r-universe.dev', getOption("repos")))
+```
+(after which you might need to restart your R session).
 
 ### What is the statistical model?
 
