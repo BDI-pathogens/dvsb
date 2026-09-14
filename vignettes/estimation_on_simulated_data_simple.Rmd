@@ -14,9 +14,14 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup}
+## Setting up
+
+```{r setup, message=FALSE}
 library(dvsb)
+library(tidyr)
+library(dplyr)
 library(ggplot2)
+theme_set(theme_classic())
 ```
 
 Let's start by getting out of the way two clunky things.
@@ -45,7 +50,7 @@ stan_path <- file.path(stan_dir, "dvsb.stan")
 ```
 
 The second clunky thing: a dataframe's worth of input specifying the priors is required.
-We store this in a csv file bundled with dvsb, so that you can more easily inspect it, modify it, make different copies for different analyses and move them to different places, etc.
+We store this in a csv file bundled with dvsb, so that you can more easily inspect it, modify it, make different copies for different analyses, move copies outside of your dvsb repository in case prior defaults are updated in later changes to dvsb, etc.
 Again, you just need to say where this file lives after dvsb has been installed on your system.
 We find where that is similarly:
 
@@ -55,7 +60,7 @@ list.files(priors_dir)
 ```
 
 Now set the path to that file - the one bundled with dvsb.
-(If you've made a copy of this file somewhere else to modify it, you would give that path instead.)
+(If you want to use a copy of this file that you moved somewhere else and perhaps modified, you would give that path instead.)
 
 ```{r find_required_prior_file}
 priors_path <- file.path(priors_dir, "priors.csv")
@@ -72,12 +77,14 @@ df_priors_vectors <- priors_list$df_priors_vectors
 rho_prior_eta <- priors_list$rho_prior_eta
 ```
 
+## Simulate data
+
 Next we simulate data, giving us a list with seven things in it.
 (If we were using real data instead of simulated data, we would simply need to create the `df_sam` and `df_cal` dataframes ourselves instead of running `simulate_data()` below.
 The documentation for `prepare_data_for_stan()` explains what columns these dataframes require, and how sets of covariates for regression models are specified using the arguments `x_mix_pred_vars_names`, `p_pos_binary_pred_vars`, `f_pred_vars_names`.)
 
 ```{r simulate, message=FALSE}
-data <- simulate_data()
+data <- simulate_data(num_sam_per_plate = 100)
 df_sam <- data$df_sam
 df_cal <- data$df_cal
 df_plate <- data$df_plate
@@ -98,7 +105,6 @@ ggplot(df_cal) +
 
 Plot the simulated sample data, histogramming the OD values, one facet for each category of the `letter` covariate (which differ in their x distributions when default arguments for `simulate_data()`):
 
-
 ```{r plot_data_sam}
 ggplot(df_sam) +
   geom_histogram(aes(x = x), bins = 20) +
@@ -106,6 +112,8 @@ ggplot(df_sam) +
   theme_classic() +
   scale_x_log10()
 ```
+
+## Run Stan
 
 Wrangle the data and priors into the form needed for stan.
 
@@ -140,7 +148,7 @@ The downside is that Stan can have difficulty exploring the geometry of the prio
 ]:
 
 ```{r run_stan, warning = FALSE, message = FALSE}
-iterations <- 10 # per chain, half of them warmup
+iterations <- 10 # per chain
 stan_interface <- "rstan" # one of: "rstan", "cmdstanr", "cmdstan"
 
 df_posterior <- run_stan_interfaces(
@@ -148,7 +156,6 @@ df_posterior <- run_stan_interfaces(
   iter_sampling = iterations,
   iter_warmup = iterations,
   cores = 1,
-  verbose = FALSE,
   path_to_stan_code = stan_path,
   interface = stan_interface)
 
@@ -157,10 +164,11 @@ df_prior <- run_stan_interfaces(
   iter_sampling = iterations,
   iter_warmup = iterations,
   cores = 1,
-  verbose = FALSE,
   path_to_stan_code = stan_path,
   interface = stan_interface)
 ```
+
+## Analyse Stan output
 
 `df_posterior` and `df_prior` are the dataframes (in data.table format) of samples, from the posterior and prior respectively, as returned by Stan.
 We had to wrangle covariates into integer indices to go into Stan, so now we wrangle back to parameters with interpretable names.
@@ -175,28 +183,103 @@ data.table::setnames(df_prior, function(names) {
                           data_descriptors = data_wrangled$data_descriptors)})
 ```
 
-We do some wrangling of the true parameter values, ready for plotting: we flatten the list of values (containing a variety of scalars and tensors) into a dataframe of scalar values, rename for interpretability as in the previous step, and then convert into a named numeric vector.
+We wrangle the true parameter values (flattening the list of values into a vector and renaming)
 
 ``` {r wrangle_true_params}
-df_true_pop_params <- wrangle_true_params(
+param_true_values_vector <- wrangle_true_params(
   param_true_values_list = param_true_values_list,
   data_descriptors = data_wrangled$data_descriptors)
-df_true_pop_params$param <- rename_params_from_stan(
-  df_true_pop_params$param, data_descriptors = data_wrangled$data_descriptors)
-vector_true_pop_params <- df_true_pop_params$value
-names(vector_true_pop_params) <- df_true_pop_params$param
 ```
 
-For each of the population-level parameters we plot the posterior, prior and true value:
+For each of the population-level parameters we plot the posterior, prior and true value, demonstrating that the posterior moves away from the prior toward the true value, as it should for a correctly implemented model with informative data.
+One should always test this with custom statistical models (as opposed to well-tested off-the-shelf models like `stats::lm()`).
+We do this using `plot_posterior()` from our package `mastiff`, nine parameters at a time for better visibility within Rmarkdown:
 
-```{r plot_posterior_prior, warning=FALSE, out.width="80%"}
+```{r plot_posterior_prior_1, warning=FALSE, out.width="100%"}
 mastiff::plot_posterior(
     posterior_samples = df_posterior,
     prior_samples     = df_prior,
-    params_desired = names(df_prior),
-    true_param_values = vector_true_pop_params,
-    skip_stanfit_to_dt = TRUE,
-    ncol = 3)
+    params_desired = names(df_prior)[1:9],
+    true_param_values = param_true_values_vector,
+    skip_stanfit_to_dt = TRUE)
 ```
 
+`df_posterior` has columns named `xlog_sam[1]`, `xlog_sam[2]` etc. which contain the posterior samples for x (on a log scale) for the sample assigned the integer index 1, and 2, etc.
+Calculate some quantiles of the posterior for each of the samples, and compare these to the true values which we had in `df_sam`.
+The smallest values are slightly overestimated and the largest values are slightly underestimated: this is the phenomenon of shrinkage toward the mean, due to these parameters being random effects.
 
+```{r plot_x_vs_true, message = FALSE, warning = FALSE}
+quantiles <- c(0.025, 0.5, 0.975)
+df_sam_x <- df_posterior %>%
+  select(starts_with("xlog_sam[")) %>%
+  pivot_longer(everything(), names_to = "param") %>%
+  extract(param,
+          into = "id_sam_int", 
+          regex = "xlog_sam\\[([0-9]+)\\]") %>%
+  mutate(id_sam_int = as.integer(id_sam_int)) %>%
+  group_by(id_sam_int) %>%
+  reframe(value = quantile(value, probs = quantiles),
+          quantile = quantiles) %>%
+  pivot_wider(names_from = quantile, names_prefix = "x_quant_") %>%
+  left_join(df_sam %>%
+              select(id_sam_int, xlog) %>%
+              distinct(),
+            by = "id_sam_int")
+ggplot(df_sam_x) +
+  geom_errorbar(aes(xlog, ymin = x_quant_0.025, ymax = x_quant_0.975)) +
+  geom_point(aes(xlog, x_quant_0.5)) +
+  geom_abline() +
+  labs(x = "True log x",
+       y = "Estimated log x")
+```
+
+`df_posterior` has columns named `y_sam_sim_unconditional[1]`, `y_sam_sim_unconditional[2]` etc. which contain posterior predicted y values for new set of sampled individuals with the same distribution of covariates (i.e. partitioned into the same subpopulations, in this example based on a single covariate `letter`) as in the dataset analysed.
+The integer in square brackets indexes the sample replicate as in `df_sam$which_sam_rep`; we merge `df_sam` into `df_posterior` to associated each predicted `y` value with the appropriate subpopulation
+We plot the empirical subpopulation-level distributions of y values, and the posterior predictive distribution of subpopulation-level distributions of y values.
+We use a log scale for y even though it can be negative, because it usually isn't and this is clearer.
+We make both a spline density plot and also a histogram (splines are easier to see but the algorithm may make mistakes on fitting a smoothed distribution).
+
+```{r plot_posterior_retrodictive, message = FALSE, warning = FALSE}
+df_y_sim <- df_posterior %>%
+  select(starts_with("y_sam_sim_unconditional[")) %>%
+  mutate(sample = row_number()) %>%
+  filter(sample %% 20 == 0) %>%
+  pivot_longer(-c("sample"), names_to = "param") %>%
+  tidyr::extract(param, 
+               into = "which_sam_rep", 
+               regex = "y_sam_sim_unconditional\\[([0-9]+)\\]") %>%
+  mutate(which_sam_rep = as.integer(which_sam_rep)) %>%
+  left_join(df_sam, by = "which_sam_rep") %>%
+  mutate(value = log10(value))
+ggplot() +
+  geom_step(data = df_y_sim,
+            aes(x = value,
+                y = after_stat(density),
+                group = sample),
+            stat="bin",
+            color="black",
+            bins = 60,
+            alpha = 0.1) +
+  geom_step(data = df_sam,
+            aes(x = log10(y), # y,
+                y = after_stat(density)),
+            stat="bin",
+            bins = 60,
+            color="blue") +
+  coord_cartesian(expand = F) +
+  facet_wrap(~letter) +
+  labs(x = "log10(OD value)",
+       y = "probability density")
+ggplot() +
+  geom_density(data = df_y_sim,
+               aes(x = value,
+                   group = sample),
+               color = "black") +
+  geom_density(data = df_sam,
+            aes(x = log10(y)),
+            color="blue") +
+  coord_cartesian(expand = F) +
+  facet_wrap(~letter) +
+  labs(x = "log10(OD value)",
+       y = "probability density")
+```
