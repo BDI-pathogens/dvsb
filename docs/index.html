@@ -75,9 +75,15 @@
 <div class="section level3">
 <h3 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h3>
-<p>Install dvsb by running the following commands in an R session (running <code>options(pkg.build_vignettes = TRUE)</code> beforehand if you want to build the vignette):</p>
-<p><code>install.packages("pak") # if not already installed</code></p>
-<p><code>pak::pak("BDI-pathogens/dvsb")</code></p>
+<p>Install dvsb by running the following commands in an R session:</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"pak"</span><span class="op">)</span> <span class="co"># if not already installed</span></span>
+<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"BDI-pathogens/mastiff"</span><span class="op">)</span></span>
+<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"BDI-pathogens/dvsb"</span><span class="op">)</span></span></code></pre></div>
+<p>To interface to its Stan code, dvsb can use cmdstanr or cmdstan instead of rstan, if you desire. This requires that you have cmdstan installed. Do that by running</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"cmdstanr"</span>, repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'https://stan-dev.r-universe.dev'</span>, <span class="fu"><a href="https://rdrr.io/r/base/options.html" class="external-link">getOption</a></span><span class="op">(</span><span class="st">"repos"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>(after which you might need to restart your R session).</p>
 </div>
 <div class="section level3">
 <h3 id="what-is-the-statistical-model">What is the statistical model?<a class="anchor" aria-label="anchor" href="#what-is-the-statistical-model"></a>
