@@ -12,10 +12,10 @@ If that more general case describes your application, substitute all of our ment
 
 Install dvsb by running the following commands in an R session (running `options(pkg.build_vignettes = TRUE)` beforehand if you want to build the vignette):
 
-```{r}
-install.packages("pak") # if not already installed
-pak::pak("BDI-pathogens/dvsb")
-```
+`install.packages("pak") # if not already installed`
+
+`pak::pak("BDI-pathogens/dvsb")`
+
 
 ### What is the statistical model?
 
@@ -23,4 +23,4 @@ See the article
 
 ### Usage
 
-See the vignette
+See the [vignette](https://BDI-pathogens.github.io/dvsb/articles/estimation_on_simulated_data_simple.html).

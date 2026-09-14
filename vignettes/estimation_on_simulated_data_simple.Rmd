@@ -26,7 +26,7 @@ theme_set(theme_classic())
 
 Let's start by getting out of the way two clunky things.
 First, dvsb does not include pre-compiled binary (executable) files for the stan models.
-This for our (developer) convenience at the cost of your (user) inconvenience; it also means we can switch seamlessly between rstan, cmdstanr and cmdstan when interfacing to stan.
+This is for our (developer) convenience at the cost of your (user) inconvenience; it also means we can switch seamlessly between rstan, cmdstanr and cmdstan when interfacing to stan.
 The first time you call `dvsb::run_stan_interfaces()` after each installation or update of dvsb, the stan code gets compiled into binary form.
 That happens automatically, but you do need to tell it where the stan code lives after dvsb has been installed onto your system.
 Let's find where that is:
@@ -96,16 +96,16 @@ p_pos_binary_pred_vars <- data$p_pos_binary_pred_vars
 
 Plot the simulated calibration data (one facet per plate):
 
-```{r plot_data_cal}
+```{r plot_data_cal, fig.height=5}
 ggplot(df_cal) +
   geom_point(aes(x = x, y = y)) +
   facet_wrap(~plate, ncol = 2) +
   theme_classic()
 ```
 
-Plot the simulated sample data, histogramming the OD values, one facet for each category of the `letter` covariate (which differ in their x distributions when default arguments for `simulate_data()`):
+Plot the simulated sample data, histogramming the OD values, one facet for each category of the `letter` covariate (which differ in their x distributions when using default arguments for `simulate_data()`):
 
-```{r plot_data_sam}
+```{r plot_data_sam, fig.height=5}
 ggplot(df_sam) +
   geom_histogram(aes(x = x), bins = 20) +
   facet_wrap(~letter) +
@@ -142,7 +142,7 @@ We specify some options controlling how stan runs (see the help for `run_stan_in
 To sample from the prior we use `data_wrangled$stan_input_prior` instead of `data_wrangled$stan_input_posterior`.
 This samples our parameters using a dataset of the same 'shape' (in terms of the definition of regression models with covariates) but no actual samples.
 This lets us sample the prior for population-level parameters, which are the main thing of interest, forgetting about the individual-level parameters (x values), gaining *a lot* of speed for big datasets.
-Note that fancy sampling algorithm used by Stan (NUTS, a type of Hamiltonian Monte Carlo) is far from the most efficient way of sampling from priors: more efficient would be to sequentially randomly draw a new set of parameters independent of the previous draw, not to use fancy Hamiltonian dynamical equations to make successive draws dependent.
+Note that the fancy sampling algorithm used by Stan (NUTS, a type of Hamiltonian Monte Carlo) is far from the most efficient way of sampling from priors: more efficient would be to sequentially randomly draw a new set of parameters independent of the previous draw, not to use fancy Hamiltonian dynamical equations to make successive draws dependent.
 Nevertheless we re-use the same Stan code to sample the prior (both in dvsb and in our use of Stan elsewhere) to ensure that the prior we specified in Stan really is what we intended, reducing the potential for silent bugs when sampling from the posterior.
 The downside is that Stan can have difficulty exploring the geometry of the prior distribution, which will typically be much more disperse than the posterior distribution, so ensure you run enough iterations to get convergence here too.
 ]:
@@ -195,7 +195,7 @@ For each of the population-level parameters we plot the posterior, prior and tru
 One should always test this with custom statistical models (as opposed to well-tested off-the-shelf models like `stats::lm()`).
 We do this using `plot_posterior()` from our package `mastiff`, nine parameters at a time for better visibility within Rmarkdown:
 
-```{r plot_posterior_prior_1, warning=FALSE, out.width="100%"}
+```{r plot_posterior_prior, warning=FALSE, out.width="95%", fig.height=30}
 mastiff::plot_posterior(
     posterior_samples = df_posterior,
     prior_samples     = df_prior,
