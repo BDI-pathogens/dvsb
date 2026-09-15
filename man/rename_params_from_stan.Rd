@@ -8,10 +8,10 @@ rename_params_from_stan(original_names, data_descriptors)
 }
 \arguments{
 \item{original_names}{a character vector of parameter names as they are
-output by stan. Tensor parameters are expected to be named as they are in
-rstan output, e.g. my_matrix[1,2], not as they are named in cmdstan output,
-e.g. my_matrix.1.2. The latter can be converted to the former using
-\code{\link[mastiff:rename_params_cmdstanfile_to_rstan]{mastiff::rename_params_cmdstanfile_to_rstan()}}.}
+output by Stan. Tensor parameters are expected to be named as they are in
+rstan output, e.g. \code{my_matrix[1,2]}, not as they are named in cmdstan
+output, e.g. \code{my_matrix.1.2}. The latter can be converted to the former
+using \code{\link[mastiff:rename_params_cmdstanfile_to_rstan]{mastiff::rename_params_cmdstanfile_to_rstan()}}.}
 
 \item{data_descriptors}{a list of things describing the dataset, of the
 format output by \code{\link[=prepare_data_for_stan]{prepare_data_for_stan()}} (inside its list of outputs).}

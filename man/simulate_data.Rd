@@ -156,17 +156,16 @@ will introduce model misspecification for inference (which may be of
 interest for testing purposes).}
 }
 \value{
-a named list whose elements are: df_sam (a dataframe with one row
-per simulated sample replicate), df_plate (a dataframe with one row per
-simulated plate), df_cal (a dataframe with one row per simulated calibrator
-replicate), params (a list of the values of parameters used for
-simulation), f_pred_vars_names (a character vector of the names of any
-variables used for a regression model for the four vector f),
-x_mix_pred_vars_names (a named list whose names are the five parameters of
-the normal mixture model for x; each one of the elements is a character
-vector naming the variables used in a regression model for that parameter),
-p_pos_binary_pred_vars (a character vector of the names of any variables
-used for a regression model for p_pos, using only binary fixed effects).
+a named list whose elements are:
+\itemize{
+\item \code{df_sam}, a dataframe with one row per simulated sample replicate;
+\item \code{df_plate}, a dataframe with one row per simulated plate;
+\item \code{df_cal}, a dataframe with one row per simulated calibrator replicate;
+\item \code{params}, a list of the values of parameters used for simulation;
+\item \code{f_pred_vars_names}, a character vector of the names of any variables used for a regression model for the four vector f;
+\item \code{x_mix_pred_vars_names}, a named list whose names are the five parameters of the normal mixture model for x, each of the elements being a character vector naming the variables used in a regression model for that parameter;
+\item \code{p_pos_binary_pred_vars}, a character vector of the names of any variables used for a regression model for p_pos, using only binary fixed effects.
+}
 }
 \description{
 Simulate x and y values for samples and calibrators across different plates

@@ -7,16 +7,19 @@
 read_priors(path_to_csv)
 }
 \arguments{
-\item{path_to_csv}{path to a csv file with columns parameter, min and max,
-and one row for each of the (top-level, fixed-effect) parameters in our
-statistical model. Such a file is included in the github repository for
-this code, with an additional column explaining the parameter.}
+\item{path_to_csv}{path to a csv file with columns \code{parameter}, \code{min} and
+\code{max}, and one row for each of the (top-level, fixed-effect) parameters in
+our statistical model. Such a file gets installed with this package; on
+your system it should live at the path
+\code{file.path(system.file("input_priors", package = "dvsb"), "priors.csv")}.
+You can also find the file at the GitHub repository for this code
+(BDI-pathogens/dvsb) in the subdirectory \code{input_priors}.}
 }
 \value{
-a list with elements rho_prior_eta (a single number controlling the
-prior for the eta parameter), df_priors_scalars and df_priors_vectors
-(dataframes containing the priors for scalar and vector quantities
-respectively).
+a list with elements \code{rho_prior_eta} (a single number controlling
+the prior for the eta parameter), \code{df_priors_scalars} and
+\code{df_priors_vectors} (dataframes containing the priors for scalar and vector
+quantities respectively).
 }
 \description{
 Reads uniform prior distributions (specified with a min and max) from a csv

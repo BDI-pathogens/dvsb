@@ -18,8 +18,8 @@ end "gz" then we gunzip them (into a pipe, leaving the files themselves
 zipped).}
 
 \item{params_to_ignore}{a character vector naming parameters to be excluded
-from output. If you name a tensor parameter (e.g. "my_vector"), we exclude
-all elements of it (e.g. "my_vector.1", "my_vector.2").}
+from output. If you name a tensor parameter (e.g. \code{"my_vector"}), we exclude
+all elements of it (e.g. \code{"my_vector.1"}, \code{"my_vector.2"}).}
 
 \item{downsampling_factor}{a positive integer: the factor by which to
 downsample the posterior. e.g. if a value of 2 is specified, we keep 1 in

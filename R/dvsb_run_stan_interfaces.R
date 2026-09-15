@@ -2,7 +2,7 @@
 #'
 #' @param input_to_stan a list containing all the input the Stan code expects.
 #' @param path_to_stan_code the path to the file containing the Stan code.
-#' @param interface one of "rstan", "cmdstanr" or "cmdstan".
+#' @param interface one of `"rstan"`, `"cmdstanr"` or `"cmdstan"`.
 #' @param iter_warmup a positive integer: the number of warmup iterations per
 #'   chain (during which the sampling algorithm adapts; these are excluded from
 #'   the output).
@@ -31,7 +31,7 @@
 #' @param cmdstan_overwrite_json a single logical value: should we overwrite a
 #'   file at `cmdstan_path_to_json` if it exists already?
 #' @param cmdstan_path_to_compiled_model the path where we will create the
-#'   compiled version of the stan code. Some value (such as the default) is
+#'   compiled version of the Stan code. Some value (such as the default) is
 #'   needed if `interface="cmdstan"`, but not otherwise.
 #' @param cmdstan_read_output_into_df a single logical value: should we read
 #'   cmdstan output files into a dataframe that is returned by this function? If

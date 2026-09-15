@@ -44,7 +44,7 @@ run_stan_interfaces(
 
 \item{path_to_stan_code}{the path to the file containing the Stan code.}
 
-\item{interface}{one of "rstan", "cmdstanr" or "cmdstan".}
+\item{interface}{one of \code{"rstan"}, \code{"cmdstanr"} or \code{"cmdstan"}.}
 
 \item{iter_warmup}{a positive integer: the number of warmup iterations per
 chain (during which the sampling algorithm adapts; these are excluded from
@@ -84,7 +84,7 @@ otherwise. Several files will be created with things appended to this path:
 _chain1.csv, _chain2.csv etc.}
 
 \item{cmdstan_path_to_compiled_model}{the path where we will create the
-compiled version of the stan code. Some value (such as the default) is
+compiled version of the Stan code. Some value (such as the default) is
 needed if \code{interface="cmdstan"}, but not otherwise.}
 
 \item{cmdstan_read_output_into_df}{a single logical value: should we read

@@ -27,8 +27,8 @@ columns x, y, and plate. x and y should be numeric.}
 
 \item{df_priors_scalars, df_priors_vectors}{dataframes of the format output by
 \code{\link[=read_priors]{read_priors()}} (inside its list of outputs): each having one row per
-parameter, including columns param, lower, and upper. param should be
-character, lower and upper should be numeric.}
+parameter, including columns \code{param}, \code{lower}, and \code{upper}. \code{param} should
+be character, \code{lower} and \code{upper} should be numeric.}
 
 \item{rho_prior_eta}{the single positive number 'eta' that is a
 hyperparameter of the LKJ distribution used as the prior for the
@@ -53,18 +53,14 @@ value of an empty character vector is appropriate for using no regression
 model.}
 }
 \value{
-a list whose elements are df_plate (a dataframe with one row per
-plate), data_descriptors (a list of things required as input for
-\code{\link[=rename_params_from_stan]{rename_params_from_stan()}} and \code{\link[=wrangle_true_params]{wrangle_true_params()}}),
-stan_input_posterior (a list of things required as input for
-\code{\link[=run_stan_interfaces]{run_stan_interfaces()}} if you want to sample from the posterior),
-stan_input_prior (a list of things required as input for
-\code{\link[=run_stan_interfaces]{run_stan_interfaces()}} if you want to sample from the prior; this reduces
-the number of samples to zero but keeps the same 'shape' of the dataset in
-terms of covariates used, to more efficiently sample population-level
-parameters while avoiding sampling individual-level parameters such as x),
-df_sam and df_cal (as provided as input but with extra columns added for
-Stan indexing).
+a list whose elements are
+\itemize{
+\item \code{df_plate}, a dataframe with one row per plate;
+\item \code{data_descriptors}, a list of things required as input for \code{\link[=rename_params_from_stan]{rename_params_from_stan()}} and \code{\link[=wrangle_true_params]{wrangle_true_params()}};
+\item \code{stan_input_posterior}, a list of things required as input for \code{\link[=run_stan_interfaces]{run_stan_interfaces()}} if you want to sample from the posterior;
+\item \code{stan_input_prior}, a list of things required as input for \code{\link[=run_stan_interfaces]{run_stan_interfaces()}} if you want to sample from the prior (this reduces the number of samples to zero but keeps the same 'shape' of the dataset in terms of covariates used, to more efficiently sample population-level parameters while avoiding sampling individual-level parameters such as x);
+\item \code{df_sam} and \code{df_cal} (as provided as input but with extra columns added for Stan indexing).
+}
 }
 \description{
 Wrangles inputs into the format required for \code{\link[=run_stan_interfaces]{run_stan_interfaces()}}
