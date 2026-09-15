@@ -14,6 +14,11 @@ knitr::opts_chunk$set(
 )
 ```
 
+## Recap
+
+dvsb estimates **d**isease **v**ariability in **s**ubpopulations from **b**iomarkers, e.g. estimating the variability between subpopulations in seroprevalence (the proportion of people who are seropositive) with antibody levels estimated using an assay measuring some proxy such as ELISA Optical Density values.
+We call the biomarker x (e.g. antibody level) and the proxy measurement y (e.g. OD values).
+
 ## Setting up
 
 ```{r setup, message=FALSE}
@@ -25,15 +30,15 @@ theme_set(theme_classic())
 ```
 
 Let's start by getting out of the way two clunky things.
-First, dvsb does not include pre-compiled binary (executable) files for the stan models.
+First, dvsb does not include pre-compiled binary (executable) files for the Stan models.
 This is for our (developer) convenience at the cost of your (user) inconvenience; it also means we can switch seamlessly between rstan, cmdstanr and cmdstan when interfacing to stan.
-The first time you call `dvsb::run_stan_interfaces()` after each installation or update of dvsb, the stan code gets compiled into binary form.
-That happens automatically, but you do need to tell it where the stan code lives after dvsb has been installed onto your system.
+The first time you call `dvsb::run_stan_interfaces()` after each installation or update of dvsb, the Stan code gets compiled into binary form.
+That happens automatically, but you do need to tell it where the Stan code lives after dvsb has been installed onto your system.
 Let's find where that is:
 
 ```{r find_all_stan}
 stan_dir <- system.file("stan", package = "dvsb")
-list.files(stan_dir)
+list.files(stan_dir, pattern = "*.stan")
 ```
 
 In that directory,  
@@ -42,7 +47,6 @@ In that directory,
 * `dvsb_accidental_blanks.stan` is the extended model that allows for the possibility that each sample well accidentally contains nothing at all (i.e. is blank).  
 * `dvsb_no_mu_x_predictors.stan` is the restricted model in which regression models are not specified for the means of the two antibody distributions (one for seropositives and one for seronegatives).  
 
-(You might see some binary files in there too, if you're rerunning this step after having already compiled the stan into binary.)
 Let's use the main model.
 
 ```{r find_required_stan}
@@ -84,7 +88,8 @@ Next we simulate data, giving us a list with seven things in it.
 The documentation for `prepare_data_for_stan()` explains what columns these dataframes require, and how sets of covariates for regression models are specified using the arguments `x_mix_pred_vars_names`, `p_pos_binary_pred_vars`, `f_pred_vars_names`.)
 
 ```{r simulate, message=FALSE}
-data <- simulate_data(num_sam_per_plate = 100)
+data <- simulate_data(seed = 1234,
+                      num_sam_per_plate = 100)
 df_sam <- data$df_sam
 df_cal <- data$df_cal
 df_plate <- data$df_plate
@@ -138,14 +143,14 @@ df_cal <- data_wrangled$df_cal
 df_plate <- dplyr::left_join(df_plate, data_wrangled$df_plate, by = "plate") 
 ```
 
-We specify some options controlling how stan runs (see the help for `run_stan_interfaces()` for more information), then run stan once to sample from the posterior, and again to sample from the prior^[
+We specify some options controlling how Stan runs (see the help for `run_stan_interfaces()` for more information), then run Stan once to sample from the posterior, and again to sample from the prior^[
 To sample from the prior we use `data_wrangled$stan_input_prior` instead of `data_wrangled$stan_input_posterior`.
 This samples our parameters using a dataset of the same 'shape' (in terms of the definition of regression models with covariates) but no actual samples.
 This lets us sample the prior for population-level parameters, which are the main thing of interest, forgetting about the individual-level parameters (x values), gaining *a lot* of speed for big datasets.
 Note that the fancy sampling algorithm used by Stan (NUTS, a type of Hamiltonian Monte Carlo) is far from the most efficient way of sampling from priors: more efficient would be to sequentially randomly draw a new set of parameters independent of the previous draw, not to use fancy Hamiltonian dynamical equations to make successive draws dependent.
 Nevertheless we re-use the same Stan code to sample the prior (both in dvsb and in our use of Stan elsewhere) to ensure that the prior we specified in Stan really is what we intended, reducing the potential for silent bugs when sampling from the posterior.
 The downside is that Stan can have difficulty exploring the geometry of the prior distribution, which will typically be much more disperse than the posterior distribution, so ensure you run enough iterations to get convergence here too.
-]:
+].
 
 ```{r run_stan, warning = FALSE, message = FALSE}
 iterations <- 10 # per chain
@@ -234,16 +239,15 @@ ggplot(df_sam_x) +
 ```
 
 `df_posterior` has columns named `y_sam_sim_unconditional[1]`, `y_sam_sim_unconditional[2]` etc. which contain posterior predicted y values for new set of sampled individuals with the same distribution of covariates (i.e. partitioned into the same subpopulations, in this example based on a single covariate `letter`) as in the dataset analysed.
-The integer in square brackets indexes the sample replicate as in `df_sam$which_sam_rep`; we merge `df_sam` into `df_posterior` to associated each predicted `y` value with the appropriate subpopulation
+The integer in square brackets indexes the sample replicate as in `df_sam$which_sam_rep`; we merge `df_sam` into `df_posterior` to associated each predicted `y` value with the appropriate subpopulation.
 We plot the empirical subpopulation-level distributions of y values, and the posterior predictive distribution of subpopulation-level distributions of y values.
-We use a log scale for y even though it can be negative, because it usually isn't and this is clearer.
+We use a log scale for y even though it can be negative, because with our default parameters it's only rarely negative and a log scale is clearer.
 We make both a spline density plot and also a histogram (splines are easier to see but the algorithm may make mistakes on fitting a smoothed distribution).
 
 ```{r plot_posterior_retrodictive, message = FALSE, warning = FALSE}
 df_y_sim <- df_posterior %>%
   select(starts_with("y_sam_sim_unconditional[")) %>%
   mutate(sample = row_number()) %>%
-  filter(sample %% 20 == 0) %>%
   pivot_longer(-c("sample"), names_to = "param") %>%
   tidyr::extract(param, 
                into = "which_sam_rep", 
@@ -283,3 +287,31 @@ ggplot() +
   labs(x = "log10(OD value)",
        y = "probability density")
 ```
+
+`df_posterior` has columns named `p_sam_is_pos[1]`, `p_sam_is_pos[2]` etc. which contain the probability that sample 1, 2 etc. is positive given its observed y values. 
+Calculate the posterior mean for each of these quantities, and then plot the distribution over individuals of these values, stratified by true serostatus.
+This gives a sense of the model's accuracy and confidence in estimating serostatus. 
+
+```{r, warning = FALSE}
+df_prob_pos <- df_posterior %>%
+  select(starts_with("p_sam_is_pos["))
+df_prob_pos <- df_prob_pos[, lapply(.SD, mean)]
+df_prob_pos <- df_prob_pos %>%
+  pivot_longer(everything(), names_to = "param", values_to = "p_sam_is_pos") %>%
+  tidyr::extract(param, 
+                 into = "id_sam_int", 
+                 regex = "p_sam_is_pos\\[([0-9]+)\\]") %>%
+  mutate(id_sam_int = as.integer(id_sam_int)) %>%
+  inner_join(df_sam %>% summarise(.by = id_sam_int, pos = unique(pos)), 
+             by = "id_sam_int") %>%
+    mutate(status = if_else(pos, "pos", "neg")) 
+
+ggplot(df_prob_pos) +
+  geom_histogram(aes(x = p_sam_is_pos, y = after_stat(density), fill = status),
+                 position = "identity", alpha = 0.6, bins = 30) +
+  labs(y = "Number of samples",
+       x = "Probability sample is positive") +
+  coord_cartesian(expand = FALSE) +
+  scale_x_continuous(limits = c(NA, NA))
+```
+
