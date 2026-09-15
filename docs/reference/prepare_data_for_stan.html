@@ -86,8 +86,8 @@ columns x, y, and plate. x and y should be numeric.</p></dd>
 <dt id="arg-df-priors-scalars-df-priors-vectors">df_priors_scalars, df_priors_vectors<a class="anchor" aria-label="anchor" href="#arg-df-priors-scalars-df-priors-vectors"></a></dt>
 <dd><p>dataframes of the format output by
 <code><a href="read_priors.html">read_priors()</a></code> (inside its list of outputs): each having one row per
-parameter, including columns param, lower, and upper. param should be
-character, lower and upper should be numeric.</p></dd>
+parameter, including columns <code>param</code>, <code>lower</code>, and <code>upper</code>. <code>param</code> should
+be character, <code>lower</code> and <code>upper</code> should be numeric.</p></dd>
 
 
 <dt id="arg-rho-prior-eta">rho_prior_eta<a class="anchor" aria-label="anchor" href="#arg-rho-prior-eta"></a></dt>
@@ -122,19 +122,12 @@ model.</p></dd>
 </dl></div>
     <div id="value">
     <h2>Value</h2>
-    <p>a list whose elements are df_plate (a dataframe with one row per
-plate), data_descriptors (a list of things required as input for
-<code><a href="rename_params_from_stan.html">rename_params_from_stan()</a></code> and <code><a href="wrangle_true_params.html">wrangle_true_params()</a></code>),
-stan_input_posterior (a list of things required as input for
-<code><a href="run_stan_interfaces.html">run_stan_interfaces()</a></code> if you want to sample from the posterior),
-stan_input_prior (a list of things required as input for
-<code><a href="run_stan_interfaces.html">run_stan_interfaces()</a></code> if you want to sample from the prior; this reduces
-the number of samples to zero but keeps the same 'shape' of the dataset in
-terms of covariates used, to more efficiently sample population-level
-parameters while avoiding sampling individual-level parameters such as x),
-df_sam and df_cal (as provided as input but with extra columns added for
-Stan indexing).</p>
-    </div>
+    <p>a list whose elements are</p><ul><li><p><code>df_plate</code>, a dataframe with one row per plate;</p></li>
+<li><p><code>data_descriptors</code>, a list of things required as input for <code><a href="rename_params_from_stan.html">rename_params_from_stan()</a></code> and <code><a href="wrangle_true_params.html">wrangle_true_params()</a></code>;</p></li>
+<li><p><code>stan_input_posterior</code>, a list of things required as input for <code><a href="run_stan_interfaces.html">run_stan_interfaces()</a></code> if you want to sample from the posterior;</p></li>
+<li><p><code>stan_input_prior</code>, a list of things required as input for <code><a href="run_stan_interfaces.html">run_stan_interfaces()</a></code> if you want to sample from the prior (this reduces the number of samples to zero but keeps the same 'shape' of the dataset in terms of covariates used, to more efficiently sample population-level parameters while avoiding sampling individual-level parameters such as x);</p></li>
+<li><p><code>df_sam</code> and <code>df_cal</code> (as provided as input but with extra columns added for Stan indexing).</p></li>
+</ul></div>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
@@ -148,7 +141,7 @@ Stan indexing).</p>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
 </div>
 
       </footer></div>

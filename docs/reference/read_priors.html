@@ -62,18 +62,21 @@
 
 
 <dl><dt id="arg-path-to-csv">path_to_csv<a class="anchor" aria-label="anchor" href="#arg-path-to-csv"></a></dt>
-<dd><p>path to a csv file with columns parameter, min and max,
-and one row for each of the (top-level, fixed-effect) parameters in our
-statistical model. Such a file is included in the github repository for
-this code, with an additional column explaining the parameter.</p></dd>
+<dd><p>path to a csv file with columns <code>parameter</code>, <code>min</code> and
+<code>max</code>, and one row for each of the (top-level, fixed-effect) parameters in
+our statistical model. Such a file gets installed with this package; on
+your system it should live at the path
+<code>file.path(system.file("input_priors", package = "dvsb"), "priors.csv")</code>.
+You can also find the file at the GitHub repository for this code
+(BDI-pathogens/dvsb) in the subdirectory <code>input_priors</code>.</p></dd>
 
 </dl></div>
     <div id="value">
     <h2>Value</h2>
-    <p>a list with elements rho_prior_eta (a single number controlling the
-prior for the eta parameter), df_priors_scalars and df_priors_vectors
-(dataframes containing the priors for scalar and vector quantities
-respectively).</p>
+    <p>a list with elements <code>rho_prior_eta</code> (a single number controlling
+the prior for the eta parameter), <code>df_priors_scalars</code> and
+<code>df_priors_vectors</code> (dataframes containing the priors for scalar and vector
+quantities respectively).</p>
     </div>
 
   </div>
@@ -88,7 +91,7 @@ respectively).</p>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
 </div>
 
       </footer></div>

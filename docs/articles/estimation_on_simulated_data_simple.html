@@ -78,6 +78,17 @@
     
     
 <div class="section level2">
+<h2 id="recap">Recap<a class="anchor" aria-label="anchor" href="#recap"></a>
+</h2>
+<p>dvsb estimates <strong>d</strong>isease <strong>v</strong>ariability
+in <strong>s</strong>ubpopulations from <strong>b</strong>iomarkers,
+e.g. estimating the variability between subpopulations in seroprevalence
+(the proportion of people who are seropositive) with antibody levels
+estimated using an assay measuring some proxy such as ELISA Optical
+Density values. We call the biomarker x (e.g. antibody level) and the
+proxy measurement y (e.g. OD values).</p>
+</div>
+<div class="section level2">
 <h2 id="setting-up">Setting up<a class="anchor" aria-label="anchor" href="#setting-up"></a>
 </h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
@@ -87,18 +98,18 @@
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/get_theme.html" class="external-link">theme_set</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_classic</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>Let’s start by getting out of the way two clunky things. First, dvsb
-does not include pre-compiled binary (executable) files for the stan
+does not include pre-compiled binary (executable) files for the Stan
 models. This is for our (developer) convenience at the cost of your
 (user) inconvenience; it also means we can switch seamlessly between
 rstan, cmdstanr and cmdstan when interfacing to stan. The first time you
 call <code><a href="../reference/run_stan_interfaces.html">dvsb::run_stan_interfaces()</a></code> after each installation or
-update of dvsb, the stan code gets compiled into binary form. That
-happens automatically, but you do need to tell it where the stan code
+update of dvsb, the Stan code gets compiled into binary form. That
+happens automatically, but you do need to tell it where the Stan code
 lives after dvsb has been installed onto your system. Let’s find where
 that is:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">stan_dir</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"stan"</span>, package <span class="op">=</span> <span class="st">"dvsb"</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/list.files.html" class="external-link">list.files</a></span><span class="op">(</span><span class="va">stan_dir</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/list.files.html" class="external-link">list.files</a></span><span class="op">(</span><span class="va">stan_dir</span>, pattern <span class="op">=</span> <span class="st">"*.stan"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "dvsb_accidental_blanks.stan"  "dvsb_no_mu_x_predictors.stan"</span></span>
 <span><span class="co">#&gt; [3] "dvsb.stan"</span></span></code></pre></div>
 <p>In that directory,</p>
@@ -117,9 +128,7 @@ which regression models are not specified for the means of the two
 antibody distributions (one for seropositives and one for
 seronegatives).</li>
 </ul>
-<p>(You might see some binary files in there too, if you’re rerunning
-this step after having already compiled the stan into binary.) Let’s use
-the main model.</p>
+<p>Let’s use the main model.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">stan_path</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">stan_dir</span>, <span class="st">"dvsb.stan"</span><span class="op">)</span></span></code></pre></div>
 <p>The second clunky thing: a dataframe’s worth of input specifying the
@@ -159,7 +168,8 @@ regression models are specified using the arguments
 <code>x_mix_pred_vars_names</code>, <code>p_pos_binary_pred_vars</code>,
 <code>f_pred_vars_names</code>.)</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">data</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/simulate_data.html">simulate_data</a></span><span class="op">(</span>num_sam_per_plate <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">data</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/simulate_data.html">simulate_data</a></span><span class="op">(</span>seed <span class="op">=</span> <span class="fl">1234</span>,</span>
+<span>                      num_sam_per_plate <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
 <span><span class="va">df_sam</span> <span class="op">&lt;-</span> <span class="va">data</span><span class="op">$</span><span class="va">df_sam</span></span>
 <span><span class="va">df_cal</span> <span class="op">&lt;-</span> <span class="va">data</span><span class="op">$</span><span class="va">df_cal</span></span>
 <span><span class="va">df_plate</span> <span class="op">&lt;-</span> <span class="va">data</span><span class="op">$</span><span class="va">df_plate</span></span>
@@ -173,7 +183,7 @@ regression models are specified using the arguments
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">x</span>, y <span class="op">=</span> <span class="va">y</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">plate</span>, ncol <span class="op">=</span> <span class="fl">2</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_classic</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_data_cal-1.png" class="r-plt" alt="" width="700"></p>
+<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_data_cal-1.png" alt="" width="700"></p>
 <p>Plot the simulated sample data, histogramming the OD values, one
 facet for each category of the <code>letter</code> covariate (which
 differ in their x distributions when using default arguments for
@@ -184,7 +194,7 @@ differ in their x distributions when using default arguments for
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">letter</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_classic</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_x_log10</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_data_sam-1.png" class="r-plt" alt="" width="700"></p>
+<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_data_sam-1.png" alt="" width="700"></p>
 </div>
 <div class="section level2">
 <h2 id="run-stan">Run Stan<a class="anchor" aria-label="anchor" href="#run-stan"></a>
@@ -207,258 +217,223 @@ extra columns we just added (which introduce integer indexing).</p>
 <code class="sourceCode R"><span><span class="va">df_sam</span> <span class="op">&lt;-</span> <span class="va">data_wrangled</span><span class="op">$</span><span class="va">df_sam</span></span>
 <span><span class="va">df_cal</span> <span class="op">&lt;-</span> <span class="va">data_wrangled</span><span class="op">$</span><span class="va">df_cal</span></span>
 <span><span class="va">df_plate</span> <span class="op">&lt;-</span> <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate-joins.html" class="external-link">left_join</a></span><span class="op">(</span><span class="va">df_plate</span>, <span class="va">data_wrangled</span><span class="op">$</span><span class="va">df_plate</span>, by <span class="op">=</span> <span class="st">"plate"</span><span class="op">)</span> </span></code></pre></div>
-<p>We specify some options controlling how stan runs (see the help for
-<code><a href="../reference/run_stan_interfaces.html">run_stan_interfaces()</a></code> for more information), then run stan
-once to sample from the posterior, and again to sample from the prior<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>:</p>
+<p>We specify some options controlling how Stan runs (see the help for
+<code><a href="../reference/run_stan_interfaces.html">run_stan_interfaces()</a></code> for more information), then run Stan
+once to sample from the posterior, and again to sample from the prior<a href="#fn1" class="footnote-ref" id="fnref1"><sup>1</sup></a>.</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">iterations</span> <span class="op">&lt;-</span> <span class="fl">10</span> <span class="co"># per chain</span></span>
-<span><span class="va">stan_interface</span> <span class="op">&lt;-</span> <span class="st">"rstan"</span> <span class="co"># one of: "rstan", "cmdstanr", "cmdstan"</span></span>
-<span></span>
-<span><span class="va">df_posterior</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_stan_interfaces.html">run_stan_interfaces</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="va">df_posterior</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_stan_interfaces.html">run_stan_interfaces</a></span><span class="op">(</span></span>
 <span>  input_to_stan <span class="op">=</span> <span class="va">data_wrangled</span><span class="op">$</span><span class="va">stan_input_posterior</span>,</span>
-<span>  iter_sampling <span class="op">=</span> <span class="va">iterations</span>,</span>
-<span>  iter_warmup <span class="op">=</span> <span class="va">iterations</span>,</span>
-<span>  cores <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  path_to_stan_code <span class="op">=</span> <span class="va">stan_path</span>,</span>
-<span>  interface <span class="op">=</span> <span class="va">stan_interface</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Started running Stan at[1] "2026-09-14 16:31:42 BST"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).</span></span>
-<span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1: Gradient evaluation took 0.000616 seconds</span></span>
-<span><span class="co">#&gt; Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 6.16 seconds.</span></span>
-<span><span class="co">#&gt; Chain 1: Adjust your expectations accordingly!</span></span>
-<span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1: WARNING: No variance estimation is</span></span>
-<span><span class="co">#&gt; Chain 1:          performed for num_warmup &lt; 20</span></span>
-<span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1: Iteration:  1 / 20 [  5%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration:  2 / 20 [ 10%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration:  4 / 20 [ 20%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration:  6 / 20 [ 30%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration:  8 / 20 [ 40%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 10 / 20 [ 50%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 11 / 20 [ 55%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 12 / 20 [ 60%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 14 / 20 [ 70%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 16 / 20 [ 80%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 18 / 20 [ 90%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 20 / 20 [100%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1:  Elapsed Time: 0.026 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 1:                0.672 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1:                0.698 seconds (Total)</span></span>
-<span><span class="co">#&gt; Chain 1: </span></span>
+<span>  path_to_stan_code <span class="op">=</span> <span class="va">stan_path</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Started running Stan at[1] "2026-09-15 18:10:03 BST"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 2).</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 3).</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 4).</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2: Gradient evaluation took 0.000358 seconds</span></span>
-<span><span class="co">#&gt; Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 3.58 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2: Gradient evaluation took 0.002679 seconds</span></span>
+<span><span class="co">#&gt; Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 26.79 seconds.</span></span>
 <span><span class="co">#&gt; Chain 2: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2: WARNING: No variance estimation is</span></span>
-<span><span class="co">#&gt; Chain 2:          performed for num_warmup &lt; 20</span></span>
-<span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2: Iteration:  1 / 20 [  5%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration:  2 / 20 [ 10%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration:  4 / 20 [ 20%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration:  6 / 20 [ 30%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration:  8 / 20 [ 40%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 10 / 20 [ 50%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 11 / 20 [ 55%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 12 / 20 [ 60%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 14 / 20 [ 70%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 16 / 20 [ 80%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 18 / 20 [ 90%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 20 / 20 [100%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2:  Elapsed Time: 0.163 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 2:                0.142 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2:                0.305 seconds (Total)</span></span>
-<span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 3).</span></span>
+<span><span class="co">#&gt; Chain 1: </span></span>
+<span><span class="co">#&gt; Chain 1: Gradient evaluation took 0.017264 seconds</span></span>
+<span><span class="co">#&gt; Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 172.64 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1: Adjust your expectations accordingly!</span></span>
+<span><span class="co">#&gt; Chain 1: </span></span>
+<span><span class="co">#&gt; Chain 1: </span></span>
+<span><span class="co">#&gt; Chain 2: Iteration:   1 / 500 [  0%]  (Warmup)</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3: Gradient evaluation took 0.000449 seconds</span></span>
-<span><span class="co">#&gt; Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 4.49 seconds.</span></span>
+<span><span class="co">#&gt; Chain 3: Gradient evaluation took 0.003671 seconds</span></span>
+<span><span class="co">#&gt; Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 36.71 seconds.</span></span>
 <span><span class="co">#&gt; Chain 3: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3: WARNING: No variance estimation is</span></span>
-<span><span class="co">#&gt; Chain 3:          performed for num_warmup &lt; 20</span></span>
-<span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3: Iteration:  1 / 20 [  5%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration:  2 / 20 [ 10%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration:  4 / 20 [ 20%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration:  6 / 20 [ 30%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration:  8 / 20 [ 40%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 10 / 20 [ 50%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 11 / 20 [ 55%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 12 / 20 [ 60%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 14 / 20 [ 70%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 16 / 20 [ 80%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 18 / 20 [ 90%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 20 / 20 [100%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3:  Elapsed Time: 0.078 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 3:                0.029 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3:                0.107 seconds (Total)</span></span>
-<span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 4).</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration:   1 / 500 [  0%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration:   1 / 500 [  0%]  (Warmup)</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
-<span><span class="co">#&gt; Chain 4: Gradient evaluation took 0.000345 seconds</span></span>
-<span><span class="co">#&gt; Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 3.45 seconds.</span></span>
+<span><span class="co">#&gt; Chain 4: Gradient evaluation took 0.002482 seconds</span></span>
+<span><span class="co">#&gt; Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 24.82 seconds.</span></span>
 <span><span class="co">#&gt; Chain 4: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
-<span><span class="co">#&gt; Chain 4: WARNING: No variance estimation is</span></span>
-<span><span class="co">#&gt; Chain 4:          performed for num_warmup &lt; 20</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration:   1 / 500 [  0%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration:  50 / 500 [ 10%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration:  50 / 500 [ 10%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration:  50 / 500 [ 10%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration:  50 / 500 [ 10%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 100 / 500 [ 20%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 100 / 500 [ 20%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 100 / 500 [ 20%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 100 / 500 [ 20%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 150 / 500 [ 30%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 150 / 500 [ 30%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 150 / 500 [ 30%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 200 / 500 [ 40%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 150 / 500 [ 30%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 200 / 500 [ 40%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 200 / 500 [ 40%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 200 / 500 [ 40%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 250 / 500 [ 50%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 251 / 500 [ 50%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 250 / 500 [ 50%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 251 / 500 [ 50%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 250 / 500 [ 50%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 251 / 500 [ 50%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 250 / 500 [ 50%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 251 / 500 [ 50%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 300 / 500 [ 60%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 300 / 500 [ 60%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 300 / 500 [ 60%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 300 / 500 [ 60%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 350 / 500 [ 70%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 350 / 500 [ 70%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 350 / 500 [ 70%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 350 / 500 [ 70%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 400 / 500 [ 80%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 400 / 500 [ 80%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 400 / 500 [ 80%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 400 / 500 [ 80%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 450 / 500 [ 90%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 450 / 500 [ 90%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 450 / 500 [ 90%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 450 / 500 [ 90%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 500 / 500 [100%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3: </span></span>
+<span><span class="co">#&gt; Chain 3:  Elapsed Time: 34.684 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 3:                32.938 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3:                67.622 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 3: </span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 500 / 500 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
-<span><span class="co">#&gt; Chain 4: Iteration:  1 / 20 [  5%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration:  2 / 20 [ 10%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration:  4 / 20 [ 20%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration:  6 / 20 [ 30%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration:  8 / 20 [ 40%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 10 / 20 [ 50%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 11 / 20 [ 55%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 12 / 20 [ 60%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 14 / 20 [ 70%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 16 / 20 [ 80%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 18 / 20 [ 90%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 20 / 20 [100%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4:  Elapsed Time: 38.487 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 4:                32.772 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4:                71.259 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
-<span><span class="co">#&gt; Chain 4:  Elapsed Time: 0.02 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 4:                0.695 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4:                0.715 seconds (Total)</span></span>
-<span><span class="co">#&gt; Chain 4:</span></span>
-<span><span class="co">#&gt; Finished running Stan at[1] "2026-09-14 16:31:48 BST"</span></span>
-<span><span class="co">#&gt; Time difference of 6.369676 secs</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 500 / 500 [100%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: </span></span>
+<span><span class="co">#&gt; Chain 2:  Elapsed Time: 39.993 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 2:                33.376 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2:                73.369 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 2: </span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 500 / 500 [100%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: </span></span>
+<span><span class="co">#&gt; Chain 1:  Elapsed Time: 40.69 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 1:                33.193 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1:                73.883 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 1:</span></span>
+<span><span class="co">#&gt; Finished running Stan at[1] "2026-09-15 18:11:31 BST"</span></span>
+<span><span class="co">#&gt; Time difference of 1.473198 mins</span></span>
 <span></span>
 <span><span class="va">df_prior</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_stan_interfaces.html">run_stan_interfaces</a></span><span class="op">(</span></span>
 <span>  input_to_stan <span class="op">=</span> <span class="va">data_wrangled</span><span class="op">$</span><span class="va">stan_input_prior</span>,</span>
-<span>  iter_sampling <span class="op">=</span> <span class="va">iterations</span>,</span>
-<span>  iter_warmup <span class="op">=</span> <span class="va">iterations</span>,</span>
-<span>  cores <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  path_to_stan_code <span class="op">=</span> <span class="va">stan_path</span>,</span>
-<span>  interface <span class="op">=</span> <span class="va">stan_interface</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Started running Stan at[1] "2026-09-14 16:32:20 BST"</span></span>
+<span>  path_to_stan_code <span class="op">=</span> <span class="va">stan_path</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Started running Stan at[1] "2026-09-15 18:11:33 BST"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1: Gradient evaluation took 0.000148 seconds</span></span>
-<span><span class="co">#&gt; Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 1.48 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1: Gradient evaluation took 0.000234 seconds</span></span>
+<span><span class="co">#&gt; Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 2.34 seconds.</span></span>
 <span><span class="co">#&gt; Chain 1: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1: WARNING: No variance estimation is</span></span>
-<span><span class="co">#&gt; Chain 1:          performed for num_warmup &lt; 20</span></span>
-<span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1: Iteration:  1 / 20 [  5%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration:  2 / 20 [ 10%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration:  4 / 20 [ 20%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration:  6 / 20 [ 30%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration:  8 / 20 [ 40%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 10 / 20 [ 50%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 11 / 20 [ 55%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 12 / 20 [ 60%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 14 / 20 [ 70%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 16 / 20 [ 80%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 18 / 20 [ 90%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1: Iteration: 20 / 20 [100%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1:  Elapsed Time: 0.002 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 1:                0.002 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1:                0.004 seconds (Total)</span></span>
-<span><span class="co">#&gt; Chain 1: </span></span>
+<span><span class="co">#&gt; Chain 1: Iteration:   1 / 500 [  0%]  (Warmup)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 2).</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2: Gradient evaluation took 9e-06 seconds</span></span>
-<span><span class="co">#&gt; Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.09 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2: Gradient evaluation took 5.1e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.51 seconds.</span></span>
 <span><span class="co">#&gt; Chain 2: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2: WARNING: No variance estimation is</span></span>
-<span><span class="co">#&gt; Chain 2:          performed for num_warmup &lt; 20</span></span>
-<span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2: Iteration:  1 / 20 [  5%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration:  2 / 20 [ 10%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration:  4 / 20 [ 20%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration:  6 / 20 [ 30%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration:  8 / 20 [ 40%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 10 / 20 [ 50%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 11 / 20 [ 55%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 12 / 20 [ 60%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 14 / 20 [ 70%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 16 / 20 [ 80%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 18 / 20 [ 90%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2: Iteration: 20 / 20 [100%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2:  Elapsed Time: 0.005 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 2:                0.004 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2:                0.009 seconds (Total)</span></span>
-<span><span class="co">#&gt; Chain 2: </span></span>
+<span><span class="co">#&gt; Chain 2: Iteration:   1 / 500 [  0%]  (Warmup)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 3).</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3: Gradient evaluation took 8e-06 seconds</span></span>
-<span><span class="co">#&gt; Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.08 seconds.</span></span>
+<span><span class="co">#&gt; Chain 3: Gradient evaluation took 4.4e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.44 seconds.</span></span>
 <span><span class="co">#&gt; Chain 3: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3: WARNING: No variance estimation is</span></span>
-<span><span class="co">#&gt; Chain 3:          performed for num_warmup &lt; 20</span></span>
-<span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3: Iteration:  1 / 20 [  5%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration:  2 / 20 [ 10%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration:  4 / 20 [ 20%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration:  6 / 20 [ 30%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration:  8 / 20 [ 40%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 10 / 20 [ 50%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 11 / 20 [ 55%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 12 / 20 [ 60%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 14 / 20 [ 70%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 16 / 20 [ 80%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 18 / 20 [ 90%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3: Iteration: 20 / 20 [100%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3:  Elapsed Time: 0.003 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 3:                0.001 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3:                0.004 seconds (Total)</span></span>
-<span><span class="co">#&gt; Chain 3: </span></span>
+<span><span class="co">#&gt; Chain 3: Iteration:   1 / 500 [  0%]  (Warmup)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 4).</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
-<span><span class="co">#&gt; Chain 4: Gradient evaluation took 8e-06 seconds</span></span>
-<span><span class="co">#&gt; Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.08 seconds.</span></span>
+<span><span class="co">#&gt; Chain 4: Gradient evaluation took 6.1e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.61 seconds.</span></span>
 <span><span class="co">#&gt; Chain 4: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
-<span><span class="co">#&gt; Chain 4: WARNING: No variance estimation is</span></span>
-<span><span class="co">#&gt; Chain 4:          performed for num_warmup &lt; 20</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration:   1 / 500 [  0%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration:  50 / 500 [ 10%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration:  50 / 500 [ 10%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration:  50 / 500 [ 10%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration:  50 / 500 [ 10%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 100 / 500 [ 20%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 100 / 500 [ 20%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 100 / 500 [ 20%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 100 / 500 [ 20%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 150 / 500 [ 30%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 150 / 500 [ 30%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 200 / 500 [ 40%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 150 / 500 [ 30%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 200 / 500 [ 40%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 250 / 500 [ 50%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 251 / 500 [ 50%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 250 / 500 [ 50%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 251 / 500 [ 50%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 150 / 500 [ 30%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 300 / 500 [ 60%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 300 / 500 [ 60%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 350 / 500 [ 70%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 200 / 500 [ 40%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 350 / 500 [ 70%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 400 / 500 [ 80%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 400 / 500 [ 80%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 250 / 500 [ 50%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 251 / 500 [ 50%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 450 / 500 [ 90%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 200 / 500 [ 40%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 450 / 500 [ 90%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 300 / 500 [ 60%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 500 / 500 [100%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: </span></span>
+<span><span class="co">#&gt; Chain 2:  Elapsed Time: 0.096 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 2:                0.07 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2:                0.166 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 2: </span></span>
+<span><span class="co">#&gt; Chain 3: Iteration: 500 / 500 [100%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3: </span></span>
+<span><span class="co">#&gt; Chain 3:  Elapsed Time: 0.105 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 3:                0.071 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3:                0.176 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 3: </span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 350 / 500 [ 70%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 250 / 500 [ 50%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 251 / 500 [ 50%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 400 / 500 [ 80%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 300 / 500 [ 60%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 450 / 500 [ 90%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 350 / 500 [ 70%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 500 / 500 [100%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: </span></span>
+<span><span class="co">#&gt; Chain 1:  Elapsed Time: 0.152 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 1:                0.068 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1:                0.22 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 1: </span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 400 / 500 [ 80%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 450 / 500 [ 90%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4: Iteration: 500 / 500 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
-<span><span class="co">#&gt; Chain 4: Iteration:  1 / 20 [  5%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration:  2 / 20 [ 10%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration:  4 / 20 [ 20%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration:  6 / 20 [ 30%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration:  8 / 20 [ 40%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 10 / 20 [ 50%]  (Warmup)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 11 / 20 [ 55%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 12 / 20 [ 60%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 14 / 20 [ 70%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 16 / 20 [ 80%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 18 / 20 [ 90%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4: Iteration: 20 / 20 [100%]  (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4: </span></span>
-<span><span class="co">#&gt; Chain 4:  Elapsed Time: 0.001 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 4:                0.001 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4:                0.002 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 4:  Elapsed Time: 0.179 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 4:                0.069 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4:                0.248 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 4:</span></span>
-<span><span class="co">#&gt; Finished running Stan at[1] "2026-09-14 16:32:21 BST"</span></span>
-<span><span class="co">#&gt; Time difference of 0.2502022 secs</span></span></code></pre></div>
+<span><span class="co">#&gt; Finished running Stan at[1] "2026-09-15 18:11:34 BST"</span></span>
+<span><span class="co">#&gt; Time difference of 1.038171 secs</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="analyse-stan-output">Analyse Stan output<a class="anchor" aria-label="anchor" href="#analyse-stan-output"></a>
@@ -469,7 +444,7 @@ prior respectively, as returned by Stan. We had to wrangle covariates
 into integer indices to go into Stan, so now we wrangle back to
 parameters with interpretable names. (If we had used cmdstanr or cmdstan
 instead of rstan, we would first want to run
-<code><a href="https://rdrr.io/pkg/mastiff/man/rename_params_cmdstanfile_to_rstan.html" class="external-link">mastiff::rename_params_cmdstanfile_to_rstan()</a></code> on the column
+<code><a href="https://bdi-pathogens.github.io/mastiff/reference/rename_params_cmdstanfile_to_rstan.html" class="external-link">mastiff::rename_params_cmdstanfile_to_rstan()</a></code> on the column
 names of each of these dataframes, to adjust for their different style
 of naming tensor parameters.)</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
@@ -494,13 +469,13 @@ models like <code><a href="https://rdrr.io/r/stats/lm.html" class="external-link
 <code>plot_posterior()</code> from our package <code>mastiff</code>,
 nine parameters at a time for better visibility within Rmarkdown:</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">mastiff</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/mastiff/man/plot_posterior.html" class="external-link">plot_posterior</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="fu">mastiff</span><span class="fu">::</span><span class="fu"><a href="https://bdi-pathogens.github.io/mastiff/reference/plot_posterior.html" class="external-link">plot_posterior</a></span><span class="op">(</span></span>
 <span>    posterior_samples <span class="op">=</span> <span class="va">df_posterior</span>,</span>
 <span>    prior_samples     <span class="op">=</span> <span class="va">df_prior</span>,</span>
 <span>    params_desired <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">df_prior</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">9</span><span class="op">]</span>,</span>
 <span>    true_param_values <span class="op">=</span> <span class="va">param_true_values_vector</span>,</span>
 <span>    skip_stanfit_to_dt <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_posterior_prior-1.png" class="r-plt" alt="" width="95%"></p>
+<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_posterior_prior-1.png" alt="" width="95%"></p>
 <p><code>df_posterior</code> has columns named <code>xlog_sam[1]</code>,
 <code>xlog_sam[2]</code> etc. which contain the posterior samples for x
 (on a log scale) for the sample assigned the integer index 1, and 2,
@@ -533,7 +508,7 @@ effects.</p>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_abline</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"True log x"</span>,</span>
 <span>       y <span class="op">=</span> <span class="st">"Estimated log x"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_x_vs_true-1.png" class="r-plt" alt="" width="700"></p>
+<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_x_vs_true-1.png" alt="" width="700"></p>
 <p><code>df_posterior</code> has columns named
 <code>y_sam_sim_unconditional[1]</code>,
 <code>y_sam_sim_unconditional[2]</code> etc. which contain posterior
@@ -544,18 +519,18 @@ subpopulations, in this example based on a single covariate
 brackets indexes the sample replicate as in
 <code>df_sam$which_sam_rep</code>; we merge <code>df_sam</code> into
 <code>df_posterior</code> to associated each predicted <code>y</code>
-value with the appropriate subpopulation We plot the empirical
+value with the appropriate subpopulation. We plot the empirical
 subpopulation-level distributions of y values, and the posterior
 predictive distribution of subpopulation-level distributions of y
 values. We use a log scale for y even though it can be negative, because
-it usually isn’t and this is clearer. We make both a spline density plot
-and also a histogram (splines are easier to see but the algorithm may
-make mistakes on fitting a smoothed distribution).</p>
+with our default parameters it’s only rarely negative and a log scale is
+clearer. We make both a spline density plot and also a histogram
+(splines are easier to see but the algorithm may make mistakes on
+fitting a smoothed distribution).</p>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">df_y_sim</span> <span class="op">&lt;-</span> <span class="va">df_posterior</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="fu"><a href="https://tidyselect.r-lib.org/reference/starts_with.html" class="external-link">starts_with</a></span><span class="op">(</span><span class="st">"y_sam_sim_unconditional["</span><span class="op">)</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>sample <span class="op">=</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/row_number.html" class="external-link">row_number</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">sample</span> <span class="op"><a href="https://rdrr.io/r/base/Arithmetic.html" class="external-link">%%</a></span> <span class="fl">20</span> <span class="op">==</span> <span class="fl">0</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>  <span class="fu"><a href="https://tidyr.tidyverse.org/reference/pivot_longer.html" class="external-link">pivot_longer</a></span><span class="op">(</span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sample"</span><span class="op">)</span>, names_to <span class="op">=</span> <span class="st">"param"</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>  <span class="fu">tidyr</span><span class="fu">::</span><span class="fu"><a href="https://tidyr.tidyverse.org/reference/extract.html" class="external-link">extract</a></span><span class="op">(</span><span class="va">param</span>, </span>
 <span>               into <span class="op">=</span> <span class="st">"which_sam_rep"</span>, </span>
@@ -582,7 +557,7 @@ make mistakes on fitting a smoothed distribution).</p>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">letter</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"log10(OD value)"</span>,</span>
 <span>       y <span class="op">=</span> <span class="st">"probability density"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_posterior_retrodictive-1.png" class="r-plt" alt="" width="700"></p>
+<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_posterior_retrodictive-1.png" alt="" width="700"></p>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_density.html" class="external-link">geom_density</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">df_y_sim</span>,</span>
@@ -596,7 +571,36 @@ make mistakes on fitting a smoothed distribution).</p>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">letter</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"log10(OD value)"</span>,</span>
 <span>       y <span class="op">=</span> <span class="st">"probability density"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_posterior_retrodictive-2.png" class="r-plt" alt="" width="700"></p>
+<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_posterior_retrodictive-2.png" alt="" width="700"></p>
+<p><code>df_posterior</code> has columns named
+<code>p_sam_is_pos[1]</code>, <code>p_sam_is_pos[2]</code> etc. which
+contain the probability that sample 1, 2 etc. is positive given its
+observed y values. Calculate the posterior mean for each of these
+quantities, and then plot the distribution over individuals of these
+values, stratified by true serostatus. This gives a sense of the model’s
+accuracy and confidence in estimating serostatus.</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">df_prob_pos</span> <span class="op">&lt;-</span> <span class="va">df_posterior</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="fu"><a href="https://tidyselect.r-lib.org/reference/starts_with.html" class="external-link">starts_with</a></span><span class="op">(</span><span class="st">"p_sam_is_pos["</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">df_prob_pos</span> <span class="op">&lt;-</span> <span class="va">df_prob_pos</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">.SD</span>, <span class="va">mean</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="va">df_prob_pos</span> <span class="op">&lt;-</span> <span class="va">df_prob_pos</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>  <span class="fu"><a href="https://tidyr.tidyverse.org/reference/pivot_longer.html" class="external-link">pivot_longer</a></span><span class="op">(</span><span class="fu"><a href="https://tidyselect.r-lib.org/reference/everything.html" class="external-link">everything</a></span><span class="op">(</span><span class="op">)</span>, names_to <span class="op">=</span> <span class="st">"param"</span>, values_to <span class="op">=</span> <span class="st">"p_sam_is_pos"</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>  <span class="fu">tidyr</span><span class="fu">::</span><span class="fu"><a href="https://tidyr.tidyverse.org/reference/extract.html" class="external-link">extract</a></span><span class="op">(</span><span class="va">param</span>, </span>
+<span>                 into <span class="op">=</span> <span class="st">"id_sam_int"</span>, </span>
+<span>                 regex <span class="op">=</span> <span class="st">"p_sam_is_pos\\[([0-9]+)\\]"</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>id_sam_int <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">id_sam_int</span><span class="op">)</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate-joins.html" class="external-link">inner_join</a></span><span class="op">(</span><span class="va">df_sam</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/summarise.html" class="external-link">summarise</a></span><span class="op">(</span>.by <span class="op">=</span> <span class="va">id_sam_int</span>, pos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">pos</span><span class="op">)</span><span class="op">)</span>, </span>
+<span>             by <span class="op">=</span> <span class="st">"id_sam_int"</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>    <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>status <span class="op">=</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/if_else.html" class="external-link">if_else</a></span><span class="op">(</span><span class="va">pos</span>, <span class="st">"pos"</span>, <span class="st">"neg"</span><span class="op">)</span><span class="op">)</span> </span>
+<span></span>
+<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">df_prob_pos</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">p_sam_is_pos</span>, y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">density</span><span class="op">)</span>, fill <span class="op">=</span> <span class="va">status</span><span class="op">)</span>,</span>
+<span>                 position <span class="op">=</span> <span class="st">"identity"</span>, alpha <span class="op">=</span> <span class="fl">0.6</span>, bins <span class="op">=</span> <span class="fl">30</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>y <span class="op">=</span> <span class="st">"Number of samples"</span>,</span>
+<span>       x <span class="op">=</span> <span class="st">"Probability sample is positive"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_cartesian.html" class="external-link">coord_cartesian</a></span><span class="op">(</span>expand <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_x_continuous</a></span><span class="op">(</span>limits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="cn">NA</span>, <span class="cn">NA</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p><img src="estimation_on_simulated_data_simple_files/figure-html/unnamed-chunk-3-1.png" alt="" width="700"></p>
 </div>
 <div class="footnotes footnotes-end-of-document">
 <hr>
@@ -641,7 +645,7 @@ here too.<a href="#fnref1" class="footnote-back">↩︎</a></p></li>
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
 </div>
 
       </footer>

@@ -103,7 +103,7 @@
 
 
 <dt id="arg-interface">interface<a class="anchor" aria-label="anchor" href="#arg-interface"></a></dt>
-<dd><p>one of "rstan", "cmdstanr" or "cmdstan".</p></dd>
+<dd><p>one of <code>"rstan"</code>, <code>"cmdstanr"</code> or <code>"cmdstan"</code>.</p></dd>
 
 
 <dt id="arg-iter-warmup">iter_warmup<a class="anchor" aria-label="anchor" href="#arg-iter-warmup"></a></dt>
@@ -165,7 +165,7 @@ _chain1.csv, _chain2.csv etc.</p></dd>
 
 <dt id="arg-cmdstan-path-to-compiled-model">cmdstan_path_to_compiled_model<a class="anchor" aria-label="anchor" href="#arg-cmdstan-path-to-compiled-model"></a></dt>
 <dd><p>the path where we will create the
-compiled version of the stan code. Some value (such as the default) is
+compiled version of the Stan code. Some value (such as the default) is
 needed if <code>interface="cmdstan"</code>, but not otherwise.</p></dd>
 
 
@@ -185,8 +185,24 @@ a value <code>FALSE</code> is specified, this function returns a value <code>NUL
     <h2>Value</h2>
     <p>a dataframe with one row per sample from the posterior and one
 column per parameter (unless <code>interface</code> is set to <code>cmdstan</code> and
-<code>cmdstan_read_output_into_df</code> is set to <code>FALSE</code>).</p>
-    </div>
+<code>cmdstan_read_output_into_df</code> is set to <code>FALSE</code>). Parameters you'll find in
+here include all of the parameters in the csv file that you previously read
+into a dataframe using <code><a href="read_priors.html">read_priors()</a></code> (see that csv or dataframe for
+descriptions of these parameters), plus:</p><ul><li><p><code>rho[..., ...]</code> is the 4x4 dimensionless correlation matrix between the values of the f vector for different plates, with the square brackets containing two indices for the matrix element.</p></li>
+<li><p><code>xlog_sam[...]</code> is the log_e antibody level for samples, with the square brackets containing an integer index for which sample.</p></li>
+<li><p><code>p_pos_effect_bool{name}</code>, with <code>{name}</code> being one of the names inside <code>p_pos_binary_pred_vars</code> given as input to <code><a href="prepare_data_for_stan.html">prepare_data_for_stan()</a></code>, is the effect on the overall <code>p_pos</code> parameter due to the boolean variable <code>{name}</code> taking the value <code>TRUE</code> instead of <code>FALSE</code>.</p></li>
+<li><p><code>f_per_plate[..., ...]</code> is the f vector that relates x and y for each plate. The first integer indexes the plate and the second indexes one of the four elements of the vector.</p></li>
+<li><p><code>sigma_p_pos_pred_vars_{name1}</code>, with <code>{name1}</code> being one of the names inside the <code>p_pos</code> element of the <code>x_mix_pred_vars_names</code> list given as input to <code><a href="prepare_data_for_stan.html">prepare_data_for_stan()</a></code> (i.e. the name of one categorical variable used in the regression model for <code>p_pos</code>) is the scale of variability in <code>p_pos</code> between different categories of this variable.</p></li>
+<li><p><code>sigma_mu_pos_pred_vars_{name1}</code>, <code>sigma_sd_pos_pred_vars_{name1}</code>, <code>sigma_mu_neg_pred_vars_{name1}</code>, <code>sigma_sd_neg_pred_vars_{name1}</code> are all defined analogously to <code>sigma_p_pos_pred_vars_{name1}</code> but for the other four parameters of the x mixture distribution: <code>mu_pos</code>, <code>sd_pos</code>, <code>mu_neg</code> and <code>sd_neg</code> respectively.</p></li>
+<li><p><code>p_pos_effect_{name1}{name2}</code>, with <code>{name1}</code> matching <code>{name1}</code> in <code>sigma_p_pos_pred_vars_{name1}</code> and <code>{name2}</code> being one of the categories of <code>{name1}</code>, is the effect of this category on <code>p_pos</code>: adding this parameter to the overall <code>p_pos</code> parameter gives the value of <code>p_pos</code> for this category (a logit link function is used, and if more than one categorical variable was used for the regression model, all of the associated <code>{name1}</code> parameters must be summed over to get to a single subpopulation, e.g. this could look like <code>logistic(logit(p_pos) + p_pos_effect_Age18-29 + p_pos_effect_JobFarmer)</code>);</p></li>
+<li><p><code>mu_pos_effect_{name1}{name2}</code>, <code>sd_pos_effect_{name1}{name2}</code>, <code>mu_neg_effect_{name1}{name2}</code>, <code>sd_neg_effect_{name1}{name2}</code>, these are all defined analogously to <code>p_pos_effect_{name1}{name2}</code> but for the other four parameters of the x mixture distribution: <code>mu_pos</code>, <code>sd_pos</code>, <code>mu_neg</code> and <code>sd_neg</code> respectively (with a log link function for the <code>sd</code> parameters and no link function for the <code>mu</code> parameters).</p></li>
+<li><p><code>y_cal_sim[...]</code> is simulated new y values for calibrators (with the square brackets containing an integer index for which calibrator), providing a posterior retrodictive check for the calibrator y values actually observed.</p></li>
+<li><p><code>y_sam_sim_conditional[...]</code> is simulated new y values for samples, conditioning on the y values actually observed for that specific sample, i.e. imagining obtaining new measurements from the same individuals.</p></li>
+<li><p><code>y_sam_sim_unconditional[...]</code> is simulated new y values for samples, not conditioning on the y values actually observed for that specific sample, i.e. imagining resampling a new individual from the same subpopulation with all the same covariates. This provides a more stringent posterior retrodictive check for subpopulation distributions of y values.</p></li>
+<li><p><code>xlog_sam_sim_unconditional[...]</code> is simulated new x values, one per individual (indexed by the integer in the square brackets), not conditioning on the y values actually observed for that specific individual, i.e. imagining resampling a new individual from the same subpopulation with all the same covariates. This allows checking of the consistency between the distribution of estimated x values and the estimated distribution of x values.</p></li>
+<li><p><code>pos_sam_sim_unconditional[...]</code> is simulated new serostatuses, one per individual (indexed by the integer in the square brackets), not conditioning on the y values actually observed for that specific sample, i.e. imagining resampling a new individual from the same subpopulation with all the same covariates. Grouping these values together based on any covariate(s) desired, counting the fraction of them that are positive, and then taking the distribution over posterior samples provides a convenient posterior predictive distribution for stratified seroprevalence in a new dataset of individuals with the same distribution of covariates as the one actually sampled. It takes into account the joint effect of all modelled covariates and their correlations, and the sampling uncertainty associated with the number of individuals possessing each combination of covariates.</p></li>
+<li><p><code>p_sam_is_pos[...]</code> is the probability that a given sample (indexed by the integer in square brackets) is seropositive, conditional on its observed y values. The best way to understand this is as the fraction of a large hypothetical population of individuals with identical y values that would be positive; it takes continuous values between 0 and 1, and has a posterior distribution capturing its uncertainty.</p></li>
+</ul></div>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
@@ -200,7 +216,7 @@ column per parameter (unless <code>interface</code> is set to <code>cmdstan</cod
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
 </div>
 
       </footer></div>
