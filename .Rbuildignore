@@ -1,7 +1,4 @@
 ^dvsb\.Rproj$
 ^\.Rproj\.user$
 ^LICENSE\.md$
-*.pdf
-*.png
-*.RData
 manuscript/*
