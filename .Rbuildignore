@@ -2,3 +2,9 @@
 ^\.Rproj\.user$
 ^LICENSE\.md$
 manuscript/*
+^inst/stan/dvsb$
+^inst/stan/dvsb_no_mu_x_predictors$
+^inst/stan/dvsb_accidental_blanks$
+^.*\\.pdf$
+^.*\\.png$
+^.*\\.RData$
