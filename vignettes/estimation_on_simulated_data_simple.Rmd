@@ -195,7 +195,7 @@ For each of the population-level parameters we plot the posterior, prior and tru
 One should always test this with custom statistical models (as opposed to well-tested off-the-shelf models like `stats::lm()`).
 We do this using `plot_posterior()` from our package `mastiff`, nine parameters at a time for better visibility within Rmarkdown:
 
-```{r plot_posterior_prior, warning=FALSE, out.width="95%", fig.height=30}
+```{r plot_posterior_prior, warning=FALSE, out.width="95%", fig.height=10}
 mastiff::plot_posterior(
     posterior_samples = df_posterior,
     prior_samples     = df_prior,

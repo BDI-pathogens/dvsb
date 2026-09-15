@@ -57,22 +57,22 @@
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">simulate_data</span><span class="op">(</span></span>
 <span>  seed <span class="op">=</span> <span class="cn">NA</span>,</span>
 <span>  num_plate <span class="op">=</span> <span class="fl">10</span>,</span>
-<span>  num_sam_per_plate <span class="op">=</span> <span class="fl">30</span>,</span>
+<span>  num_sam_per_plate <span class="op">=</span> <span class="fl">40</span>,</span>
 <span>  num_rep_per_sam <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  num_rep_per_cal <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>  x_cals <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.5</span>, <span class="fl">1.5</span>, <span class="fl">4.5</span>, <span class="fl">13</span>, <span class="fl">40</span><span class="op">)</span>,</span>
-<span>  y_obs_sd_cal_min <span class="op">=</span> <span class="fl">0.01</span>,</span>
-<span>  y_obs_sd_cal_jump <span class="op">=</span> <span class="fl">0.4</span>,</span>
-<span>  y_obs_sd_sam_min <span class="op">=</span> <span class="fl">0.002</span>,</span>
-<span>  y_obs_sd_sam_jump <span class="op">=</span> <span class="fl">0.4</span>,</span>
-<span>  mu_neg <span class="op">=</span> <span class="op">-</span><span class="fl">2.75</span>,</span>
+<span>  x_cals <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.37</span>, <span class="fl">1.1</span>, <span class="fl">3.3</span>, <span class="fl">10</span>, <span class="fl">30</span><span class="op">)</span>,</span>
+<span>  y_obs_sd_cal_min <span class="op">=</span> <span class="fl">0.003</span>,</span>
+<span>  y_obs_sd_cal_jump <span class="op">=</span> <span class="fl">0.242</span>,</span>
+<span>  y_obs_sd_sam_min <span class="op">=</span> <span class="fl">0.004</span>,</span>
+<span>  y_obs_sd_sam_jump <span class="op">=</span> <span class="fl">0.718</span>,</span>
+<span>  mu_neg <span class="op">=</span> <span class="op">-</span><span class="fl">2.7</span>,</span>
 <span>  sd_neg <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  mu_pos <span class="op">=</span> <span class="fl">0.8</span>,</span>
+<span>  mu_pos <span class="op">=</span> <span class="fl">0.7</span>,</span>
 <span>  sd_pos <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  p_pos <span class="op">=</span> <span class="fl">0.5</span>,</span>
 <span>  p_blank <span class="op">=</span> <span class="fl">0</span>,</span>
-<span>  f <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.95</span>, <span class="fl">0.01</span>, <span class="fl">3.35</span>, <span class="fl">2.45</span><span class="op">)</span>,</span>
-<span>  sigma_f_plate <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.0065</span>, <span class="fl">9e-04</span>, <span class="fl">0.09</span>, <span class="fl">0.035</span><span class="op">)</span>,</span>
+<span>  f <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.95</span>, <span class="fl">0.01</span>, <span class="fl">3.33</span>, <span class="fl">2.44</span><span class="op">)</span>,</span>
+<span>  sigma_f_plate <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.073</span>, <span class="fl">0.004</span>, <span class="fl">0.704</span>, <span class="fl">0.404</span><span class="op">)</span>,</span>
 <span>  rho <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span>, <span class="fl">4</span>, <span class="fl">4</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
 <span>  f_pred_vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  sigma_f_pred_vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
