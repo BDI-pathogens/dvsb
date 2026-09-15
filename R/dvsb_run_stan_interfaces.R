@@ -42,7 +42,24 @@
 #'
 #' @returns a dataframe with one row per sample from the posterior and one
 #'   column per parameter (unless `interface` is set to `cmdstan` and
-#'   `cmdstan_read_output_into_df` is set to `FALSE`).
+#'   `cmdstan_read_output_into_df` is set to `FALSE`). Parameters you'll find in
+#'   here include all of the parameters in the csv file that you previously read
+#'   into a dataframe using [read_priors()] (see that csv or dataframe for
+#'   descriptions of these parameters), plus:
+#'    * `rho[..., ...]` is the 4x4 dimensionless correlation matrix between the values of the f vector for different plates, with the square brackets containing two indices for the matrix element.
+#'    * `xlog_sam[...]` is the log_e antibody level for samples, with the square brackets containing an integer index for which sample.
+#'    * `p_pos_effect_bool{name}`, with `{name}` being one of the names inside `p_pos_binary_pred_vars` given as input to [prepare_data_for_stan()], is the effect on the overall `p_pos` parameter due to the boolean variable `{name}` taking the value `TRUE` instead of `FALSE`.
+#'    * `f_per_plate[..., ...]` is the f vector that relates x and y for each plate. The first integer indexes the plate and the second indexes one of the four elements of the vector.
+#'    * `sigma_p_pos_pred_vars_{name1}`, with `{name1}` being one of the names inside the `p_pos` element of the `x_mix_pred_vars_names` list given as input to [prepare_data_for_stan()] (i.e. the name of one categorical variable used in the regression model for `p_pos`) is the scale of variability in `p_pos` between different categories of this variable.
+#'    * `sigma_mu_pos_pred_vars_{name1}`, `sigma_sd_pos_pred_vars_{name1}`, `sigma_mu_neg_pred_vars_{name1}`, `sigma_sd_neg_pred_vars_{name1}` are all defined analogously to `sigma_p_pos_pred_vars_{name1}` but for the other four parameters of the x mixture distribution: `mu_pos`, `sd_pos`, `mu_neg` and `sd_neg` respectively.
+#'    * `p_pos_effect_{name1}{name2}`, with `{name1}` matching `{name1}` in `sigma_p_pos_pred_vars_{name1}` and `{name2}` being one of the categories of `{name1}`, is the effect of this category on `p_pos`: adding this parameter to the overall `p_pos` parameter gives the value of `p_pos` for this category (a logit link function is used, and if more than one categorical variable was used for the regression model, all of the associated `{name1}` parameters must be summed over to get to a single subpopulation, e.g. this could look like `logistic(logit(p_pos) + p_pos_effect_Age18-29 + p_pos_effect_JobFarmer)`);
+#'    * `mu_pos_effect_{name1}{name2}`, `sd_pos_effect_{name1}{name2}`, `mu_neg_effect_{name1}{name2}`, `sd_neg_effect_{name1}{name2}`, these are all defined analogously to `p_pos_effect_{name1}{name2}` but for the other four parameters of the x mixture distribution: `mu_pos`, `sd_pos`, `mu_neg` and `sd_neg` respectively (with a log link function for the `sd` parameters and no link function for the `mu` parameters).
+#'    * `y_cal_sim[...]` is simulated new y values for calibrators (with the square brackets containing an integer index for which calibrator), providing a posterior retrodictive check for the calibrator y values actually observed.
+#'    * `y_sam_sim_conditional[...]` is simulated new y values for samples, conditioning on the y values actually observed for that specific sample, i.e. imagining obtaining new measurements from the same individuals.
+#'    * `y_sam_sim_unconditional[...]` is simulated new y values for samples, not conditioning on the y values actually observed for that specific sample, i.e. imagining resampling a new individual from the same subpopulation with all the same covariates. This provides a more stringent posterior retrodictive check for subpopulation distributions of y values.
+#'    * `xlog_sam_sim_unconditional[...]` is simulated new x values, one per individual (indexed by the integer in the square brackets), not conditioning on the y values actually observed for that specific individual, i.e. imagining resampling a new individual from the same subpopulation with all the same covariates. This allows checking of the consistency between the distribution of estimated x values and the estimated distribution of x values.
+#'    * `pos_sam_sim_unconditional[...]` is simulated new serostatuses, one per individual (indexed by the integer in the square brackets), not conditioning on the y values actually observed for that specific sample, i.e. imagining resampling a new individual from the same subpopulation with all the same covariates. Grouping these values together based on any covariate(s) desired, counting the fraction of them that are positive, and then taking the distribution over posterior samples provides a convenient posterior predictive distribution for stratified seroprevalence in a new dataset of individuals with the same distribution of covariates as the one actually sampled. It takes into account the joint effect of all modelled covariates and their correlations, and the sampling uncertainty associated with the number of individuals possessing each combination of covariates.
+#'    * `p_sam_is_pos[...]` is the probability that a given sample (indexed by the integer in square brackets) is seropositive, conditional on its observed y values. The best way to understand this is as the fraction of a large hypothetical population of individuals with identical y values that would be positive; it takes continuous values between 0 and 1, and has a posterior distribution capturing its uncertainty.
 #' @export
 #'
 run_stan_interfaces <- function(input_to_stan,
@@ -246,6 +263,13 @@ run_stan_interfaces <- function(input_to_stan,
     keep_col <- keep_col & keep_based_on_this_param
   }
   df_samples <- df_samples[, ..keep_col]
+  
+  # TODO:
+  #mastiff::rename_params_cmdstanfile_to_rstan() if cmdstan(r)
+  #data.table::setnames(df_samples, function(names) {
+  #rename_params_from_stan(names,
+  #                        data_descriptors = input_to_stan$data_descriptors)})
+  # Add a note to for the user to do that themself if ! cmdstan_read_output_into_df
   
   df_samples
   
