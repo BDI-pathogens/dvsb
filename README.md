@@ -30,6 +30,7 @@ install.packages("cmdstanr", repos = c('https://stan-dev.r-universe.dev', getOpt
 
 See the article
 
-### Usage
+### Links
 
-See the [vignette](https://BDI-pathogens.github.io/dvsb/articles/estimation_on_simulated_data_simple.html).
+The source code is [here](https://github.com/BDI-pathogens/dvsb).
+The webpage, where you can read function documention and vignettes showing code in action, is [here](https://BDI-pathogens.github.io/dvsb/).
