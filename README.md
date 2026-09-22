@@ -28,7 +28,7 @@ install.packages("cmdstanr", repos = c('https://stan-dev.r-universe.dev', getOpt
 
 ### What is the statistical model?
 
-See the article
+See the [preprint](https://doi.org/10.64898/2026.09.17.26363301)
 
 ### Links
 
