@@ -2,11 +2,13 @@
 #'
 #' @param path_to_csv path to a csv file with columns `parameter`, `min` and
 #'   `max`, and one row for each of the (top-level, fixed-effect) parameters in
-#'   our statistical model. Such a file gets installed with this package; on
-#'   your system it should live at the path
-#'   `file.path(system.file("input_priors", package = "dvsb"), "priors.csv")`.
-#'   You can also find the file at the GitHub repository for this code
-#'   (BDI-pathogens/dvsb) in the subdirectory `input_priors`.
+#'   our statistical model. One such file lives in the dvsb package code: we
+#'   attempt to find this automatically if this argument is left at its default
+#'   value. But you may wish to modify this file, make different copies for
+#'   different analyses that live in different places, etc. In that case you can
+#'   provide the path to another such file here. You can also find the file at
+#'   the GitHub repository for this code (BDI-pathogens/dvsb) in the
+#'   subdirectory `input_priors`.
 #'
 #' @returns a list with elements `rho_prior_eta` (a single number controlling
 #'   the prior for the eta parameter), `df_priors_scalars` and
@@ -14,9 +16,14 @@
 #'   quantities respectively).
 #' @export
 #'
-read_priors <- function(path_to_csv) {
+get_priors <- function(path_to_csv = system.file("input_priors/priors.csv", package = "dvsb")) {
   
-  stopifnot(file.exists(path_to_csv))
+  stopifnot(is.character(path_to_csv))
+  stopifnot(length(path_to_csv) == 1)
+  if (! file.exists(path_to_csv)) {
+    stop(paste("No file exists at the path", path_to_csv))
+  }
+  
   
   param_names <- c(
     "mu_neg",
