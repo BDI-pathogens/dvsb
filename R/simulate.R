@@ -255,9 +255,6 @@ simulate_data <- function(
   }
   x_mix_pred_vars_names <- purrr::map(x_mix_pred_vars, names)
   x_mix_pred_vars_nums <- purrr::map_int(x_mix_pred_vars_names, length)
-  if (any(x_mix_pred_vars_nums) && num_sam_id == 0) {
-    stop("You need some samples if the x mix parameters are to be predicted")
-  }
   for (param in x_mix_params) {
     if (x_mix_pred_vars_nums[[param]]) {
       for (pred_var in x_mix_pred_vars_names[[param]]) {
@@ -269,6 +266,13 @@ simulate_data <- function(
           stop(paste0("x_mix_pred_vars$", param, "$", pred_var,
                       " must contain at least two elements; we found it equal to ",
                       x_mix_pred_vars[[param]][[pred_var]]))
+        }
+        if (length(x_mix_pred_vars[[param]][[pred_var]]) > num_sam_id) {
+          stop(paste0("x_mix_pred_vars$", param, "$", pred_var,
+                      " must not contain more elements than the total number ",
+                      "of samples (", num_sam_id, ") because we assign these ",
+                      "characters to the samples and each ",
+                     "one must be represented at least once)"))
         }
         if (anyDuplicated(x_mix_pred_vars[[param]][[pred_var]])) {
           stop(paste0("x_mix_pred_vars$", param, "$", pred_var,
