@@ -1,6 +1,8 @@
 #' Run one of rstan, cmdstanr or cmdstan on a file of Stan code
 #'
 #' @param input_to_stan a list containing all the input the Stan code expects.
+#' @param data_descriptors a list of things describing the dataset, of the
+#'   format output by [prepare_data_for_stan()] (inside its list of outputs). 
 #' @param interface one of `"rstan"`, `"cmdstanr"` or `"cmdstan"`.
 #' @param model one of `"dvsb"`, `"dvsb_accidental_blanks"` or
 #'   `"dvsb_no_mu_x_predictors"`. `dvsb` is the main dvsb model;
@@ -37,6 +39,7 @@
 #' @export
 #'
 run_stan <- function(input_to_stan,
+                     data_descriptors,
                      model = c("dvsb", "dvsb_accidental_blanks", "dvsb_no_mu_x_predictors"),
                      interface = c("rstan", "cmdstanr", "cmdstan"),
                      params_to_ignore = c(
@@ -107,11 +110,10 @@ run_stan <- function(input_to_stan,
                                          params_to_ignore = params_to_ignore, 
                                          ...)
   
-  # TODO: if not cmdstan_read_output_into_df, then:
-  #data.table::setnames(df_samples, function(names) {
-  #rename_params_from_stan(names,
-  #                        data_descriptors = input_to_stan$data_descriptors)})
-  # Add a note to for the user to do that themself if ! cmdstan_read_output_into_df
+  if (! is.null(result)) {
+    data.table::setnames(result, function(names) {
+    rename_params_from_stan(names, data_descriptors = data_descriptors)})
+  }
   
   result
   
