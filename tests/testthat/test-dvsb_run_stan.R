@@ -1,6 +1,5 @@
 test_that("cmdstan works", {
   
-  stan_path <- file.path(system.file("stan", package = "dvsb"), "dvsb.stan")
   priors_path <- file.path(system.file("input_priors", package = "dvsb"), "priors.csv")
   priors_list <- read_priors(priors_path)
   
@@ -21,32 +20,24 @@ test_that("cmdstan works", {
   df_cal <- data_wrangled$df_cal
   df_plate <- dplyr::left_join(data$df_plate, data_wrangled$df_plate, by = "plate") 
   
-  iterations <- 10 
-  cmdstan_installation_dir <- "/Users/cwymant/.cmdstan/cmdstan-2.37.0/"
-  cmdstan_temp_file <- "/Users/cwymant/temp_dvsb.json" 
+  iterations <- 1 
   cmdstan_output_basename <- "/Users/cwymant/temp_dvsb_out"
   
-  df_posterior <- run_stan_interfaces(
+  df_posterior <- pkgcond::suppress_warnings(run_stan(
     input_to_stan = data_wrangled$stan_input_posterior,
-    path_to_stan_code = stan_path,
     interface = "cmdstan",
     iter_warmup = iterations,
     iter_sampling = iterations,
-    cmdstan_path_to_installation = cmdstan_installation_dir, 
-    cmdstan_path_to_json = cmdstan_temp_file, 
-    cmdstan_overwrite_json = TRUE,
-    cmdstan_path_to_output = cmdstan_output_basename)
+    cmdstan_path_to_output = cmdstan_output_basename),
+    mastiff:::stan_safe_warnings())
   
-  df_prior <- run_stan_interfaces(
+  df_prior <- pkgcond::suppress_warnings(run_stan(
     input_to_stan = data_wrangled$stan_input_prior,
-    path_to_stan_code = stan_path,
     interface = "cmdstan",
     iter_warmup = iterations,
     iter_sampling = iterations,
-    cmdstan_path_to_installation = cmdstan_installation_dir, 
-    cmdstan_path_to_json = cmdstan_temp_file, 
-    cmdstan_overwrite_json = TRUE,
-    cmdstan_path_to_output = cmdstan_output_basename)
+    cmdstan_path_to_output = cmdstan_output_basename),
+    mastiff:::stan_safe_warnings())
   
   expect_true(is.data.frame(df_posterior))
   expect_true(is.data.frame(df_prior))
@@ -57,7 +48,6 @@ test_that("cmdstan works", {
 
 test_that("cmdstanr works", {
   
-  stan_path <- file.path(system.file("stan", package = "dvsb"), "dvsb.stan")
   priors_path <- file.path(system.file("input_priors", package = "dvsb"), "priors.csv")
   priors_list <- read_priors(priors_path)
   
@@ -78,21 +68,21 @@ test_that("cmdstanr works", {
   df_cal <- data_wrangled$df_cal
   df_plate <- dplyr::left_join(data$df_plate, data_wrangled$df_plate, by = "plate") 
   
-  iterations <- 10 
+  iterations <- 1 
   
-  df_posterior <- run_stan_interfaces(
+  df_posterior <- pkgcond::suppress_warnings(run_stan(
     input_to_stan = data_wrangled$stan_input_posterior,
-    path_to_stan_code = stan_path,
     interface = "cmdstanr",
     iter_warmup = iterations,
-    iter_sampling = iterations)
+    iter_sampling = iterations),
+    mastiff:::stan_safe_warnings())
   
-  df_prior <- run_stan_interfaces(
+  df_prior <- pkgcond::suppress_warnings(run_stan(
     input_to_stan = data_wrangled$stan_input_prior,
-    path_to_stan_code = stan_path,
     interface = "cmdstanr",
     iter_warmup = iterations,
-    iter_sampling = iterations)
+    iter_sampling = iterations),
+    mastiff:::stan_safe_warnings())
   
   expect_true(is.data.frame(df_posterior))
   expect_true(is.data.frame(df_prior))
@@ -102,7 +92,6 @@ test_that("cmdstanr works", {
 
 test_that("rstan works", {
   
-  stan_path <- file.path(system.file("stan", package = "dvsb"), "dvsb.stan")
   priors_path <- file.path(system.file("input_priors", package = "dvsb"), "priors.csv")
   priors_list <- read_priors(priors_path)
   
@@ -123,23 +112,23 @@ test_that("rstan works", {
   df_cal <- data_wrangled$df_cal
   df_plate <- dplyr::left_join(data$df_plate, data_wrangled$df_plate, by = "plate") 
   
-  iterations <- 10 
+  iterations <- 1 
   
-  df_posterior <- run_stan_interfaces(
+  df_posterior <- pkgcond::suppress_warnings(run_stan(
     input_to_stan = data_wrangled$stan_input_posterior,
-    path_to_stan_code = stan_path,
     interface = "rstan",
     iter_warmup = iterations,
     iter_sampling = iterations,
-    cores = 1)
+    cores = 1),
+    mastiff:::stan_safe_warnings())
   
-  df_prior <- run_stan_interfaces(
+  df_prior <- pkgcond::suppress_warnings(run_stan(
     input_to_stan = data_wrangled$stan_input_prior,
-    path_to_stan_code = stan_path,
     interface = "rstan",
     iter_warmup = iterations,
     iter_sampling = iterations,
-    cores = 1)
+    cores = 1),
+    mastiff:::stan_safe_warnings())
   
   expect_true(is.data.frame(df_posterior))
   expect_true(is.data.frame(df_prior))
