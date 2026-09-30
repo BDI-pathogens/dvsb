@@ -26,7 +26,7 @@ its list of outputs): with one row per calibrator replicate, including
 columns x, y, and plate. x and y should be numeric.}
 
 \item{df_priors_scalars, df_priors_vectors}{dataframes of the format output by
-\code{\link[=read_priors]{read_priors()}} (inside its list of outputs): each having one row per
+\code{\link[=get_priors]{get_priors()}} (inside its list of outputs): each having one row per
 parameter, including columns \code{param}, \code{lower}, and \code{upper}. \code{param} should
 be character, \code{lower} and \code{upper} should be numeric.}
 

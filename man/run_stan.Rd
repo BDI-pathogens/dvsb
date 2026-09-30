@@ -2,10 +2,11 @@
 % Please edit documentation in R/run_stan.R
 \name{run_stan}
 \alias{run_stan}
-\title{Run one of rstan, cmdstanr or cmdstan on a file of Stan code}
+\title{Run the dvsb statistical model}
 \usage{
 run_stan(
   input_to_stan,
+  data_descriptors,
   model = c("dvsb", "dvsb_accidental_blanks", "dvsb_no_mu_x_predictors"),
   interface = c("rstan", "cmdstanr", "cmdstan"),
   params_to_ignore = c("lp__", "rho[1,1]", "rho[2,2]", "rho[3,3]", "rho[4,4]",
@@ -29,7 +30,13 @@ run_stan(
 )
 }
 \arguments{
-\item{input_to_stan}{a list containing all the input the Stan code expects.}
+\item{input_to_stan}{a list containing all the input the Stan code expects:
+use either the \code{stan_input_posterior} or the \code{stan_input_prior} element of
+the list of outputs returned by \code{\link[=prepare_data_for_stan]{prepare_data_for_stan()}}, depending
+whether you want to sample from the posterior or the prior.}
+
+\item{data_descriptors}{a list of things describing the dataset, of the
+format output by \code{\link[=prepare_data_for_stan]{prepare_data_for_stan()}} (inside its list of outputs).}
 
 \item{model}{one of \code{"dvsb"}, \code{"dvsb_accidental_blanks"} or
 \code{"dvsb_no_mu_x_predictors"}. \code{dvsb} is the main dvsb model;
@@ -51,7 +58,7 @@ a dataframe with one row per sample from the posterior and one
 column per parameter (unless \code{interface} is set to \code{cmdstan} and
 \code{cmdstan_read_output_into_df} is set to \code{FALSE}). Parameters you'll find in
 here include all of the parameters in the csv file that you previously read
-into a dataframe using \code{\link[=read_priors]{read_priors()}} (see that csv or dataframe for
+into a dataframe using \code{\link[=get_priors]{get_priors()}} (see that csv or dataframe for
 descriptions of these parameters), plus:
 \itemize{
 \item \code{rho[..., ...]} is the 4x4 dimensionless correlation matrix between the values of the f vector for different plates, with the square brackets containing two indices for the matrix element.
@@ -71,5 +78,13 @@ descriptions of these parameters), plus:
 }
 }
 \description{
-Run one of rstan, cmdstanr or cmdstan on a file of Stan code
+Run the Stan code implementing the dvsb statistical model, for Bayesian
+estimation of the parameters that generated a given dataset.
+}
+\details{
+The first time you call \code{run_stan()} (after each installation or update of
+dvsb and for a given combination of \code{model} and \code{interface} arguments) the
+Stan code will get compiled before the model is run. The second and
+subsequent times, compilation will normally be skipped due to the previously
+compiled code still being available.
 }

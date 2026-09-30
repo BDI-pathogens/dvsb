@@ -7,7 +7,7 @@
 #'   its list of outputs): with one row per calibrator replicate, including
 #'   columns x, y, and plate. x and y should be numeric.
 #' @param df_priors_scalars,df_priors_vectors dataframes of the format output by
-#'   [read_priors()] (inside its list of outputs): each having one row per
+#'   [get_priors()] (inside its list of outputs): each having one row per
 #'   parameter, including columns `param`, `lower`, and `upper`. `param` should
 #'   be character, `lower` and `upper` should be numeric.
 #' @param rho_prior_eta the single positive number 'eta' that is a

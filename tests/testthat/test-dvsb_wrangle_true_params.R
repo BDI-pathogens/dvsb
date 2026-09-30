@@ -1,8 +1,6 @@
 test_that("wrangling true params works on simulated data", {
   
-  priors_dir <- system.file("input_priors", package = "dvsb")
-  priors_path <- file.path(priors_dir, "priors.csv")
-  priors_list <- read_priors(priors_path)
+  priors_list <- get_priors()
   df_priors_scalars <- priors_list$df_priors_scalars
   df_priors_vectors <- priors_list$df_priors_vectors
   rho_prior_eta <- priors_list$rho_prior_eta

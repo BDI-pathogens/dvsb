@@ -1,6 +1,18 @@
-#' Run one of rstan, cmdstanr or cmdstan on a file of Stan code
+#' Run the dvsb statistical model
+#' 
+#' Run the Stan code implementing the dvsb statistical model, for Bayesian
+#' estimation of the parameters that generated a given dataset.
+#' 
+#' The first time you call `run_stan()` (after each installation or update of
+#' dvsb and for a given combination of `model` and `interface` arguments) the
+#' Stan code will get compiled before the model is run. The second and
+#' subsequent times, compilation will normally be skipped due to the previously
+#' compiled code still being available.
 #'
-#' @param input_to_stan a list containing all the input the Stan code expects.
+#' @param input_to_stan a list containing all the input the Stan code expects:
+#'   use either the `stan_input_posterior` or the `stan_input_prior` element of
+#'   the list of outputs returned by [prepare_data_for_stan()], depending
+#'   whether you want to sample from the posterior or the prior.
 #' @param data_descriptors a list of things describing the dataset, of the
 #'   format output by [prepare_data_for_stan()] (inside its list of outputs). 
 #' @param interface one of `"rstan"`, `"cmdstanr"` or `"cmdstan"`.
@@ -20,7 +32,7 @@
 #'   column per parameter (unless `interface` is set to `cmdstan` and
 #'   `cmdstan_read_output_into_df` is set to `FALSE`). Parameters you'll find in
 #'   here include all of the parameters in the csv file that you previously read
-#'   into a dataframe using [read_priors()] (see that csv or dataframe for
+#'   into a dataframe using [get_priors()] (see that csv or dataframe for
 #'   descriptions of these parameters), plus:
 #'    * `rho[..., ...]` is the 4x4 dimensionless correlation matrix between the values of the f vector for different plates, with the square brackets containing two indices for the matrix element.
 #'    * `xlog_sam[...]` is the log_e antibody level for samples, with the square brackets containing an integer index for which sample.

@@ -1,7 +1,6 @@
 test_that("cmdstan works", {
   
-  priors_path <- file.path(system.file("input_priors", package = "dvsb"), "priors.csv")
-  priors_list <- read_priors(priors_path)
+  priors_list <- get_priors()
   
   data <- simulate_data(num_plate = 2, 
                         num_sam_per_plate = 20, 
@@ -56,8 +55,7 @@ test_that("cmdstan works", {
 
 test_that("cmdstanr works", {
   
-  priors_path <- file.path(system.file("input_priors", package = "dvsb"), "priors.csv")
-  priors_list <- read_priors(priors_path)
+  priors_list <- get_priors()
   
   data <- simulate_data(num_plate = 2, 
                         num_sam_per_plate = 20, 
@@ -108,8 +106,7 @@ test_that("cmdstanr works", {
 
 test_that("rstan works", {
   
-  priors_path <- file.path(system.file("input_priors", package = "dvsb"), "priors.csv")
-  priors_list <- read_priors(priors_path)
+  priors_list <- get_priors()
   
   data <- simulate_data(num_plate = 2, 
                         num_sam_per_plate = 20, 
@@ -158,6 +155,8 @@ test_that("rstan works", {
   expect_all_true(stan_params_expected_in_testing_prior %in% names(df_prior))
   
 })
+
+# TODO: test the other two models
 
 stan_params_expected_in_testing_posterior <- c(
   "f[1]", "f[2]", "f[3]", "f[4]", "sigma_f[1]_plate", "sigma_f[2]_plate", 
