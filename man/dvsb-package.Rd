@@ -11,5 +11,10 @@ Estimates the prevalence of disease and how it varies between subpopulations, us
 \author{
 \strong{Maintainer}: Chris Wymant \email{chris.wymant@bdi.ox.ac.uk}
 
+Authors:
+\itemize{
+  \item Chris Wymant \email{chris.wymant@bdi.ox.ac.uk}
+}
+
 }
 \keyword{internal}
