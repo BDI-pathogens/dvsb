@@ -7,13 +7,16 @@
 <url><loc>/index.html</loc></url>
 <url><loc>/reference/PL4.html</loc></url>
 <url><loc>/reference/dvsb-package.html</loc></url>
+<url><loc>/reference/get_priors.html</loc></url>
 <url><loc>/reference/index.html</loc></url>
 <url><loc>/reference/prepare_data_for_stan.html</loc></url>
 <url><loc>/reference/read_cmdstan_out_files.html</loc></url>
 <url><loc>/reference/read_priors.html</loc></url>
 <url><loc>/reference/rename_params_from_stan.html</loc></url>
+<url><loc>/reference/run_stan.html</loc></url>
 <url><loc>/reference/run_stan_interfaces.html</loc></url>
 <url><loc>/reference/simulate_data.html</loc></url>
+<url><loc>/reference/wrangle_data.html</loc></url>
 <url><loc>/reference/wrangle_true_params.html</loc></url>
 </urlset>
 

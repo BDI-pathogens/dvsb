@@ -8,6 +8,7 @@ vignette: >
 ---
 
 ```{r, include = FALSE}
+rmarkdown.html_vignette.check_title = FALSE
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
@@ -107,22 +108,14 @@ We run Stan once to sample from the posterior, and again to sample from the prio
 (We wrap inside `capture.output( )` to suppress Stan's insistent printing of information.)
 
 ```{r run_stan, error = FALSE, warning = FALSE, message = FALSE, results = "hide"}
-iterations <- 10 # per chain
-
 capture.output({
 df_posterior <- run_stan(
   data_wrangled = data_wrangled,
-  distribution = "posterior",
-  iter_sampling = iterations,
-  iter_warmup = iterations,
-  cores = 1)
+  distribution = "posterior")
 
 df_prior <- run_stan(
   data_wrangled = data_wrangled,
-  distribution = "prior",
-  iter_sampling = iterations,
-  iter_warmup = iterations,
-  cores = 1)
+  distribution = "prior")
 })
 ```
 
