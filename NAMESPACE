@@ -2,10 +2,10 @@
 
 export(PL4)
 export(get_priors)
-export(prepare_data_for_stan)
 export(rename_params_from_stan)
 export(run_stan)
 export(simulate_data)
+export(wrangle_data)
 export(wrangle_true_params)
 importFrom(data.table,
   ":=",
