@@ -8,13 +8,28 @@
 #' Stan code will get compiled before the model is run. The second and
 #' subsequent times, compilation will normally be skipped due to the previously
 #' compiled code still being available.
+#' 
+#' If `distribution` is set to `prior`, we reduce the number of samples to zero
+#' but keep the same 'shape' of the dataset (in terms of the definition of
+#' regression models with covariates). This lets us sample the prior for
+#' population-level parameters, which are the main thing of interest, forgetting
+#' about the individual-level parameters (x values), gaining a lot of speed for
+#' big datasets. Note that the sampling algorithm used by Stan (NUTS, a type of
+#' Hamiltonian Monte Carlo) is far from the most efficient way of sampling from
+#' priors: more efficient would be to sequentially randomly draw a new set of
+#' parameters independent of the previous draw, not to use fancy Hamiltonian
+#' dynamical equations to make successive draws dependent. Nevertheless we
+#' re-use the same Stan code to sample the prior so that we and you can ensure
+#' that the prior specified in Stan really is what was intended, reducing the
+#' potential for silent bugs when sampling from the posterior. The downside is
+#' that Stan can have difficulty exploring the geometry of the prior
+#' distribution, just like for the posterior distribution, so be careful to run
+#' enough iterations to get convergence here too.
 #'
-#' @param input_to_stan a list containing all the input the Stan code expects:
-#'   use either the `stan_input_posterior` or the `stan_input_prior` element of
-#'   the list of outputs returned by [wrangle_data()], depending
-#'   whether you want to sample from the posterior or the prior.
-#' @param data_descriptors a list of things describing the dataset, of the
-#'   format output by [wrangle_data()] (inside its list of outputs). 
+#' @param data_wrangled a list containing everything about the data we need, as
+#'   output by [wrangle_data()]
+#' @param distribution one of "posterior" or "prior" - which distribution should
+#'   we sample from? (See the details section of this help.)
 #' @param interface one of `"rstan"`, `"cmdstanr"` or `"cmdstan"`.
 #' @param model one of `"dvsb"`, `"dvsb_accidental_blanks"` or
 #'   `"dvsb_no_mu_x_predictors"`. `dvsb` is the main dvsb model;
@@ -50,8 +65,8 @@
 #'    * `p_sam_is_pos[...]` is the probability that a given sample (indexed by the integer in square brackets) is seropositive, conditional on its observed y values. The best way to understand this is as the fraction of a large hypothetical population of individuals with identical y values that would be positive; it takes continuous values between 0 and 1, and has a posterior distribution capturing its uncertainty.
 #' @export
 #'
-run_stan <- function(input_to_stan,
-                     data_descriptors,
+run_stan <- function(data_wrangled,
+                     distribution = c("posterior", "prior"),
                      model = c("dvsb", "dvsb_accidental_blanks", "dvsb_no_mu_x_predictors"),
                      interface = c("rstan", "cmdstanr", "cmdstan"),
                      params_to_ignore = c(
@@ -109,13 +124,23 @@ run_stan <- function(input_to_stan,
                      ...){
   
   # Check args
+  stopifnot(is.list(data_wrangled))
+  stopifnot("stan_input_posterior" %in% names(data_wrangled))
+  stopifnot("stan_input_prior" %in% names(data_wrangled))
+  stopifnot("data_descriptors" %in% names(data_wrangled))
+  stopifnot(is.list(data_wrangled[["stan_input_posterior"]]))
+  stopifnot(is.list(data_wrangled[["stan_input_prior"]]))
+  stopifnot(is.list(data_wrangled[["data_descriptors"]]))
   stopifnot(is.character(params_to_ignore))
   stopifnot(is.character(interface))
   interface <- match.arg(interface)
   stopifnot(is.character(model))
   model <- match.arg(model)
+  stopifnot(is.character(distribution))
+  distribution <- match.arg(distribution)
   
   path_to_stan_code <- get_stan_file_path(model)
+  input_to_stan <- data_wrangled[[paste0("stan_input_", distribution)]]
   result <- mastiff::run_stan_interfaces(path_to_stan_code = path_to_stan_code,
                                          input_to_stan = input_to_stan, 
                                          interface = interface, 
@@ -124,7 +149,8 @@ run_stan <- function(input_to_stan,
   
   if (! is.null(result)) {
     data.table::setnames(result, function(names) {
-    rename_params_from_stan(names, data_descriptors = data_descriptors)})
+    rename_params_from_stan(
+      names, data_descriptors = data_wrangled[["data_descriptors"]])})
   }
   
   result

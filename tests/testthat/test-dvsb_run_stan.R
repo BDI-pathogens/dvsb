@@ -67,8 +67,8 @@ test_that("cmdstan works", {
   cmdstan_output_basename <- "/Users/cwymant/temp_dvsb_out"
   
   df_posterior <- pkgcond::suppress_warnings(run_stan(
-    input_to_stan = data_wrangled$stan_input_posterior,
-    data_descriptors = data_wrangled$data_descriptors,
+    data_wrangled = data_wrangled,
+    distribution = "posterior",
     interface = "cmdstan",
     iter_warmup = iterations,
     iter_sampling = iterations,
@@ -76,8 +76,8 @@ test_that("cmdstan works", {
     mastiff:::stan_safe_warnings())
   
   df_prior <- pkgcond::suppress_warnings(run_stan(
-    input_to_stan = data_wrangled$stan_input_prior,
-    data_descriptors = data_wrangled$data_descriptors,
+    data_wrangled = data_wrangled,
+    distribution = "prior",
     interface = "cmdstan",
     iter_warmup = iterations,
     iter_sampling = iterations,
@@ -121,16 +121,16 @@ test_that("cmdstanr works", {
   iterations <- 1 
   
   df_posterior <- pkgcond::suppress_warnings(run_stan(
-    input_to_stan = data_wrangled$stan_input_posterior,
-    data_descriptors = data_wrangled$data_descriptors,
+    data_wrangled = data_wrangled,
+    distribution = "posterior",
     interface = "cmdstanr",
     iter_warmup = iterations,
     iter_sampling = iterations),
     mastiff:::stan_safe_warnings())
   
   df_prior <- pkgcond::suppress_warnings(run_stan(
-    input_to_stan = data_wrangled$stan_input_prior,
-    data_descriptors = data_wrangled$data_descriptors,
+    data_wrangled = data_wrangled,
+    distribution = "prior",
     interface = "cmdstanr",
     iter_warmup = iterations,
     iter_sampling = iterations),
@@ -172,8 +172,8 @@ test_that("rstan works", {
   iterations <- 1 
   
   df_posterior <- pkgcond::suppress_warnings(run_stan(
-    input_to_stan = data_wrangled$stan_input_posterior,
-    data_descriptors = data_wrangled$data_descriptors,
+    data_wrangled = data_wrangled,
+    distribution = "posterior",
     interface = "rstan",
     iter_warmup = iterations,
     iter_sampling = iterations,
@@ -181,8 +181,8 @@ test_that("rstan works", {
     mastiff:::stan_safe_warnings())
   
   df_prior <- pkgcond::suppress_warnings(run_stan(
-    input_to_stan = data_wrangled$stan_input_prior,
-    data_descriptors = data_wrangled$data_descriptors,
+    data_wrangled = data_wrangled,
+    distribution = "prior",
     interface = "rstan",
     iter_warmup = iterations,
     iter_sampling = iterations,

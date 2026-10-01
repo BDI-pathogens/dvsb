@@ -5,8 +5,8 @@
 \title{Run the dvsb statistical model}
 \usage{
 run_stan(
-  input_to_stan,
-  data_descriptors,
+  data_wrangled,
+  distribution = c("posterior", "prior"),
   model = c("dvsb", "dvsb_accidental_blanks", "dvsb_no_mu_x_predictors"),
   interface = c("rstan", "cmdstanr", "cmdstan"),
   params_to_ignore = c("lp__", "rho[1,1]", "rho[2,2]", "rho[3,3]", "rho[4,4]",
@@ -30,13 +30,11 @@ run_stan(
 )
 }
 \arguments{
-\item{input_to_stan}{a list containing all the input the Stan code expects:
-use either the \code{stan_input_posterior} or the \code{stan_input_prior} element of
-the list of outputs returned by \code{\link[=wrangle_data]{wrangle_data()}}, depending
-whether you want to sample from the posterior or the prior.}
+\item{data_wrangled}{a list containing everything about the data we need, as
+output by \code{\link[=wrangle_data]{wrangle_data()}}}
 
-\item{data_descriptors}{a list of things describing the dataset, of the
-format output by \code{\link[=wrangle_data]{wrangle_data()}} (inside its list of outputs).}
+\item{distribution}{one of "posterior" or "prior" - which distribution should
+we sample from? (See the details section of this help.)}
 
 \item{model}{one of \code{"dvsb"}, \code{"dvsb_accidental_blanks"} or
 \code{"dvsb_no_mu_x_predictors"}. \code{dvsb} is the main dvsb model;
@@ -87,4 +85,21 @@ dvsb and for a given combination of \code{model} and \code{interface} arguments)
 Stan code will get compiled before the model is run. The second and
 subsequent times, compilation will normally be skipped due to the previously
 compiled code still being available.
+
+If \code{distribution} is set to \code{prior}, we reduce the number of samples to zero
+but keep the same 'shape' of the dataset (in terms of the definition of
+regression models with covariates). This lets us sample the prior for
+population-level parameters, which are the main thing of interest, forgetting
+about the individual-level parameters (x values), gaining a lot of speed for
+big datasets. Note that the sampling algorithm used by Stan (NUTS, a type of
+Hamiltonian Monte Carlo) is far from the most efficient way of sampling from
+priors: more efficient would be to sequentially randomly draw a new set of
+parameters independent of the previous draw, not to use fancy Hamiltonian
+dynamical equations to make successive draws dependent. Nevertheless we
+re-use the same Stan code to sample the prior so that we and you can ensure
+that the prior specified in Stan really is what was intended, reducing the
+potential for silent bugs when sampling from the posterior. The downside is
+that Stan can have difficulty exploring the geometry of the prior
+distribution, just like for the posterior distribution, so be careful to run
+enough iterations to get convergence here too.
 }
