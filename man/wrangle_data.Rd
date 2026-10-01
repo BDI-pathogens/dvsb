@@ -65,22 +65,3 @@ a list whose elements are
 \description{
 Wrangles inputs into the format required for \code{\link[=run_stan]{run_stan()}}
 }
-\details{
-The \code{stan_input_prior} element of the output list reduces the number
-of samples to zero but keeps the same 'shape' of the dataset (in terms of
-the definition of regression models with covariates). This lets us sample
-the prior for population-level parameters, which are the main thing of
-interest, forgetting about the individual-level parameters (x values),
-gaining a lot of speed for big datasets. Note that the sampling algorithm
-used by Stan (NUTS, a type of Hamiltonian Monte Carlo) is far from the most
-efficient way of sampling from priors: more efficient would be to
-sequentially randomly draw a new set of parameters independent of the
-previous draw, not to use fancy Hamiltonian dynamical equations to make
-successive draws dependent. Nevertheless we re-use the same Stan code to
-sample the prior so that we and you can ensure that the prior specified in
-Stan really is what was intended, reducing the potential for silent bugs
-when sampling from the posterior. The downside is that Stan can have
-difficulty exploring the geometry of the prior distribution, just like for
-the posterior distribution, so be careful to run enough iterations to get
-convergence here too.
-}
