@@ -45,14 +45,14 @@ data_wrangled <- wrangle_data(
   # data:
   df_sam = data$df_sam,
   df_cal = data$df_cal,
-  # priors:
-  df_priors_scalars = priors_list$df_priors_scalars,
-  df_priors_vectors = priors_list$df_priors_vectors,
-  rho_prior_eta = priors_list$rho_prior_eta,
   # specify the regression model:
   x_mix_pred_vars_names = data$x_mix_pred_vars_names,
   p_pos_binary_pred_vars = data$p_pos_binary_pred_vars,
-  f_pred_vars_names = data$f_pred_vars_names
+  f_pred_vars_names = data$f_pred_vars_names,
+  # priors:
+  df_priors_scalars = priors_list$df_priors_scalars,
+  df_priors_vectors = priors_list$df_priors_vectors,
+  rho_prior_eta = priors_list$rho_prior_eta
   )
 df_posterior <- run_stan(data_wrangled)
 df_prior <- run_stan(data_wrangled, distribution = "prior")
