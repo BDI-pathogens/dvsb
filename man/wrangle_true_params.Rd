@@ -11,7 +11,7 @@ wrangle_true_params(param_true_values_list, data_descriptors)
 format output by \code{\link[=simulate_data]{simulate_data()}} (inside its list of outputs).}
 
 \item{data_descriptors}{a list of things describing the dataset, of the
-format output by \code{\link[=prepare_data_for_stan]{prepare_data_for_stan()}} (inside its list of outputs).}
+format output by \code{\link[=wrangle_data]{wrangle_data()}} (inside its list of outputs).}
 }
 \value{
 A named numeric vector, with one element per parameter.

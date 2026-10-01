@@ -6,7 +6,7 @@
 #'   output, e.g. `my_matrix.1.2`. The latter can be converted to the former
 #'   using [mastiff::rename_params_cmdstanfile_to_rstan()].
 #' @param data_descriptors a list of things describing the dataset, of the
-#'   format output by [prepare_data_for_stan()] (inside its list of outputs).
+#'   format output by [wrangle_data()] (inside its list of outputs).
 #'
 #' @returns a character vector containing the renamed parameters, of the same
 #'   length and in the same order as `original_names`.

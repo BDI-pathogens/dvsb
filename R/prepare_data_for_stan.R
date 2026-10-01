@@ -33,11 +33,11 @@
 #'    * `df_plate`, a dataframe with one row per plate;
 #'    * `data_descriptors`, a list of things required as input for [rename_params_from_stan()] and [wrangle_true_params()];
 #'    * `stan_input_posterior`, a list of things required as input for [run_stan()] if you want to sample from the posterior;
-#'    * `stan_input_prior`, a list of things required as input for [run_stan()] if you want to sample from the prior (this reduces the number of samples to zero but keeps the same 'shape' of the dataset in terms of covariates used, to more efficiently sample population-level parameters while avoiding sampling individual-level parameters such as x);
+#'    * `stan_input_prior`, a list of things required as input for [run_stan()] if you want to sample from the prior (see the details section of the function documentation);
 #'    * `df_sam` and `df_cal` (as provided as input but with extra columns added for Stan indexing).
 #' @export
 #'
-prepare_data_for_stan <- function(
+wrangle_data <- function(
     df_sam,
     df_cal,
     df_priors_scalars,

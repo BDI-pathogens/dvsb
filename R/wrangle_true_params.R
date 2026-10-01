@@ -3,7 +3,7 @@
 #' @param param_true_values_list a list with the true parameter values, in the
 #'   format output by [simulate_data()] (inside its list of outputs).
 #' @param data_descriptors a list of things describing the dataset, of the
-#'   format output by [prepare_data_for_stan()] (inside its list of outputs).
+#'   format output by [wrangle_data()] (inside its list of outputs).
 #'
 #' @returns A named numeric vector, with one element per parameter.
 #' @export

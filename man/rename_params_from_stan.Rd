@@ -14,7 +14,7 @@ output, e.g. \code{my_matrix.1.2}. The latter can be converted to the former
 using \code{\link[mastiff:rename_params_cmdstanfile_to_rstan]{mastiff::rename_params_cmdstanfile_to_rstan()}}.}
 
 \item{data_descriptors}{a list of things describing the dataset, of the
-format output by \code{\link[=prepare_data_for_stan]{prepare_data_for_stan()}} (inside its list of outputs).}
+format output by \code{\link[=wrangle_data]{wrangle_data()}} (inside its list of outputs).}
 }
 \value{
 a character vector containing the renamed parameters, of the same

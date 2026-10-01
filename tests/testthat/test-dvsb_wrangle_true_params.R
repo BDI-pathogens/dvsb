@@ -15,7 +15,7 @@ test_that("wrangling true params works on simulated data", {
   x_mix_pred_vars_names <- data$x_mix_pred_vars_names
   p_pos_binary_pred_vars <- data$p_pos_binary_pred_vars
   
-  data_wrangled <- prepare_data_for_stan(
+  data_wrangled <- wrangle_data(
   df_sam = df_sam, 
   df_cal = df_cal, 
   df_priors_scalars = df_priors_scalars,

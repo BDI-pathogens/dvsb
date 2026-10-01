@@ -32,11 +32,11 @@ run_stan(
 \arguments{
 \item{input_to_stan}{a list containing all the input the Stan code expects:
 use either the \code{stan_input_posterior} or the \code{stan_input_prior} element of
-the list of outputs returned by \code{\link[=prepare_data_for_stan]{prepare_data_for_stan()}}, depending
+the list of outputs returned by \code{\link[=wrangle_data]{wrangle_data()}}, depending
 whether you want to sample from the posterior or the prior.}
 
 \item{data_descriptors}{a list of things describing the dataset, of the
-format output by \code{\link[=prepare_data_for_stan]{prepare_data_for_stan()}} (inside its list of outputs).}
+format output by \code{\link[=wrangle_data]{wrangle_data()}} (inside its list of outputs).}
 
 \item{model}{one of \code{"dvsb"}, \code{"dvsb_accidental_blanks"} or
 \code{"dvsb_no_mu_x_predictors"}. \code{dvsb} is the main dvsb model;
@@ -63,9 +63,9 @@ descriptions of these parameters), plus:
 \itemize{
 \item \code{rho[..., ...]} is the 4x4 dimensionless correlation matrix between the values of the f vector for different plates, with the square brackets containing two indices for the matrix element.
 \item \code{xlog_sam[...]} is the log_e antibody level for samples, with the square brackets containing an integer index for which sample.
-\item \verb{p_pos_effect_bool\{name\}}, with \code{{name}} being one of the names inside \code{p_pos_binary_pred_vars} given as input to \code{\link[=prepare_data_for_stan]{prepare_data_for_stan()}}, is the effect on the overall \code{p_pos} parameter due to the boolean variable \code{{name}} taking the value \code{TRUE} instead of \code{FALSE}.
+\item \verb{p_pos_effect_bool\{name\}}, with \code{{name}} being one of the names inside \code{p_pos_binary_pred_vars} given as input to \code{\link[=wrangle_data]{wrangle_data()}}, is the effect on the overall \code{p_pos} parameter due to the boolean variable \code{{name}} taking the value \code{TRUE} instead of \code{FALSE}.
 \item \code{f_per_plate[..., ...]} is the f vector that relates x and y for each plate. The first integer indexes the plate and the second indexes one of the four elements of the vector.
-\item \verb{sigma_p_pos_pred_vars_\{name1\}}, with \code{{name1}} being one of the names inside the \code{p_pos} element of the \code{x_mix_pred_vars_names} list given as input to \code{\link[=prepare_data_for_stan]{prepare_data_for_stan()}} (i.e. the name of one categorical variable used in the regression model for \code{p_pos}) is the scale of variability in \code{p_pos} between different categories of this variable.
+\item \verb{sigma_p_pos_pred_vars_\{name1\}}, with \code{{name1}} being one of the names inside the \code{p_pos} element of the \code{x_mix_pred_vars_names} list given as input to \code{\link[=wrangle_data]{wrangle_data()}} (i.e. the name of one categorical variable used in the regression model for \code{p_pos}) is the scale of variability in \code{p_pos} between different categories of this variable.
 \item \verb{sigma_mu_pos_pred_vars_\{name1\}}, \verb{sigma_sd_pos_pred_vars_\{name1\}}, \verb{sigma_mu_neg_pred_vars_\{name1\}}, \verb{sigma_sd_neg_pred_vars_\{name1\}} are all defined analogously to \verb{sigma_p_pos_pred_vars_\{name1\}} but for the other four parameters of the x mixture distribution: \code{mu_pos}, \code{sd_pos}, \code{mu_neg} and \code{sd_neg} respectively.
 \item \verb{p_pos_effect_\{name1\}\{name2\}}, with \code{{name1}} matching \code{{name1}} in \verb{sigma_p_pos_pred_vars_\{name1\}} and \code{{name2}} being one of the categories of \code{{name1}}, is the effect of this category on \code{p_pos}: adding this parameter to the overall \code{p_pos} parameter gives the value of \code{p_pos} for this category (a logit link function is used, and if more than one categorical variable was used for the regression model, all of the associated \code{{name1}} parameters must be summed over to get to a single subpopulation, e.g. this could look like \code{logistic(logit(p_pos) + p_pos_effect_Age18-29 + p_pos_effect_JobFarmer)});
 \item \verb{mu_pos_effect_\{name1\}\{name2\}}, \verb{sd_pos_effect_\{name1\}\{name2\}}, \verb{mu_neg_effect_\{name1\}\{name2\}}, \verb{sd_neg_effect_\{name1\}\{name2\}}, these are all defined analogously to \verb{p_pos_effect_\{name1\}\{name2\}} but for the other four parameters of the x mixture distribution: \code{mu_pos}, \code{sd_pos}, \code{mu_neg} and \code{sd_neg} respectively (with a log link function for the \code{sd} parameters and no link function for the \code{mu} parameters).

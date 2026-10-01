@@ -8,7 +8,7 @@ test_that("cmdstan works", {
                         num_rep_per_cal = 1, 
                         x_cals = c(0, 1))
   
-  data_wrangled <- prepare_data_for_stan(
+  data_wrangled <- wrangle_data(
     df_sam = data$df_sam, 
     df_cal = data$df_cal, 
     df_priors_scalars = priors_list$df_priors_scalars,
@@ -63,7 +63,7 @@ test_that("cmdstanr works", {
                         num_rep_per_cal = 1, 
                         x_cals = c(0, 1))
   
-  data_wrangled <- prepare_data_for_stan(
+  data_wrangled <- wrangle_data(
     df_sam = data$df_sam, 
     df_cal = data$df_cal, 
     df_priors_scalars = priors_list$df_priors_scalars,
@@ -114,7 +114,7 @@ test_that("rstan works", {
                         num_rep_per_cal = 1, 
                         x_cals = c(0, 1))
   
-  data_wrangled <- prepare_data_for_stan(
+  data_wrangled <- wrangle_data(
     df_sam = data$df_sam, 
     df_cal = data$df_cal, 
     df_priors_scalars = priors_list$df_priors_scalars,
