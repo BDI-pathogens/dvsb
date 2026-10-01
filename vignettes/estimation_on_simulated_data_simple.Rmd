@@ -29,63 +29,11 @@ library(ggplot2)
 theme_set(theme_classic())
 ```
 
-Let's start by getting out of the way two clunky things.
-First, dvsb does not include pre-compiled binary (executable) files for the Stan models.
-This is for our (developer) convenience at the cost of your (user) inconvenience; it also means we can switch seamlessly between rstan, cmdstanr and cmdstan when interfacing to stan.
-The first time you call `dvsb::run_stan_interfaces()` after each installation or update of dvsb, the Stan code gets compiled into binary form.
-That happens automatically, but you do need to tell it where the Stan code lives after dvsb has been installed onto your system.
-Let's find where that is:
-
-```{r find_all_stan}
-stan_dir <- system.file("stan", package = "dvsb")
-list.files(stan_dir, pattern = "*.stan")
-```
-
-In that directory,  
-
-* `dvsb.stan` is the main dvsb model.  
-* `dvsb_accidental_blanks.stan` is the extended model that allows for the possibility that each sample well accidentally contains nothing at all (i.e. is blank).  
-* `dvsb_no_mu_x_predictors.stan` is the restricted model in which regression models are not specified for the means of the two antibody distributions (one for seropositives and one for seronegatives).  
-
-Let's use the main model.
-
-```{r find_required_stan}
-stan_path <- file.path(stan_dir, "dvsb.stan")
-```
-
-The second clunky thing: a dataframe's worth of input specifying the priors is required.
-We store this in a csv file bundled with dvsb, so that you can more easily inspect it, modify it, make different copies for different analyses, move copies outside of your dvsb repository in case prior defaults are updated in later changes to dvsb, etc.
-Again, you just need to say where this file lives after dvsb has been installed on your system.
-We find where that is similarly:
-
-```{r find_all_prior_files}
-priors_dir <- system.file("input_priors", package = "dvsb")
-list.files(priors_dir)
-```
-
-Now set the path to that file - the one bundled with dvsb.
-(If you want to use a copy of this file that you moved somewhere else and perhaps modified, you would give that path instead.)
-
-```{r find_required_prior_file}
-priors_path <- file.path(priors_dir, "priors.csv")
-```
-
-OK those clunky things are done.
-Phew.
-Read in the prior file, giving us a list with three things in it:
-
-``` {r get_priors}
-priors_list <- read_priors(priors_path)
-df_priors_scalars <- priors_list$df_priors_scalars
-df_priors_vectors <- priors_list$df_priors_vectors
-rho_prior_eta <- priors_list$rho_prior_eta
-```
-
 ## Simulate data
 
-Next we simulate data, giving us a list with seven things in it.
+We simulate data, giving us a list with seven things in it.
 (If we were using real data instead of simulated data, we would simply need to create the `df_sam` and `df_cal` dataframes ourselves instead of running `simulate_data()` below.
-The documentation for `prepare_data_for_stan()` explains what columns these dataframes require, and how sets of covariates for regression models are specified using the arguments `x_mix_pred_vars_names`, `p_pos_binary_pred_vars`, `f_pred_vars_names`.)
+The documentation for `wrangle_data()` explains what columns these dataframes require, and how sets of covariates for regression models are specified using the arguments `x_mix_pred_vars_names`, `p_pos_binary_pred_vars`, `f_pred_vars_names`.)
 
 ```{r simulate, message=FALSE}
 data <- simulate_data(seed = 1234,
@@ -104,38 +52,50 @@ Plot the simulated calibration data (one facet per plate):
 ```{r plot_data_cal, fig.height=5}
 ggplot(df_cal) +
   geom_point(aes(x = x, y = y)) +
-  facet_wrap(~plate, ncol = 2) +
-  theme_classic()
+  facet_wrap(~plate, ncol = 3) 
 ```
 
-Plot the simulated sample data, histogramming the OD values, one facet for each category of the `letter` covariate (which differ in their x distributions when using default arguments for `simulate_data()`):
+Plot the simulated sample data, histogramming the x and y values, one facet for each category of the `letter` covariate (which differ in their x distributions when using default arguments for `simulate_data()`):
 
-```{r plot_data_sam, fig.height=5}
+```{r plot_data_sam_x, fig.height=5}
 ggplot(df_sam) +
   geom_histogram(aes(x = x), bins = 20) +
   facet_wrap(~letter) +
-  theme_classic() +
+  scale_x_log10()
+```
+
+```{r plot_data_sam_y, fig.height=5}
+# With default values, y is rarely negative; restrict to positive for visibility
+ggplot(df_sam %>% filter(y > 0)) +
+  geom_histogram(aes(x = y), bins = 20) +
+  facet_wrap(~letter) +
   scale_x_log10()
 ```
 
 ## Run Stan
 
+Get the default prior distributions.
+
+``` {r get_priors}
+priors_list <- get_priors()
+```
+
 Wrangle the data and priors into the form needed for stan.
 
 ``` {r wrangle}
-data_wrangled <- prepare_data_for_stan(
+data_wrangled <- wrangle_data(
   df_sam = df_sam, 
   df_cal = df_cal, 
-  df_priors_scalars = df_priors_scalars,
-  df_priors_vectors = df_priors_vectors, 
-  rho_prior_eta = rho_prior_eta, 
+  df_priors_scalars = priors_list$df_priors_scalars,
+  df_priors_vectors = priors_list$df_priors_vectors, 
+  rho_prior_eta = priors_list$rho_prior_eta, 
   x_mix_pred_vars_names = x_mix_pred_vars_names, 
   p_pos_binary_pred_vars = p_pos_binary_pred_vars,
   f_pred_vars_names = f_pred_vars_names
   )
 ```
 
-Update our dataframes for samples, calibrators and plates with the extra columns we just added (which introduce integer indexing).
+Update our dataframes for samples, calibrators and plates with the extra columns we just added (which introduce integer indexing); this can be helpful later if we want to combine results and data.
 
 ``` {r}
 df_sam <- data_wrangled$df_sam
@@ -143,52 +103,34 @@ df_cal <- data_wrangled$df_cal
 df_plate <- dplyr::left_join(df_plate, data_wrangled$df_plate, by = "plate") 
 ```
 
-We specify some options controlling how Stan runs (see the help for `run_stan_interfaces()` for more information), then run Stan once to sample from the posterior, and again to sample from the prior^[
-To sample from the prior we use `data_wrangled$stan_input_prior` instead of `data_wrangled$stan_input_posterior`.
-This samples our parameters using a dataset of the same 'shape' (in terms of the definition of regression models with covariates) but no actual samples.
-This lets us sample the prior for population-level parameters, which are the main thing of interest, forgetting about the individual-level parameters (x values), gaining *a lot* of speed for big datasets.
-Note that the fancy sampling algorithm used by Stan (NUTS, a type of Hamiltonian Monte Carlo) is far from the most efficient way of sampling from priors: more efficient would be to sequentially randomly draw a new set of parameters independent of the previous draw, not to use fancy Hamiltonian dynamical equations to make successive draws dependent.
-Nevertheless we re-use the same Stan code to sample the prior (both in dvsb and in our use of Stan elsewhere) to ensure that the prior we specified in Stan really is what we intended, reducing the potential for silent bugs when sampling from the posterior.
-The downside is that Stan can have difficulty exploring the geometry of the prior distribution, which will typically be much more disperse than the posterior distribution, so ensure you run enough iterations to get convergence here too.
-].
+We run Stan once to sample from the posterior, and again to sample from the prior.
+(We wrap inside `capture.output( )` to suppress Stan's insistent printing of information.)
 
-```{r run_stan, warning = FALSE, message = FALSE}
+```{r run_stan, error = FALSE, warning = FALSE, message = FALSE, results = "hide"}
 iterations <- 10 # per chain
-stan_interface <- "rstan" # one of: "rstan", "cmdstanr", "cmdstan"
 
-df_posterior <- run_stan_interfaces(
-  input_to_stan = data_wrangled$stan_input_posterior,
+capture.output({
+df_posterior <- run_stan(
+  data_wrangled = data_wrangled,
+  distribution = "posterior",
   iter_sampling = iterations,
   iter_warmup = iterations,
-  cores = 1,
-  path_to_stan_code = stan_path,
-  interface = stan_interface)
+  cores = 1)
 
-df_prior <- run_stan_interfaces(
-  input_to_stan = data_wrangled$stan_input_prior,
+df_prior <- run_stan(
+  data_wrangled = data_wrangled,
+  distribution = "prior",
   iter_sampling = iterations,
   iter_warmup = iterations,
-  cores = 1,
-  path_to_stan_code = stan_path,
-  interface = stan_interface)
+  cores = 1)
+})
 ```
 
 ## Analyse Stan output
 
 `df_posterior` and `df_prior` are the dataframes (in data.table format) of samples, from the posterior and prior respectively, as returned by Stan.
-We had to wrangle covariates into integer indices to go into Stan, so now we wrangle back to parameters with interpretable names.
-(If we had used cmdstanr or cmdstan instead of rstan, we would first want to run `mastiff::rename_params_cmdstanfile_to_rstan()` on the column names of each of these dataframes, to adjust for their different style of naming tensor parameters.)
 
-``` {r wrangle_stan_output}
-data.table::setnames(df_posterior, function(names) {
-  rename_params_from_stan(names,
-                          data_descriptors = data_wrangled$data_descriptors)})
-data.table::setnames(df_prior, function(names) {
-  rename_params_from_stan(names,
-                          data_descriptors = data_wrangled$data_descriptors)})
-```
-
-We wrangle the true parameter values (flattening the list of values into a vector and renaming)
+We wrangle the true parameter values - flattening the list of values into a vector and renaming - for plotting convenience:
 
 ``` {r wrangle_true_params}
 param_true_values_vector <- wrangle_true_params(
@@ -197,8 +139,8 @@ param_true_values_vector <- wrangle_true_params(
 ```
 
 For each of the population-level parameters we plot the posterior, prior and true value, demonstrating that the posterior moves away from the prior toward the true value, as it should for a correctly implemented model with informative data.
-One should always test this with custom statistical models (as opposed to well-tested off-the-shelf models like `stats::lm()`).
-We do this using `plot_posterior()` from our package `mastiff`, nine parameters at a time for better visibility within Rmarkdown:
+One should always test this.
+We do this using `plot_posterior()` from our package `mastiff`, just for nine parameters for better visibility within Rmarkdown:
 
 ```{r plot_posterior_prior, warning=FALSE, out.width="95%", fig.height=10}
 mastiff::plot_posterior(
