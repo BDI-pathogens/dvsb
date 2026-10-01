@@ -9,17 +9,14 @@ outdir <- "~/repos/dvsb/manuscript/"
 
 # DEFINE A FUNC FOR SIMULATING AND RECORDING RELEVANT OUTPUT ----
 
-dir_stan <- "~/.cmdstan/cmdstan-2.37.0/"
-file_stan_temp <- "/Users/cwymant/foo.json" # for writing the data for cmdstan
+dir_stan <- cmdstanr::cmdstan_path()
 file_out_stan_basename <- "/Users/cwymant/foo_dvsb"
 file_out_stan_summary  <- "/Users/cwymant/foo_dvsb_summary.csv"
 
 stan_dir <- system.file("stan", package = "dvsb")
-priors_dir <- system.file("input_priors", package = "dvsb")
-priors_path <- file.path(priors_dir, "priors.csv")
 x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
 
-priors_list <- read_priors(priors_path)
+priors_list <- get_priors()
 df_priors_scalars <- priors_list$df_priors_scalars
 df_priors_vectors <- priors_list$df_priors_vectors
 rho_prior_eta <- priors_list$rho_prior_eta
@@ -138,13 +135,10 @@ params_to_ignore <- c(
 
 
 simulate_and_capture <-
-  function(dvsb_bin = c("dvsb", "dvsb_no_mu_x_predictors"),
+  function(model = c("dvsb", "dvsb_no_mu_x_predictors"),
            distribution = "posterior",
            ...) {
     
-    dvsb_bin <- match.arg(dvsb_bin)
-    stan_path <- file.path(stan_dir, paste0(dvsb_bin, ".stan"))
-    stopifnot(file.exists(stan_path))
     stopifnot(distribution %in% c("posterior", "prior"))
     
   data <- simulate_data(...)
@@ -155,7 +149,7 @@ simulate_and_capture <-
   x_mix_pred_vars_names <- data$x_mix_pred_vars_names
   p_pos_binary_pred_vars <- data$p_pos_binary_pred_vars
   
-  data_wrangled <- prepare_data_for_stan(
+  data_wrangled <- wrangle_data(
     df_sam = df_sam, 
     df_cal = df_cal, 
     df_priors_scalars = df_priors_scalars,
@@ -167,27 +161,17 @@ simulate_and_capture <-
   )
   df_sam <- data_wrangled$df_sam
   df_cal <- data_wrangled$df_cal
-  if (distribution == "posterior") {
-    input_to_stan <- data_wrangled$stan_input_posterior
-  } else {
-    input_to_stan <- data_wrangled$stan_input_prior
-  }
   
   # Run Stan
   start_time <- Sys.time()
   df_fit_wide_postonly <- run_stan(
-    input_to_stan = input_to_stan,
-    path_to_stan_code = stan_path,
+    data_wrangled = data_wrangled,
+    distribution = distribution,
+    model = model,
     interface = "cmdstan",
     iter_warmup = num_mc_iterations_posterior,
     iter_sampling = num_mc_iterations_posterior,
-    chains = num_mc_chains,
-    cores = parallel::detectCores(),
     params_to_ignore = params_to_ignore,
-    cmdstan_path_to_installation = dir_stan,
-    cmdstan_path_to_json = file_stan_temp, 
-    cmdstan_overwrite_json = TRUE,
-    cmdstan_read_output_into_df = TRUE,
     cmdstan_path_to_output = paste0(file_out_stan_basename, "_posterior"))
   end_time <- Sys.time()
   
@@ -294,8 +278,7 @@ x_mix_pred_vars <- list(p_pos = list(letter = letters[1:3]),
 
 p_pos_binary_effects <- numeric()
 
-num_mc_chains <- 4
-num_mc_iterations_posterior <- 1000 # per chain, half of them warmup
+num_mc_iterations_posterior <- 10 # per chain, half of them warmup
 
 list_df_sam <- list()
 list_df_y_sam_sim <- list()
@@ -306,7 +289,7 @@ for (num_plate in num_plates_range) {
     i <- i + 1
     print(paste("iteration", i, "of", length(num_plates_range) * length(seed_range)))
     
-    result <- simulate_and_capture(dvsb_bin = "dvsb",
+    result <- simulate_and_capture(model = "dvsb",
                                    seed = seed,
                                    num_plate = num_plate,
                                    num_sam_per_plate = num_sam_per_plate,
@@ -328,7 +311,7 @@ for (num_plate in num_plates_range) {
 # This section is for returning to if, after reaching a lower point in the code,
 # we find that some iterations have not convered. We rerun them and overwrite
 # their previous results.
-num_mc_iterations_posterior <- 60000
+num_mc_iterations_posterior <- 10
 i <- 0
 for (num_plate_ in num_plates_range) {
   for (seed_ in seed_range) {
@@ -340,7 +323,7 @@ for (num_plate_ in num_plates_range) {
       pull(R_hat)
     stopifnot(length(R_hat) == 1)
     if (R_hat < 1.05) next
-    result <- simulate_and_capture(dvsb_bin = "dvsb",
+    result <- simulate_and_capture(model = "dvsb",
                                    seed = seed_,
                                    num_plate = num_plate_,
                                    num_sam_per_plate = num_sam_per_plate,
@@ -360,12 +343,12 @@ for (num_plate_ in num_plates_range) {
 }
 
 # Add the prior
-num_mc_iterations_posterior <- 50000
+num_mc_iterations_posterior <- 10
 for (seed in seed_range) {
   i <- length(list_df_quantiles) + 1
   print(paste("iteration", i, "of", length(num_plates_range) * length(seed_range)))
   
-  result <- simulate_and_capture(dvsb_bin = "dvsb",
+  result <- simulate_and_capture(model = "dvsb",
                                  distribution = "prior",
                                  seed = seed,
                                  num_plate = 1, # Can't be zero, but irrelevant for prior
@@ -390,7 +373,7 @@ data <- simulate_data(x_mix_effects = x_mix_effects,
                       x_mix_pred_vars = x_mix_pred_vars,
                       p_pos_binary_effects = p_pos_binary_effects)
 param_true_values_list <- data$params
-data_wrangled <- prepare_data_for_stan(
+data_wrangled <- wrangle_data(
   df_sam = data$df_sam, 
   df_cal = data$df_cal, 
   df_priors_scalars = df_priors_scalars,
@@ -535,7 +518,7 @@ if (FALSE) {
 
 NULL
 
-save.image(paste0(outdir, "vary_dataset_size.RData"))
+#save.image(paste0(outdir, "vary_dataset_size.RData"))
 
 # EXPLORE THE EFFECT OF OVERLAP BETWEEN - AND + DISTRIBUTIONS ----
 
@@ -548,8 +531,7 @@ mu_pos_range <- -2.7 + 2:5
 seed_range <- c(123, 14514, 65346, 354622, 965942)
 num_plate <- 25
 num_sam_per_plate <- 40
-num_mc_chains <- 4
-num_mc_iterations_posterior <- 500 
+num_mc_iterations_posterior <- 10 
 x_mix_pred_vars <- list(
   p_pos = list(),
   mu_pos = list(),
@@ -594,7 +576,7 @@ for (mu_pos in mu_pos_range) {
     i <- i + 1
     seed <- seed_range[[which_seed]]
     print(paste("iteration", i, "of", length(mu_pos_range) * length(seed_range)))
-    result = simulate_and_capture(dvsb_bin = "dvsb_no_mu_x_predictors",
+    result = simulate_and_capture(model = "dvsb_no_mu_x_predictors",
                                   seed = seed,
                                   num_plate = num_plate,
                                   num_sam_per_plate = num_sam_per_plate,
@@ -629,7 +611,7 @@ if (p_pos_low == 0.01 * 2/3 &&
   i <- 18
   seed <- seed_range[[which_seed]]
   num_mc_iterations_posterior <- 1500
-  result = simulate_and_capture(dvsb_bin = "dvsb_no_mu_x_predictors",
+  result = simulate_and_capture(model = "dvsb_no_mu_x_predictors",
                                 seed = seed,
                                 num_plate = num_plate,
                                 num_sam_per_plate = num_sam_per_plate,
@@ -707,7 +689,7 @@ data <- simulate_data(x_mix_pred_vars = x_mix_pred_vars,
                       p_pos_binary_effects = c(
                         risk_factor = mastiff::logit(p_pos_high) - mastiff::logit(p_pos_low)))
 param_true_values_list <- data$params
-data_wrangled <- prepare_data_for_stan(
+data_wrangled <- wrangle_data(
   df_sam = data$df_sam, 
   df_cal = data$df_cal, 
   df_priors_scalars = df_priors_scalars,
@@ -946,4 +928,4 @@ if (FALSE) {
 
 
 
-save.image(paste0(output_basename, ".RData"))
+#save.image(paste0(output_basename, ".RData"))
