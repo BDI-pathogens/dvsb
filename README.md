@@ -34,3 +34,26 @@ See the [preprint](https://doi.org/10.64898/2026.09.17.26363301)
 
 The source code is [here](https://github.com/BDI-pathogens/dvsb).
 The webpage, where you can read function documention and vignettes showing code in action, is [here](https://BDI-pathogens.github.io/dvsb/).
+
+### Short example
+
+```r
+library(dvsb)
+data <- simulate_data()
+priors_list <- get_priors()
+data_wrangled <- wrangle_data(
+  # data:
+  df_sam = data$df_sam,
+  df_cal = data$df_cal,
+  # priors:
+  df_priors_scalars = priors_list$df_priors_scalars,
+  df_priors_vectors = priors_list$df_priors_vectors,
+  rho_prior_eta = priors_list$rho_prior_eta,
+  # specify the regression model:
+  x_mix_pred_vars_names = data$x_mix_pred_vars_names,
+  p_pos_binary_pred_vars = data$p_pos_binary_pred_vars,
+  f_pred_vars_names = data$f_pred_vars_names
+  )
+df_posterior <- run_stan(data_wrangled)
+df_prior <- run_stan(data_wrangled, distribution = "prior")
+```
