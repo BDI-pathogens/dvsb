@@ -13,6 +13,22 @@ wrangle_true_params <- function(param_true_values_list,
   
   x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
   
+  # Check args
+  stopifnot(is.list(param_true_values_list))
+  stopifnot(is.list(data_descriptors))
+  stopifnot(all(c(
+    "y_obs_sd_cal_min", "y_obs_sd_cal_max", "y_obs_sd_cal_jump",
+    "y_obs_sd_sam_min", "y_obs_sd_sam_max", "y_obs_sd_sam_jump", "mu_neg", 
+    "sd_neg", "mu_pos", "sd_pos", "p_pos", "p_blank", "f", "sigma_f_plate",
+    "rho", "x_mix_pred_vars_sds", "x_mix_effects", "f_effects_by_pred_var",
+    "sigma_f_pred_vars", "p_pos_binary_effects", "y_obs_sd_min_log_shift_sd",
+    "y_obs_sd_jump_log_shift_sd") %in% names(param_true_values_list)))
+  stopifnot(all(c(
+    "predict_f df_f_pred_vars_cats", "design_matrix_f_colnames_expected",
+    "x_mix_pred_vars_nums", "lookup_pred_var_cat_int", "x_mix_design_matrices",
+    "lookup_pred_var_int", "predict_p_pos_binary", "p_pos_binary_pred_vars")
+    %in% names(data_descriptors)))
+  
   p <- param_true_values_list
   d <- data_descriptors
 
