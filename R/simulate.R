@@ -247,7 +247,7 @@ simulate_data <- function(
     if (! identical(names(x_mix_pred_vars[[param_]]),
                     names(x_mix_pred_vars_sds[[param_]]))) {
       stop(paste0("Different predictor variables were named in x_mix_pred_vars$",
-                  param_, " and in x_mix_pred_vars$", param_, ":\n",
+                  param_, " and in x_mix_pred_vars_sds$", param_, ":\n",
                   paste(names(x_mix_pred_vars[[param_]]), collapse = " "), "\nand\n",
                   paste(names(x_mix_pred_vars_sds[[param_]]), collapse = " "), 
                   "\nrespectively. These must be identical.\n"))
