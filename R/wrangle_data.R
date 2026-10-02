@@ -114,7 +114,22 @@ wrangle_data <- function(
     if (! col %in% names(df_priors_vectors)) stop(paste(
       "Column", col, "missing from df_priors_vectors"))
   }
-  # TODO: check df_priors_scalars and df_priors_vectors have all the rows needed
+  
+  for (param in c("mu_neg", "sd_neg", "sd_pos", "mu_pos", "p_pos", "p_blank", 
+                  "y_obs_sd_cal_min", "y_obs_sd_cal_jump", "y_obs_sd_sam_min",
+                  "y_obs_sd_sam_jump", "sigma_p_pos_pred_vars", 
+                  "sigma_mu_pos_pred_vars", "sigma_sd_pos_pred_vars", 
+                  "sigma_mu_neg_pred_vars", "sigma_sd_neg_pred_vars", 
+                  "p_pos_binary_effects")) {
+    if (! param %in% df_priors_scalars$param) stop(paste(
+      "Parameter", param, "missing from df_priors_scalars"
+    ))
+  }
+  for (param in c("sigma_f_plate", "f", "sigma_f_pred_vars")) {
+    if (! param %in% df_priors_scalars$param) stop(paste(
+      "Parameter", param, "missing from df_priors_vectors"
+    ))
+  }
   
   # GENERAL WRANGLING ----
   
