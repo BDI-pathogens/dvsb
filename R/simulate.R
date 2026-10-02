@@ -353,6 +353,8 @@ simulate_data <- function(
                     paste(pred_vars_shared, collapse = " ")))
       }
     }
+    if (num_sam_id < 2) stop(
+      "At least 2 samples are needed to use p_pos_binary_effects")
   } else {
     p_pos_binary_pred_vars <- character()
   }
@@ -372,6 +374,7 @@ simulate_data <- function(
   # Sample each plate's f predictor variables.
   # Ensure that we don't randomly sample the same category for every plate.
   # Delete any unsampled categories.
+  # TODO: error if num_plate < 2?
   df_plate <- tibble::tibble(plate = 1:num_plate)
   for (f_pred_var in f_pred_vars_names) {
     sampled_pred_vars <- character()
@@ -446,7 +449,7 @@ simulate_data <- function(
   
   # Expand to one row per cal (one for each x). Calculate y expected.
   df_cal <- df_plate %>%
-    tidyr::expand_grid(xlog = x_cals_log, cal = 1:num_rep_per_cal) %>%
+    tidyr::expand_grid(xlog = x_cals_log, cal = seq_len(num_rep_per_cal)) %>%
     dplyr::mutate(x = exp(xlog),
            which_cal = dplyr::row_number(),
            y_mean = PL4(xlog, f_1, f_2, f_3, f_4))
