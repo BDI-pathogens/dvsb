@@ -1,3 +1,103 @@
+test_that("simulated data has expected size and indices", {
+  num_simulations <- 100
+  for (i in 1:num_simulations) {
+    num_plate <- sample(1:3, 1)
+    num_sam_per_plate <- sample(0:2, 1)
+    num_cal_per_plate <- sample(0:2, 1)
+    x_cals <- runif(n = num_cal_per_plate)
+    num_rep_per_sam <- sample(0:2, 1)
+    num_rep_per_cal <- sample(0:2, 1)
+    data <- simulate_data(num_plate = num_plate, 
+                          num_sam_per_plate = num_sam_per_plate, 
+                          x_cals = x_cals,
+                          num_rep_per_sam = num_rep_per_sam,
+                          num_rep_per_cal = num_rep_per_cal,
+                          x_mix_pred_vars = list(p_pos = character(),
+                                                 mu_pos = character(),
+                                                 sd_pos = character(),
+                                                 mu_neg = character(),
+                                                 sd_neg = character()),
+                          x_mix_pred_vars_sds = list(p_pos = numeric(),
+                                                 mu_pos = numeric(),
+                                                 sd_pos = numeric(),
+                                                 mu_neg = numeric(),
+                                                 sd_neg = numeric()),
+                          p_pos_binary_effects = numeric()
+                          )
+    expect_equal(data$df_sam$plate,
+                 rep(1:num_plate, each = num_sam_per_plate * num_rep_per_sam))
+    expect_equal(data$df_sam$id_sam,
+                 as.character(rep(seq_len(num_sam_per_plate * num_plate), each = num_rep_per_sam)))
+    expect_equal(data$df_cal$plate,
+                 rep(1:num_plate, each = num_cal_per_plate * num_rep_per_cal))
+    expect_equal(data$df_cal$x,
+                 rep(rep(x_cals, each = num_rep_per_cal), times = num_plate))
+  }
+})
+
+test_that("Expected error messages are triggered", {
+  expect_error(simulate_data(p_pos_exact = TRUE), regexp = paste(
+    "If you set p_pos_exact to TRUE, you must set x_mix_pred_vars\\$p_pos to an",
+    "empty list"
+  ))
+  expect_error(simulate_data(p_pos_exact = TRUE,
+                             x_mix_pred_vars = list(p_pos = character(),
+                                                    mu_pos = character(),
+                                                    sd_pos = character(),
+                                                    mu_neg = character(),
+                                                    sd_neg = character()),
+                             x_mix_pred_vars_sds = list(p_pos = numeric(),
+                                                        mu_pos = numeric(),
+                                                        sd_pos = numeric(),
+                                                        mu_neg = numeric(),
+                                                        sd_neg = numeric())),
+               regexp = paste(
+                 "If you set p_pos_exact to TRUE, you must set",
+                 "p_pos_binary_effects to an empty numeric vector"
+               ))
+  expect_error(simulate_data(p_pos_exact = TRUE,
+                             x_mix_pred_vars = list(p_pos = character(),
+                                                    mu_pos = character(),
+                                                    sd_pos = character(),
+                                                    mu_neg = character(),
+                                                    sd_neg = character()),
+                             x_mix_pred_vars_sds = list(p_pos = numeric(),
+                                                        mu_pos = numeric(),
+                                                        sd_pos = numeric(),
+                                                        mu_neg = numeric(),
+                                                        sd_neg = numeric()),
+                             p_pos_binary_effects = numeric(),
+                             num_plate = 1,
+                             num_sam_per_plate = 1,
+                             p_pos = 0.5),
+               regexp = paste(
+                 "If you set p_pos_exact to TRUE, the number of samples",
+                 "\\(i\\.e\\. num_plate \\* num_sam_per_plate\\) times p_pos",
+                 "must be an integer"
+               ))
+  
+})
+
+test_that("p_pos_exact works", {
+  data <- simulate_data(p_pos_exact = TRUE,
+                x_mix_pred_vars = list(p_pos = character(),
+                                       mu_pos = character(),
+                                       sd_pos = character(),
+                                       mu_neg = character(),
+                                       sd_neg = character()),
+                x_mix_pred_vars_sds = list(p_pos = numeric(),
+                                           mu_pos = numeric(),
+                                           sd_pos = numeric(),
+                                           mu_neg = numeric(),
+                                           sd_neg = numeric()),
+                p_pos_binary_effects = numeric(),
+                num_plate = 2,
+                num_sam_per_plate = 1,
+                p_pos = 0.5)
+  expect_equal(sum( data$df_sam$pos), 2)
+  expect_equal(sum(!data$df_sam$pos), 2)
+})
+
 test_that("wrangling true params works on simulated data", {
   
   priors_list <- get_priors()

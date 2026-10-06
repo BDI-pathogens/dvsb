@@ -112,6 +112,7 @@
 #'   zero in the inference model, so values greater than the default of zero
 #'   will introduce model misspecification for inference (which may be of
 #'   interest for testing purposes).
+#' @param p_pos_exact a single logical value: should we simulate exactly a fraction `p_pos` of samples being positive, as opposed to the default behaviour of each sample having an independent probabiliy `p_pos` of being positive? This option is only available if no regression model is specified for `p_pos`.
 #'
 #' @returns a named list whose elements are:
 #'    * `df_sam`, a dataframe with one row per simulated sample replicate;
@@ -174,7 +175,8 @@ simulate_data <- function(
                              "boolB" = 0,
                              "boolC" = 2),
     y_obs_sd_min_log_shift_sd = 0,
-    y_obs_sd_jump_log_shift_sd = 0
+    y_obs_sd_jump_log_shift_sd = 0,
+    p_pos_exact = FALSE
 ){
   
   # INPUT CHECKS ----
@@ -183,7 +185,7 @@ simulate_data <- function(
   
   # Check numeric scalars  
   if (! identical(seed, NA)) mastiff::check_numeric(seed)
-  mastiff::check_numeric(num_plate, lower = 0)
+  mastiff::check_numeric(num_plate)
   mastiff::check_numeric(num_sam_per_plate, lower = 0)
   mastiff::check_numeric(num_rep_per_sam, lower = 0)
   mastiff::check_numeric(num_rep_per_cal, lower = 0)
@@ -199,6 +201,10 @@ simulate_data <- function(
   mastiff::check_numeric(p_blank, lower = 0, upper = 1)
   mastiff::check_numeric(y_obs_sd_min_log_shift_sd, lower = 0)
   mastiff::check_numeric(y_obs_sd_jump_log_shift_sd, lower = 0)
+  if (num_plate < 1) {
+    stop(paste("num_plate must be at least 1. (To get zero data, specify",
+               "num_sam_per_plate = 0 and x_cals = numeric().)"))
+  }
   
   # Check vectors and matrices
   stopifnot(is.numeric(x_cals))
@@ -215,6 +221,8 @@ simulate_data <- function(
   stopifnot(all(diag(rho) == 1))
   stopifnot(all(rho >= -1))
   stopifnot(all(rho <= 1))
+  
+  mastiff::check_logical(p_pos_exact)
   
   # Then check more complicated objects...
   
@@ -357,6 +365,20 @@ simulate_data <- function(
       "At least 2 samples are needed to use p_pos_binary_effects")
   } else {
     p_pos_binary_pred_vars <- character()
+  }
+  
+  if (p_pos_exact) {
+    if (length(x_mix_pred_vars$p_pos)) stop(paste(
+      "If you set p_pos_exact to TRUE, you must set x_mix_pred_vars$p_pos to an",
+      "empty list"))
+    if (length(p_pos_binary_effects)) stop(paste(
+      "If you set p_pos_exact to TRUE, you must set p_pos_binary_effects to an",
+      "empty numeric vector"))
+    num_sam_pos <- as.integer(num_sam_id * p_pos)
+    if (abs(num_sam_pos - num_sam_id * p_pos) > 1e-14) stop(paste(
+      "If you set p_pos_exact to TRUE, the number of samples (i.e. num_plate *",
+      "num_sam_per_plate) times p_pos must be an integer"
+    ))
   }
   
   # SIMULATE PLATE VARIABILITY AND CALS ----
@@ -579,9 +601,15 @@ simulate_data <- function(
   
   # For each sam: draw x using x mix params, then calculate its mean y using its plate's
   # f parameters...
+  if (p_pos_exact) {
+    df_sam$pos <- c(rep(TRUE, num_sam_pos), rep(FALSE, num_sam_id - num_sam_pos))[
+                              sample(seq_len(num_sam_id))]
+  } else {
+    df_sam <- df_sam %>%
+      dplyr::mutate(pos = stats::runif(num_sam_id) < p_pos)
+  }
   df_sam <- df_sam %>%
-    dplyr::mutate(pos = stats::runif(num_sam_id) < p_pos,
-           xlog = dplyr::if_else(pos,
+    dplyr::mutate(xlog = dplyr::if_else(pos,
                           stats::rnorm(num_sam_id, mean = mu_pos, 
                                 sd = sd_pos),
                           stats::rnorm(num_sam_id, mean = mu_neg, 
