@@ -12,16 +12,8 @@ test_that("simulated data has expected size and indices", {
                           x_cals = x_cals,
                           num_rep_per_sam = num_rep_per_sam,
                           num_rep_per_cal = num_rep_per_cal,
-                          x_mix_pred_vars = list(p_pos = character(),
-                                                 mu_pos = character(),
-                                                 sd_pos = character(),
-                                                 mu_neg = character(),
-                                                 sd_neg = character()),
-                          x_mix_pred_vars_sds = list(p_pos = numeric(),
-                                                 mu_pos = numeric(),
-                                                 sd_pos = numeric(),
-                                                 mu_neg = numeric(),
-                                                 sd_neg = numeric()),
+                          x_mix_pred_vars = list(),
+                          x_mix_pred_vars_sds = list(),
                           p_pos_binary_effects = numeric()
                           )
     expect_equal(data$df_sam$plate,
@@ -35,11 +27,102 @@ test_that("simulated data has expected size and indices", {
   }
 })
 
+test_that("All combinations of x_mix parameters can have regression models", {
+  x_mix_params <- c("mu_neg", "mu_pos", "p_pos", "sd_neg", "sd_pos")
+  bools <- list()
+  for (bool_mu_neg in c(FALSE, TRUE)) {
+    for (bool_mu_pos in c(FALSE, TRUE)) {
+      for (bool_sd_neg in c(FALSE, TRUE)) {
+        for (bool_sd_pos in c(FALSE, TRUE)) {
+          for (bool_p_pos in c(FALSE, TRUE)) {
+            bools <- list(mu_neg = bool_mu_neg,
+                          mu_pos = bool_mu_pos,
+                          sd_neg = bool_sd_neg,
+                          sd_pos = bool_sd_pos,
+                          p_pos  = bool_p_pos)
+            x_mix_pred_vars = list()
+            x_mix_pred_vars_sds = list()
+            for (param in x_mix_params) {
+              if (bools[[param]]) {
+                x_mix_pred_vars[[param]] <- list(a = letters[1:3],
+                                                 b = LETTERS[1:4])
+                x_mix_pred_vars_sds[[param]] <- c(a = 1, b = 1)
+              }
+            }
+            data <- simulate_data(x_mix_pred_vars = x_mix_pred_vars,
+                                  x_mix_pred_vars_sds = x_mix_pred_vars_sds)
+            for (param in x_mix_params) {
+              if (! bools[[param]]) {
+                expect_identical(data$params$x_mix_effects[[param]], list())
+              } else {
+                expect_identical(purrr::map(data$params$x_mix_effects[[param]], 
+                                            names),
+                                 x_mix_pred_vars[[param]])
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+})
+
+test_that("simulate_data works with f_pred_vars", {
+  data <- simulate_data(num_plate = 100,
+                        f_pred_vars = list(age = c("1", "2"),
+                                           place = c("A", "B", "C")),
+                        sigma_f_pred_vars = list(age = rep(1, 4), 
+                                                 place = rep(1, 4)))
+  expect_all_equal(sort(unique(data$df_plate$age)) == c("1", "2"), TRUE)
+  expect_all_equal(sort(unique(data$df_plate$place)) == c("A", "B", "C"), TRUE)
+})
+
+test_that("simulate_data works with x_mix_effects", {
+  x_mix_effects <- list(
+    p_pos = list(letter = c(a=-0.1, b=-0.3, c=0.4)),
+    mu_pos = list(letter = c(a=0.2, b=0.3, c=-0.5)),
+    mu_neg = list(letter = c(a=0.2, b=0.2, c=-0.4)),
+    sd_pos = list(letter = c(a=0.2, b=-0.2, c=0)),
+    sd_neg = list(letter = c(a=0.1, b=-0.1, c=0))
+  )
+  x_mix_pred_vars <- list(p_pos = list(letter = letters[1:3]),
+                          mu_neg = list(letter = letters[1:3]),
+                          mu_pos = list(letter = letters[1:3]),
+                          sd_neg = list(letter = letters[1:3]),
+                          sd_pos = list(letter = letters[1:3]))
+  data <- simulate_data(x_mix_effects = x_mix_effects,
+                        x_mix_pred_vars = x_mix_pred_vars)
+  expect_true(identical(data$params$x_mix_effects, x_mix_effects))
+})
+
 test_that("Expected error messages in simulate_data are triggered", {
+  
+  expect_error(simulate_data(num_plate = 0), regexp = 
+    "num_plate must be at least 1")
+  
+  expect_error(simulate_data(seed = "foo"), regexp = 
+                 "is\\.numeric\\(x\\) is not TRUE")
+  
   expect_error(simulate_data(p_pos_exact = TRUE), regexp = paste(
     "If you set p_pos_exact to TRUE, you must set x_mix_pred_vars\\$p_pos to an",
     "empty list"
   ))
+  
+  expect_error(simulate_data(num_plate = 1,
+                             f_pred_vars = list(age = c("1", "2"),
+                                   place = c("A", "B", "C")),
+                sigma_f_pred_vars = list(age = rep(1, 4), 
+                                         place = rep(1, 4))), regexp = 
+                 "2\\+ plates are needed if plate covariates are used")
+  
+  expect_error(simulate_data(
+    x_mix_pred_vars = list(
+      p_pos = list(age = c("young", "old"), height = c("tall", "short"))),
+    x_mix_pred_vars_sds = list(p_pos = c(age = 1))),
+    regexp = paste("Different predictor variables were named in",
+                              "x_mix_pred_vars\\$p_pos and in",
+                              "x_mix_pred_vars_sds\\$p_pos:"))
+  
   expect_error(simulate_data(p_pos_exact = TRUE,
                              x_mix_pred_vars = list(p_pos = character(),
                                                     mu_pos = character(),
@@ -55,6 +138,7 @@ test_that("Expected error messages in simulate_data are triggered", {
                  "If you set p_pos_exact to TRUE, you must set",
                  "p_pos_binary_effects to an empty numeric vector"
                ))
+  
   expect_error(simulate_data(p_pos_exact = TRUE,
                              x_mix_pred_vars = list(p_pos = character(),
                                                     mu_pos = character(),
