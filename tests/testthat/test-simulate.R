@@ -108,12 +108,64 @@ test_that("Expected error messages in simulate_data are triggered", {
     "empty list"
   ))
   
+  expect_error(simulate_data(
+    x_mix_pred_vars = list(p_pos = list(age = 1:4)),
+    x_mix_pred_vars_sds = list(p_pos = c(age = 1))), regexp = 
+                 "x_mix_pred_vars\\$p_pos\\$age must be a character vector")
+  
+  expect_error(simulate_data(
+    x_mix_pred_vars = list(p_pos = list(age = "foo")),
+    x_mix_pred_vars_sds = list(p_pos = c(age = 1))), regexp = 
+      "x_mix_pred_vars\\$p_pos\\$age must contain at least two elements")
+  
+  expect_error(simulate_data(num_plate = 1, num_sam_per_plate = 1,
+    x_mix_pred_vars = list(p_pos = list(age = letters[1:4])),
+    x_mix_pred_vars_sds = list(p_pos = c(age = 1))), regexp = paste(
+      "x_mix_pred_vars\\$p_pos\\$age must not contain more elements than the",
+      "total number of samples"))
+  
+  expect_error(simulate_data(
+    x_mix_pred_vars = list(p_pos = list(age = c("A", "A"))),
+    x_mix_pred_vars_sds = list(p_pos = c(age = 1))), regexp =
+      "x_mix_pred_vars\\$p_pos\\$age must not contain duplicates")
+  
+  expect_error(simulate_data(
+    x_mix_pred_vars = list(p_pos = list(age = letters[1:4])),
+    x_mix_pred_vars_sds = list(p_pos = c(age = -1))), regexp =
+      "x_mix_pred_vars_sds\\$p_pos\\$age must be a non-negative number")
+  
+  expect_error(simulate_data(
+    x_mix_pred_vars = list(p_pos  = list(age = letters[1:4]),
+                           mu_pos = list(age = letters[1:5])),
+    x_mix_pred_vars_sds = list(p_pos = c(age = 1), mu_pos = c(age = 1))),
+    regexp = paste("age was specified as a predictor variable for both mu_pos",
+                   "and p_pos, but different categories were specified"))
+  
+  expect_error(simulate_data(
+    x_mix_pred_vars = list(mu_pos = list(age = letters[1:4])),
+    x_mix_pred_vars_sds = list(mu_pos = c(age = 1)),
+    p_pos_binary_effects = c(age = 1)), regexp = paste(
+      "p_pos_binary_pred_vars must not contain any predictor variables that",
+      "are also used as \\(non-binary\\) predictors for "))
+  
+  expect_error(simulate_data(num_plate = 1, num_sam_per_plate = 1,
+    x_mix_pred_vars = list(),
+    x_mix_pred_vars_sds = list(),
+    p_pos_binary_effects = c(age = 1)), regexp = 
+      "At least 2 samples are needed to use p_pos_binary_effects")
+  
   expect_error(simulate_data(num_plate = 1,
                              f_pred_vars = list(age = c("1", "2"),
                                    place = c("A", "B", "C")),
                 sigma_f_pred_vars = list(age = rep(1, 4), 
                                          place = rep(1, 4))), regexp = 
                  "2\\+ plates are needed if plate covariates are used")
+  
+  expect_error(simulate_data(
+    x_mix_pred_vars = list(foo = list(a = letters[1:4])),
+    x_mix_pred_vars_sds = list(foo = 1)),
+    regexp = paste("Unexpected variable name foo in the elements of the",
+                   "x_mix_pred_vars list")) 
   
   expect_error(simulate_data(
     x_mix_pred_vars = list(
