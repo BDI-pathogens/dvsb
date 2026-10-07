@@ -126,7 +126,7 @@ wrangle_data <- function(
     ))
   }
   for (param in c("sigma_f_plate", "f", "sigma_f_pred_vars")) {
-    if (! param %in% df_priors_scalars$param) stop(paste(
+    if (! param %in% df_priors_vectors$param) stop(paste(
       "Parameter", param, "missing from df_priors_vectors"
     ))
   }
