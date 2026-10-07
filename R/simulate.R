@@ -319,8 +319,8 @@ simulate_data <- function(
                length(x_mix_pred_vars_sds[[param]][[pred_var]]) == 1 &&
                is.finite(x_mix_pred_vars_sds[[param]][[pred_var]]) &&
                x_mix_pred_vars_sds[[param]][[pred_var]] >= 0 )) {
-          stop(paste('x_mix_pred_vars_sds[["', param, '"]][["', pred_var,
-                     '"]] must be a non-negative number'))
+          stop(paste0('x_mix_pred_vars_sds$', param, '$', pred_var,
+                     ' must be a non-negative number'))
         }
       }
     }
@@ -377,6 +377,7 @@ simulate_data <- function(
     stopifnot(!is.null(p_pos_binary_pred_vars))
     stopifnot(!anyNA(p_pos_binary_pred_vars))
     stopifnot(!anyNA(p_pos_binary_effects))
+    # TODO: can we relax this loop to be for p_pos only?
     for (x_mix_param in x_mix_params) {
       if (is.null(x_mix_pred_vars_names[[x_mix_param]])) next 
       pred_vars_shared <- x_mix_pred_vars_names[[x_mix_param]][
