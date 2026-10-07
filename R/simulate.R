@@ -69,19 +69,33 @@
 #'   Each of these vectors specifies the scales of normal variability in the f
 #'   vector between different categories of the corresponding categorical
 #'   variable.
-#' @param x_mix_pred_vars a list (whose names are the parameters p_pos, mu_neg,
-#'   mu_pos, sd_neg, sd_pos) of lists (whose names are the names of categorical
-#'   variables) of character vectors (whose values are the different categories
-#'   of a given categorical variable). Each parameter has a regression model
-#'   specified by additively combining its categorical variables. For each
-#'   categorical variable, each sample has one of the categories randomly
-#'   allocated.
-#' @param x_mix_pred_vars_sds a list (whose names are the parameters p_pos,
-#'   mu_neg, mu_pos, sd_neg, sd_pos) of named numeric vectors (whose names must
-#'   match the categorical variables named in the inner lists of
-#'   `x_mix_pred_vars`). Each \{name, numeric value\} pair within one of these
-#'   vectors specifies the scale of variability between the regression
-#'   coefficients for the different categories of named categorical variable.
+#' @param x_mix_pred_vars a list (of length between 0 and 5 inclusive; the names
+#'   of the list should be a subset of the 5 parameters `p_pos`, `mu_neg`,
+#'   `mu_pos`, `sd_neg`, `sd_pos`) of lists (whose names are the names of
+#'   categorical variables) of character vectors (whose values are the different
+#'   categories of a given categorical variable). Each of the 5 parameters has a
+#'   regression model specified by additively combining its categorical
+#'   variables (or no regression model is used if that parameter is absent from
+#'   the list). For each categorical variable, each sample has one of the
+#'   categories randomly allocated. For example say you set `x_mix_pred_vars =`
+#'   `list(p_pos = list(age = c("0-17", "18-49", "50+"), place = letters[1:4]),`
+#'   `mu_pos = list(age = c("0-17", "18-49", "50+")))`. We randomly assign
+#'   every sample a value of `age` from the possibilities `c("0-17", "18-49",`
+#'   `"50+")`, and a value of `place` from the possibilities `letters[1:4]`.
+#'   `p_pos` varies with `age` and `place`; `mu_pos` varies with `age`; and
+#'   `mu_neg`, `sd_neg` and `sd_pos` are the same for all individuals. Use of
+#'   this argument must be synchronised with use of `x_mix_pred_vars_sds`.
+#' @param x_mix_pred_vars_sds a list (whose names match those of
+#'   `x_mix_pred_vars`) of named numeric vectors (whose names must match the
+#'   categorical variables named in the inner lists of `x_mix_pred_vars`). Each
+#'   \{name, numeric value\} pair within one of these vectors specifies the
+#'   scale of variability between the regression coefficients for the different
+#'   categories of named categorical variable. Continuing the same example for
+#'   `x_mix_pred_vars` above, say you set `x_mix_pred_vars_sds = list(p_pos =`
+#'   `c(age = 1, place = 0.1), mu_pos = c(age = 0.5))`. The regression
+#'   coefficients for the effect of each age group on `p_pos` (or `mu_pos`) will
+#'   vary with a scale 1 (or 0.5 respectively), and the regression coefficients
+#'   for the effect of each place on `p_pos` will vary with a scale 0.1.
 #' @param x_mix_effects Normally you will want to leave this at its default
 #'   value of NA, in which case we will randomly draw regression coefficients
 #'   for the parameters of the regression model for the x distribution according
@@ -227,6 +241,8 @@ simulate_data <- function(
   # Then check more complicated objects...
   
   # Check f_pred_vars and sigma_f_pred_vars
+  stopifnot(is.list(f_pred_vars))
+  stopifnot(is.list(sigma_f_pred_vars))
   f_pred_vars_names <- names(f_pred_vars)
   stopifnot(! any(f_pred_vars_names %in% # avoid name clashes with variables
                     c("plate", "f", "f_1", "f_2", "f_3", "f_4")))
@@ -249,14 +265,25 @@ simulate_data <- function(
   
   # Check x mix pred vars 
   num_sam_id <- num_plate * num_sam_per_plate
-  stopifnot(identical(sort(names(x_mix_pred_vars)),     x_mix_params))
-  stopifnot(identical(sort(names(x_mix_pred_vars_sds)), x_mix_params))
+  stopifnot(identical(sort(names(x_mix_pred_vars)),
+                      sort(names(x_mix_pred_vars_sds))))
+  for (param in names(x_mix_pred_vars)) {
+    if (! param %in% x_mix_params) stop(paste(
+      "Unexpected variable name", param,
+      "in the elements of the x_mix_pred_vars list"
+    ))
+  }
   for (param_ in x_mix_params) {
+    if (! param_ %in% names(x_mix_pred_vars)) {
+      x_mix_pred_vars[[param_]] <- list()
+      x_mix_pred_vars_sds[[param_]] <- numeric()
+      next
+    }
     if (! identical(names(x_mix_pred_vars[[param_]]),
                     names(x_mix_pred_vars_sds[[param_]]))) {
       stop(paste0("Different predictor variables were named in x_mix_pred_vars$",
                   param_, " and in x_mix_pred_vars_sds$", param_, ":\n",
-                  paste(names(x_mix_pred_vars[[param_]]), collapse = " "), "\nand\n",
+                  paste(names(x_mix_pred_vars[[param_]]), collapse = ", "), "\nand\n",
                   paste(names(x_mix_pred_vars_sds[[param_]]), collapse = " "), 
                   "\nrespectively. These must be identical.\n"))
     }
@@ -288,11 +315,11 @@ simulate_data <- function(
                       "found it equal to ", 
                       paste(x_mix_pred_vars[[param]][[pred_var]], collapse = " ")))
         }
-        if (! (is.numeric(x_mix_pred_vars_sds[[param_]][[pred_var]]) &&
-               length(x_mix_pred_vars_sds[[param_]][[pred_var]]) == 1 &&
-               is.finite(x_mix_pred_vars_sds[[param_]][[pred_var]]) &&
-               x_mix_pred_vars_sds[[param_]][[pred_var]] >= 0 )) {
-          stop(paste('x_mix_pred_vars_sds[["', param_, '"]][["', pred_var,
+        if (! (is.numeric(x_mix_pred_vars_sds[[param]][[pred_var]]) &&
+               length(x_mix_pred_vars_sds[[param]][[pred_var]]) == 1 &&
+               is.finite(x_mix_pred_vars_sds[[param]][[pred_var]]) &&
+               x_mix_pred_vars_sds[[param]][[pred_var]] >= 0 )) {
+          stop(paste('x_mix_pred_vars_sds[["', param, '"]][["', pred_var,
                      '"]] must be a non-negative number'))
         }
       }

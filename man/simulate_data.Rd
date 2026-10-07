@@ -34,7 +34,8 @@ simulate_data(
   x_mix_effects = NA,
   p_pos_binary_effects = c(boolA = -2, boolB = 0, boolC = 2),
   y_obs_sd_min_log_shift_sd = 0,
-  y_obs_sd_jump_log_shift_sd = 0
+  y_obs_sd_jump_log_shift_sd = 0,
+  p_pos_exact = FALSE
 )
 }
 \arguments{
@@ -106,20 +107,34 @@ Each of these vectors specifies the scales of normal variability in the f
 vector between different categories of the corresponding categorical
 variable.}
 
-\item{x_mix_pred_vars}{a list (whose names are the parameters p_pos, mu_neg,
-mu_pos, sd_neg, sd_pos) of lists (whose names are the names of categorical
-variables) of character vectors (whose values are the different categories
-of a given categorical variable). Each parameter has a regression model
-specified by additively combining its categorical variables. For each
-categorical variable, each sample has one of the categories randomly
-allocated.}
+\item{x_mix_pred_vars}{a list (of length between 0 and 5 inclusive; the names
+of the list should be a subset of the 5 parameters \code{p_pos}, \code{mu_neg},
+\code{mu_pos}, \code{sd_neg}, \code{sd_pos}) of lists (whose names are the names of
+categorical variables) of character vectors (whose values are the different
+categories of a given categorical variable). Each of the 5 parameters has a
+regression model specified by additively combining its categorical
+variables (or no regression model is used if that parameter is absent from
+the list). For each categorical variable, each sample has one of the
+categories randomly allocated. For example say you set \verb{x_mix_pred_vars =}
+\verb{list(p_pos = list(age = c("0-17", "18-49", "50+"), place = letters[1:4]),}
+\verb{mu_pos = list(age = c("0-17", "18-49", "50+")))}. We randomly assign
+every sample a value of \code{age} from the possibilities \verb{c("0-17", "18-49",}
+\verb{"50+")}, and a value of \code{place} from the possibilities \code{letters[1:4]}.
+\code{p_pos} varies with \code{age} and \code{place}; \code{mu_pos} varies with \code{age}; and
+\code{mu_neg}, \code{sd_neg} and \code{sd_pos} are the same for all individuals. Use of
+this argument must be synchronised with use of \code{x_mix_pred_vars_sds}.}
 
-\item{x_mix_pred_vars_sds}{a list (whose names are the parameters p_pos,
-mu_neg, mu_pos, sd_neg, sd_pos) of named numeric vectors (whose names must
-match the categorical variables named in the inner lists of
-\code{x_mix_pred_vars}). Each \{name, numeric value\} pair within one of these
-vectors specifies the scale of variability between the regression
-coefficients for the different categories of named categorical variable.}
+\item{x_mix_pred_vars_sds}{a list (whose names match those of
+\code{x_mix_pred_vars}) of named numeric vectors (whose names must match the
+categorical variables named in the inner lists of \code{x_mix_pred_vars}). Each
+\{name, numeric value\} pair within one of these vectors specifies the
+scale of variability between the regression coefficients for the different
+categories of named categorical variable. Continuing the same example for
+\code{x_mix_pred_vars} above, say you set \verb{x_mix_pred_vars_sds = list(p_pos =}
+\verb{c(age = 1, place = 0.1), mu_pos = c(age = 0.5))}. The regression
+coefficients for the effect of each age group on \code{p_pos} (or \code{mu_pos}) will
+vary with a scale 1 (or 0.5 respectively), and the regression coefficients
+for the effect of each place on \code{p_pos} will vary with a scale 0.1.}
 
 \item{x_mix_effects}{Normally you will want to leave this at its default
 value of NA, in which case we will randomly draw regression coefficients
@@ -154,6 +169,8 @@ y_obs_sd_sam_jump between plates. Beware: such variability is assumed to be
 zero in the inference model, so values greater than the default of zero
 will introduce model misspecification for inference (which may be of
 interest for testing purposes).}
+
+\item{p_pos_exact}{a single logical value: should we simulate exactly a fraction \code{p_pos} of samples being positive, as opposed to the default behaviour of each sample having an independent probabiliy \code{p_pos} of being positive? This option is only available if no regression model is specified for \code{p_pos}.}
 }
 \value{
 a named list whose elements are:
