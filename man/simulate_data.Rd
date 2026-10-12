@@ -26,13 +26,10 @@ simulate_data(
   rho = matrix(c(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1), 4, 4, byrow = TRUE),
   f_pred_vars = list(),
   sigma_f_pred_vars = list(),
-  x_mix_pred_vars = list(p_pos = list(letter = letters[1:4]), mu_neg = list(letter =
-    letters[1:4]), mu_pos = list(letter = letters[1:4]), sd_neg = list(letter =
-    letters[1:4]), sd_pos = list(letter = letters[1:4])),
-  x_mix_pred_vars_sds = list(p_pos = c(letter = 1), mu_neg = c(letter = 1), mu_pos =
-    c(letter = 1), sd_neg = c(letter = 0.2), sd_pos = c(letter = 0.2)),
+  x_mix_pred_vars = list(),
+  x_mix_pred_vars_sds = list(),
   x_mix_effects = NA,
-  p_pos_binary_effects = c(boolA = -2, boolB = 0, boolC = 2),
+  p_pos_binary_effects = numeric(),
   y_obs_sd_min_log_shift_sd = 0,
   y_obs_sd_jump_log_shift_sd = 0,
   p_pos_exact = FALSE
@@ -117,11 +114,11 @@ variables (or no regression model is used if that parameter is absent from
 the list). For each categorical variable, each sample has one of the
 categories randomly allocated. For example say you set \verb{x_mix_pred_vars =}
 \verb{list(p_pos = list(age = c("0-17", "18-49", "50+"), place = letters[1:4]),}
-\verb{mu_pos = list(age = c("0-17", "18-49", "50+")))}. We randomly assign
+\verb{sd_pos = list(age = c("0-17", "18-49", "50+")))}. We randomly assign
 every sample a value of \code{age} from the possibilities \verb{c("0-17", "18-49",}
 \verb{"50+")}, and a value of \code{place} from the possibilities \code{letters[1:4]}.
-\code{p_pos} varies with \code{age} and \code{place}; \code{mu_pos} varies with \code{age}; and
-\code{mu_neg}, \code{sd_neg} and \code{sd_pos} are the same for all individuals. Use of
+\code{p_pos} varies with \code{age} and \code{place}; \code{sd_pos} varies with \code{age}; and
+\code{mu_pos}, \code{mu_neg} and \code{sd_neg} are the same for all individuals. Use of
 this argument must be synchronised with use of \code{x_mix_pred_vars_sds}.}
 
 \item{x_mix_pred_vars_sds}{a list (whose names match those of
@@ -131,8 +128,8 @@ categorical variables named in the inner lists of \code{x_mix_pred_vars}). Each
 scale of variability between the regression coefficients for the different
 categories of named categorical variable. Continuing the same example for
 \code{x_mix_pred_vars} above, say you set \verb{x_mix_pred_vars_sds = list(p_pos =}
-\verb{c(age = 1, place = 0.1), mu_pos = c(age = 0.5))}. The regression
-coefficients for the effect of each age group on \code{p_pos} (or \code{mu_pos}) will
+\verb{c(age = 1, place = 0.1), sd_pos = c(age = 0.5))}. The regression
+coefficients for the effect of each age group on \code{p_pos} (or \code{sd_pos}) will
 vary with a scale 1 (or 0.5 respectively), and the regression coefficients
 for the effect of each place on \code{p_pos} will vary with a scale 0.1.}
 

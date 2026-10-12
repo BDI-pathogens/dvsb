@@ -79,11 +79,11 @@
 #'   the list). For each categorical variable, each sample has one of the
 #'   categories randomly allocated. For example say you set `x_mix_pred_vars =`
 #'   `list(p_pos = list(age = c("0-17", "18-49", "50+"), place = letters[1:4]),`
-#'   `mu_pos = list(age = c("0-17", "18-49", "50+")))`. We randomly assign
+#'   `sd_pos = list(age = c("0-17", "18-49", "50+")))`. We randomly assign
 #'   every sample a value of `age` from the possibilities `c("0-17", "18-49",`
 #'   `"50+")`, and a value of `place` from the possibilities `letters[1:4]`.
-#'   `p_pos` varies with `age` and `place`; `mu_pos` varies with `age`; and
-#'   `mu_neg`, `sd_neg` and `sd_pos` are the same for all individuals. Use of
+#'   `p_pos` varies with `age` and `place`; `sd_pos` varies with `age`; and
+#'   `mu_pos`, `mu_neg` and `sd_neg` are the same for all individuals. Use of
 #'   this argument must be synchronised with use of `x_mix_pred_vars_sds`.
 #' @param x_mix_pred_vars_sds a list (whose names match those of
 #'   `x_mix_pred_vars`) of named numeric vectors (whose names must match the
@@ -92,8 +92,8 @@
 #'   scale of variability between the regression coefficients for the different
 #'   categories of named categorical variable. Continuing the same example for
 #'   `x_mix_pred_vars` above, say you set `x_mix_pred_vars_sds = list(p_pos =`
-#'   `c(age = 1, place = 0.1), mu_pos = c(age = 0.5))`. The regression
-#'   coefficients for the effect of each age group on `p_pos` (or `mu_pos`) will
+#'   `c(age = 1, place = 0.1), sd_pos = c(age = 0.5))`. The regression
+#'   coefficients for the effect of each age group on `p_pos` (or `sd_pos`) will
 #'   vary with a scale 1 (or 0.5 respectively), and the regression coefficients
 #'   for the effect of each place on `p_pos` will vary with a scale 0.1.
 #' @param x_mix_effects Normally you will want to leave this at its default
@@ -170,24 +170,10 @@ simulate_data <- function(
                  4, 4, byrow = TRUE),
     f_pred_vars = list(),
     sigma_f_pred_vars = list(),
-    x_mix_pred_vars = list(
-      p_pos  = list(letter = letters[1:4]),
-      mu_neg = list(letter = letters[1:4]),
-      mu_pos = list(letter = letters[1:4]),
-      sd_neg = list(letter = letters[1:4]),
-      sd_pos = list(letter = letters[1:4])
-    ),
-    x_mix_pred_vars_sds = list(
-      p_pos = c(letter = 1),
-      mu_neg = c(letter = 1),
-      mu_pos = c(letter = 1),
-      sd_neg = c(letter = 0.2),
-      sd_pos = c(letter = 0.2)
-    ),
+    x_mix_pred_vars = list(),
+    x_mix_pred_vars_sds = list(),
     x_mix_effects = NA,
-    p_pos_binary_effects = c("boolA" = -2,
-                             "boolB" = 0,
-                             "boolC" = 2),
+    p_pos_binary_effects = numeric(),
     y_obs_sd_min_log_shift_sd = 0,
     y_obs_sd_jump_log_shift_sd = 0,
     p_pos_exact = FALSE
@@ -397,10 +383,10 @@ simulate_data <- function(
   
   if (p_pos_exact) {
     if (length(x_mix_pred_vars$p_pos)) stop(paste(
-      "If you set p_pos_exact to TRUE, you must set x_mix_pred_vars$p_pos to an",
+      "If you set p_pos_exact to TRUE, x_mix_pred_vars$p_pos must be an",
       "empty list"))
     if (length(p_pos_binary_effects)) stop(paste(
-      "If you set p_pos_exact to TRUE, you must set p_pos_binary_effects to an",
+      "If you set p_pos_exact to TRUE, p_pos_binary_effects must be an",
       "empty numeric vector"))
     num_sam_pos <- as.integer(num_sam_id * p_pos)
     if (abs(num_sam_pos - num_sam_id * p_pos) > 1e-14) stop(paste(
@@ -408,6 +394,8 @@ simulate_data <- function(
       "num_sam_per_plate) times p_pos must be an integer"
     ))
   }
+  
+  # TODO: warn if a regression model is specified for exactly one of mu_pos, mu_neg
   
   # SIMULATE PLATE VARIABILITY AND CALS ----
   

@@ -144,5 +144,19 @@ test_that("Expected error messages in simulate_data are triggered", {
     p_pos_binary_pred_vars = p_pos_binary_pred_vars,
     f_pred_vars_names = f_pred_vars_names
   ), regexp = paste("Some samples have missing age"))
+  
+  x_mix_pred_vars_names_problem <- x_mix_pred_vars_names
+  x_mix_pred_vars_names_problem$mu_pos <- "age"
+  expect_error(wrangle_data(
+    df_sam = df_sam, 
+    df_cal = df_cal, 
+    df_priors_scalars = df_priors_scalars,
+    df_priors_vectors = df_priors_vectors, 
+    rho_prior_eta = rho_prior_eta, 
+    x_mix_pred_vars_names = x_mix_pred_vars_names_problem, 
+    p_pos_binary_pred_vars = p_pos_binary_pred_vars,
+    f_pred_vars_names = f_pred_vars_names
+  ), regexp = paste("You cannot specify a regression for mu_pos but not",
+                    "mu_neg, or vice versa: it's both or neither"))  
     
 })

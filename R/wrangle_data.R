@@ -131,6 +131,17 @@ wrangle_data <- function(
     ))
   }
   
+  if ((length(x_mix_pred_vars_names$mu_pos) &&
+       ! length(x_mix_pred_vars_names$mu_neg)) ||
+      ((! length(x_mix_pred_vars_names$mu_pos)) &&
+       length(x_mix_pred_vars_names$mu_neg))) {
+    stop(paste(
+         "You cannot specify a regression for mu_pos but not mu_neg, or vice",
+         "versa: it's both or neither"
+       ))
+  }
+
+  
   # GENERAL WRANGLING ----
   
   df <- dplyr::bind_rows(df_sam, df_cal)

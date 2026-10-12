@@ -91,7 +91,14 @@ test_that("simulate_data works with x_mix_effects", {
                           sd_neg = list(letter = letters[1:3]),
                           sd_pos = list(letter = letters[1:3]))
   data <- simulate_data(x_mix_effects = x_mix_effects,
-                        x_mix_pred_vars = x_mix_pred_vars)
+                        x_mix_pred_vars = x_mix_pred_vars,
+                        x_mix_pred_vars_sds = list(
+                          p_pos = c(letter = 1),
+                          mu_neg = c(letter = 1),
+                          mu_pos = c(letter = 1),
+                          sd_neg = c(letter = 0.2),
+                          sd_pos = c(letter = 0.2)
+                        ))
   expect_true(identical(data$params$x_mix_effects, x_mix_effects))
 })
 
@@ -103,8 +110,11 @@ test_that("Expected error messages in simulate_data are triggered", {
   expect_error(simulate_data(seed = "foo"), regexp = 
                  "is\\.numeric\\(x\\) is not TRUE")
   
-  expect_error(simulate_data(p_pos_exact = TRUE), regexp = paste(
-    "If you set p_pos_exact to TRUE, you must set x_mix_pred_vars\\$p_pos to an",
+  expect_error(simulate_data(p_pos_exact = TRUE,
+                             x_mix_pred_vars = list(p_pos = list(a = letters[1:3])),
+                             x_mix_pred_vars_sds = list(p_pos = c(a = 1))),
+                             regexp = paste(
+    "If you set p_pos_exact to TRUE, x_mix_pred_vars\\$p_pos must be an",
     "empty list"
   ))
   
@@ -176,19 +186,10 @@ test_that("Expected error messages in simulate_data are triggered", {
                               "x_mix_pred_vars_sds\\$p_pos:"))
   
   expect_error(simulate_data(p_pos_exact = TRUE,
-                             x_mix_pred_vars = list(p_pos = character(),
-                                                    mu_pos = character(),
-                                                    sd_pos = character(),
-                                                    mu_neg = character(),
-                                                    sd_neg = character()),
-                             x_mix_pred_vars_sds = list(p_pos = numeric(),
-                                                        mu_pos = numeric(),
-                                                        sd_pos = numeric(),
-                                                        mu_neg = numeric(),
-                                                        sd_neg = numeric())),
+                             p_pos_binary_effects = c(a = 1)),
                regexp = paste(
-                 "If you set p_pos_exact to TRUE, you must set",
-                 "p_pos_binary_effects to an empty numeric vector"
+                 "If you set p_pos_exact to TRUE,",
+                 "p_pos_binary_effects must be an empty numeric vector"
                ))
   
   expect_error(simulate_data(p_pos_exact = TRUE,
@@ -239,7 +240,25 @@ test_that("wrangling true params works on simulated data", {
   priors_list <- get_priors()
   
   # Simulate lots of sams to ensure no categories are stochastically absent
-  data <- simulate_data(num_plate = 100, num_sam_per_plate = 100)
+  data <- simulate_data(num_plate = 100,
+                        num_sam_per_plate = 100,
+                        x_mix_pred_vars = list(
+                          p_pos  = list(letter = letters[1:4]),
+                          mu_neg = list(letter = letters[1:4]),
+                          mu_pos = list(letter = letters[1:4]),
+                          sd_neg = list(letter = letters[1:4]),
+                          sd_pos = list(letter = letters[1:4])
+                        ),
+                        x_mix_pred_vars_sds = list(
+                          p_pos = c(letter = 1),
+                          mu_neg = c(letter = 1),
+                          mu_pos = c(letter = 1),
+                          sd_neg = c(letter = 0.2),
+                          sd_pos = c(letter = 0.2)
+                        ),
+                        p_pos_binary_effects = c("boolA" = -2,
+                                                 "boolB" = 0,
+                                                 "boolC" = 2))
   
   data_wrangled <- wrangle_data(
   df_sam = data$df_sam, 
@@ -255,10 +274,10 @@ test_that("wrangling true params works on simulated data", {
   wrangled_names <- names(
   wrangle_true_params(param_true_values_list = data$params,
                       data_descriptors = data_wrangled$data_descriptors))
-  expect_true(identical(sort(wrangled_names),
+  expect_identical(sort(wrangled_names),
                          sort(c(
   "f[1]", "f[2]", "f[3]", "f[4]", "sigma_f[1]_plate", "sigma_f[2]_plate", "sigma_f[3]_plate", "sigma_f[4]_plate", "rho[1,2]", "rho[1,3]", "rho[1,4]", "rho[2,3]", "rho[2,4]", "rho[3,4]", "sd_neg", "sd_pos", "mu_neg", "mu_pos", "p_pos",  "p_blank",  "y_obs_sd_cal_min", "y_obs_sd_cal_jump", "y_obs_sd_sam_min", "y_obs_sd_sam_jump", "y_obs_sd_min_log_shift_sd", "y_obs_sd_jump_log_shift_sd", "p_pos_effect_lettera", "p_pos_effect_letterb", "p_pos_effect_letterc", "p_pos_effect_letterd", "sigma_p_pos_pred_vars_letter", "mu_neg_effect_lettera", "mu_neg_effect_letterb", "mu_neg_effect_letterc", "mu_neg_effect_letterd", "sigma_mu_neg_pred_vars_letter", "mu_pos_effect_lettera", "mu_pos_effect_letterb", "mu_pos_effect_letterc", "mu_pos_effect_letterd", "sigma_mu_pos_pred_vars_letter", "sd_neg_effect_lettera", "sd_neg_effect_letterb", "sd_neg_effect_letterc", "sd_neg_effect_letterd", "sigma_sd_neg_pred_vars_letter", "sd_pos_effect_lettera", "sd_pos_effect_letterb", "sd_pos_effect_letterc", "sd_pos_effect_letterd", "sigma_sd_pos_pred_vars_letter", "p_pos_effect_boolA", "p_pos_effect_boolB", "p_pos_effect_boolC"
-  ))))
+  )))
 })
 
 test_that("Expected error messages in wrangle_true_params are triggered", {

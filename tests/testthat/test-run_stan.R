@@ -46,7 +46,24 @@ test_that("cmdstan works", {
                         num_sam_per_plate = 20, 
                         num_rep_per_sam = 1,
                         num_rep_per_cal = 1, 
-                        x_cals = c(0, 1))
+                        x_cals = c(0, 1),
+                        x_mix_pred_vars = list(
+                          p_pos  = list(letter = letters[1:4]),
+                          mu_neg = list(letter = letters[1:4]),
+                          mu_pos = list(letter = letters[1:4]),
+                          sd_neg = list(letter = letters[1:4]),
+                          sd_pos = list(letter = letters[1:4])
+                        ),
+                        x_mix_pred_vars_sds = list(
+                          p_pos = c(letter = 1),
+                          mu_neg = c(letter = 1),
+                          mu_pos = c(letter = 1),
+                          sd_neg = c(letter = 0.2),
+                          sd_pos = c(letter = 0.2)
+                        ),
+                        p_pos_binary_effects = c("boolA" = -2,
+                                                 "boolB" = 0,
+                                                 "boolC" = 2))
   
   data_wrangled <- wrangle_data(
     df_sam = data$df_sam, 
@@ -101,7 +118,24 @@ test_that("cmdstanr works", {
                         num_sam_per_plate = 20, 
                         num_rep_per_sam = 1,
                         num_rep_per_cal = 1, 
-                        x_cals = c(0, 1))
+                        x_cals = c(0, 1),
+                        x_mix_pred_vars = list(
+                          p_pos  = list(letter = letters[1:4]),
+                          mu_neg = list(letter = letters[1:4]),
+                          mu_pos = list(letter = letters[1:4]),
+                          sd_neg = list(letter = letters[1:4]),
+                          sd_pos = list(letter = letters[1:4])
+                        ),
+                        x_mix_pred_vars_sds = list(
+                          p_pos = c(letter = 1),
+                          mu_neg = c(letter = 1),
+                          mu_pos = c(letter = 1),
+                          sd_neg = c(letter = 0.2),
+                          sd_pos = c(letter = 0.2)
+                        ),
+                        p_pos_binary_effects = c("boolA" = -2,
+                                                 "boolB" = 0,
+                                                 "boolC" = 2))
   
   data_wrangled <- wrangle_data(
     df_sam = data$df_sam, 
@@ -152,7 +186,24 @@ test_that("rstan works", {
                         num_sam_per_plate = 20, 
                         num_rep_per_sam = 1,
                         num_rep_per_cal = 1, 
-                        x_cals = c(0, 1))
+                        x_cals = c(0, 1),
+                        x_mix_pred_vars = list(
+                          p_pos  = list(letter = letters[1:4]),
+                          mu_neg = list(letter = letters[1:4]),
+                          mu_pos = list(letter = letters[1:4]),
+                          sd_neg = list(letter = letters[1:4]),
+                          sd_pos = list(letter = letters[1:4])
+                        ),
+                        x_mix_pred_vars_sds = list(
+                          p_pos = c(letter = 1),
+                          mu_neg = c(letter = 1),
+                          mu_pos = c(letter = 1),
+                          sd_neg = c(letter = 0.2),
+                          sd_pos = c(letter = 0.2)
+                        ),
+                        p_pos_binary_effects = c("boolA" = -2,
+                                                 "boolB" = 0,
+                                                 "boolC" = 2))
   
   data_wrangled <- wrangle_data(
     df_sam = data$df_sam, 
