@@ -76,15 +76,13 @@
 <span>  rho <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span>, <span class="fl">4</span>, <span class="fl">4</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
 <span>  f_pred_vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  sigma_f_pred_vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  x_mix_pred_vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>p_pos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>letter <span class="op">=</span> <span class="va">letters</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">4</span><span class="op">]</span><span class="op">)</span>, mu_neg <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>letter <span class="op">=</span></span>
-<span>    <span class="va">letters</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">4</span><span class="op">]</span><span class="op">)</span>, mu_pos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>letter <span class="op">=</span> <span class="va">letters</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">4</span><span class="op">]</span><span class="op">)</span>, sd_neg <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>letter <span class="op">=</span></span>
-<span>    <span class="va">letters</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">4</span><span class="op">]</span><span class="op">)</span>, sd_pos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>letter <span class="op">=</span> <span class="va">letters</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">4</span><span class="op">]</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  x_mix_pred_vars_sds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>p_pos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>letter <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>, mu_neg <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>letter <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>, mu_pos <span class="op">=</span></span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>letter <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>, sd_neg <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>letter <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span>, sd_pos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>letter <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  x_mix_pred_vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  x_mix_pred_vars_sds <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  x_mix_effects <span class="op">=</span> <span class="cn">NA</span>,</span>
-<span>  p_pos_binary_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>boolA <span class="op">=</span> <span class="op">-</span><span class="fl">2</span>, boolB <span class="op">=</span> <span class="fl">0</span>, boolC <span class="op">=</span> <span class="fl">2</span><span class="op">)</span>,</span>
+<span>  p_pos_binary_effects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">numeric</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  y_obs_sd_min_log_shift_sd <span class="op">=</span> <span class="fl">0</span>,</span>
-<span>  y_obs_sd_jump_log_shift_sd <span class="op">=</span> <span class="fl">0</span></span>
+<span>  y_obs_sd_jump_log_shift_sd <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>  p_pos_exact <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -203,22 +201,36 @@ variable.</p></dd>
 
 
 <dt id="arg-x-mix-pred-vars">x_mix_pred_vars<a class="anchor" aria-label="anchor" href="#arg-x-mix-pred-vars"></a></dt>
-<dd><p>a list (whose names are the parameters p_pos, mu_neg,
-mu_pos, sd_neg, sd_pos) of lists (whose names are the names of categorical
-variables) of character vectors (whose values are the different categories
-of a given categorical variable). Each parameter has a regression model
-specified by additively combining its categorical variables. For each
-categorical variable, each sample has one of the categories randomly
-allocated.</p></dd>
+<dd><p>a list (of length between 0 and 5 inclusive; the names
+of the list should be a subset of the 5 parameters <code>p_pos</code>, <code>mu_neg</code>,
+<code>mu_pos</code>, <code>sd_neg</code>, <code>sd_pos</code>) of lists (whose names are the names of
+categorical variables) of character vectors (whose values are the different
+categories of a given categorical variable). Each of the 5 parameters has a
+regression model specified by additively combining its categorical
+variables (or no regression model is used if that parameter is absent from
+the list). For each categorical variable, each sample has one of the
+categories randomly allocated. For example say you set <code>x_mix_pred_vars =</code>
+<code>list(p_pos = list(age = c("0-17", "18-49", "50+"), place = letters[1:4]),</code>
+<code>sd_pos = list(age = c("0-17", "18-49", "50+")))</code>. We randomly assign
+every sample a value of <code>age</code> from the possibilities <code>c("0-17", "18-49",</code>
+<code>"50+")</code>, and a value of <code>place</code> from the possibilities <code>letters[1:4]</code>.
+<code>p_pos</code> varies with <code>age</code> and <code>place</code>; <code>sd_pos</code> varies with <code>age</code>; and
+<code>mu_pos</code>, <code>mu_neg</code> and <code>sd_neg</code> are the same for all individuals. Use of
+this argument must be synchronised with use of <code>x_mix_pred_vars_sds</code>.</p></dd>
 
 
 <dt id="arg-x-mix-pred-vars-sds">x_mix_pred_vars_sds<a class="anchor" aria-label="anchor" href="#arg-x-mix-pred-vars-sds"></a></dt>
-<dd><p>a list (whose names are the parameters p_pos,
-mu_neg, mu_pos, sd_neg, sd_pos) of named numeric vectors (whose names must
-match the categorical variables named in the inner lists of
-<code>x_mix_pred_vars</code>). Each {name, numeric value} pair within one of these
-vectors specifies the scale of variability between the regression
-coefficients for the different categories of named categorical variable.</p></dd>
+<dd><p>a list (whose names match those of
+<code>x_mix_pred_vars</code>) of named numeric vectors (whose names must match the
+categorical variables named in the inner lists of <code>x_mix_pred_vars</code>). Each
+{name, numeric value} pair within one of these vectors specifies the
+scale of variability between the regression coefficients for the different
+categories of named categorical variable. Continuing the same example for
+<code>x_mix_pred_vars</code> above, say you set <code>x_mix_pred_vars_sds = list(p_pos =</code>
+<code>c(age = 1, place = 0.1), sd_pos = c(age = 0.5))</code>. The regression
+coefficients for the effect of each age group on <code>p_pos</code> (or <code>sd_pos</code>) will
+vary with a scale 1 (or 0.5 respectively), and the regression coefficients
+for the effect of each place on <code>p_pos</code> will vary with a scale 0.1.</p></dd>
 
 
 <dt id="arg-x-mix-effects">x_mix_effects<a class="anchor" aria-label="anchor" href="#arg-x-mix-effects"></a></dt>
@@ -261,6 +273,10 @@ y_obs_sd_sam_jump between plates. Beware: such variability is assumed to be
 zero in the inference model, so values greater than the default of zero
 will introduce model misspecification for inference (which may be of
 interest for testing purposes).</p></dd>
+
+
+<dt id="arg-p-pos-exact">p_pos_exact<a class="anchor" aria-label="anchor" href="#arg-p-pos-exact"></a></dt>
+<dd><p>a single logical value: should we simulate exactly a fraction <code>p_pos</code> of samples being positive, as opposed to the default behaviour of each sample having an independent probabiliy <code>p_pos</code> of being positive? This option is only available if no regression model is specified for <code>p_pos</code>.</p></dd>
 
 </dl></div>
     <div id="value">

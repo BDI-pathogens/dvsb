@@ -101,46 +101,34 @@ proxy measurement y (e.g. OD values).</p>
 <div class="section level2">
 <h2 id="simulate-data">Simulate data<a class="anchor" aria-label="anchor" href="#simulate-data"></a>
 </h2>
-<p>We simulate data, giving us a list with seven things in it. (If we
-were using real data instead of simulated data, we would simply need to
-create the <code>df_sam</code> and <code>df_cal</code> dataframes
-ourselves instead of running <code><a href="../reference/simulate_data.html">simulate_data()</a></code> below. The
-documentation for <code><a href="../reference/wrangle_data.html">wrangle_data()</a></code> explains what columns
-these dataframes require, and how sets of covariates for regression
-models are specified using the arguments
-<code>x_mix_pred_vars_names</code>, <code>p_pos_binary_pred_vars</code>,
-<code>f_pred_vars_names</code>.)</p>
+<p>We simulate data. If we were using real data instead of simulated
+data, we would simply need to create the <code>df_sam</code> and
+<code>df_cal</code> dataframes ourselves instead of running
+<code><a href="../reference/simulate_data.html">simulate_data()</a></code> below. The documentation for
+<code><a href="../reference/wrangle_data.html">wrangle_data()</a></code> explains what columns these dataframes
+require.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">data</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/simulate_data.html">simulate_data</a></span><span class="op">(</span>seed <span class="op">=</span> <span class="fl">1234</span>,</span>
-<span>                      num_sam_per_plate <span class="op">=</span> <span class="fl">100</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">data</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/simulate_data.html">simulate_data</a></span><span class="op">(</span>seed <span class="op">=</span> <span class="fl">12345</span><span class="op">)</span></span>
 <span><span class="va">df_sam</span> <span class="op">&lt;-</span> <span class="va">data</span><span class="op">$</span><span class="va">df_sam</span></span>
 <span><span class="va">df_cal</span> <span class="op">&lt;-</span> <span class="va">data</span><span class="op">$</span><span class="va">df_cal</span></span>
 <span><span class="va">df_plate</span> <span class="op">&lt;-</span> <span class="va">data</span><span class="op">$</span><span class="va">df_plate</span></span>
-<span><span class="va">param_true_values_list</span> <span class="op">&lt;-</span> <span class="va">data</span><span class="op">$</span><span class="va">params</span></span>
-<span><span class="va">f_pred_vars_names</span> <span class="op">&lt;-</span> <span class="va">data</span><span class="op">$</span><span class="va">f_pred_vars_names</span></span>
-<span><span class="va">x_mix_pred_vars_names</span> <span class="op">&lt;-</span> <span class="va">data</span><span class="op">$</span><span class="va">x_mix_pred_vars_names</span></span>
-<span><span class="va">p_pos_binary_pred_vars</span> <span class="op">&lt;-</span> <span class="va">data</span><span class="op">$</span><span class="va">p_pos_binary_pred_vars</span></span></code></pre></div>
+<span><span class="va">param_true_values_list</span> <span class="op">&lt;-</span> <span class="va">data</span><span class="op">$</span><span class="va">params</span></span></code></pre></div>
 <p>Plot the simulated calibration data (one facet per plate):</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">df_cal</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">x</span>, y <span class="op">=</span> <span class="va">y</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">plate</span>, ncol <span class="op">=</span> <span class="fl">3</span><span class="op">)</span> </span></code></pre></div>
 <p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_data_cal-1.png" class="r-plt" alt="" width="700"></p>
-<p>Plot the simulated sample data, histogramming the x and y values, one
-facet for each category of the <code>letter</code> covariate (which
-differ in their x distributions when using default arguments for
-<code><a href="../reference/simulate_data.html">simulate_data()</a></code>):</p>
+<p>Plot the simulated sample data, histogramming the x and y values:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">df_sam</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">x</span><span class="op">)</span>, bins <span class="op">=</span> <span class="fl">20</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">letter</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">x</span><span class="op">)</span>, bins <span class="op">=</span> <span class="fl">30</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_x_log10</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_data_sam_x-1.png" class="r-plt" alt="" width="700"></p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># With default values, y is rarely negative; restrict to positive for visibility</span></span>
 <span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">df_sam</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">y</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">y</span><span class="op">)</span>, bins <span class="op">=</span> <span class="fl">20</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">letter</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_histogram.html" class="external-link">geom_histogram</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">y</span><span class="op">)</span>, bins <span class="op">=</span> <span class="fl">30</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_x_log10</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_data_sam_y-1.png" class="r-plt" alt="" width="700"></p>
 </div>
@@ -157,11 +145,7 @@ differ in their x distributions when using default arguments for
 <span>  df_cal <span class="op">=</span> <span class="va">df_cal</span>, </span>
 <span>  df_priors_scalars <span class="op">=</span> <span class="va">priors_list</span><span class="op">$</span><span class="va">df_priors_scalars</span>,</span>
 <span>  df_priors_vectors <span class="op">=</span> <span class="va">priors_list</span><span class="op">$</span><span class="va">df_priors_vectors</span>, </span>
-<span>  rho_prior_eta <span class="op">=</span> <span class="va">priors_list</span><span class="op">$</span><span class="va">rho_prior_eta</span>, </span>
-<span>  x_mix_pred_vars_names <span class="op">=</span> <span class="va">x_mix_pred_vars_names</span>, </span>
-<span>  p_pos_binary_pred_vars <span class="op">=</span> <span class="va">p_pos_binary_pred_vars</span>,</span>
-<span>  f_pred_vars_names <span class="op">=</span> <span class="va">f_pred_vars_names</span></span>
-<span>  <span class="op">)</span></span></code></pre></div>
+<span>  rho_prior_eta <span class="op">=</span> <span class="va">priors_list</span><span class="op">$</span><span class="va">rho_prior_eta</span><span class="op">)</span></span></code></pre></div>
 <p>Update our dataframes for samples, calibrators and plates with the
 extra columns we just added (which introduce integer indexing); this can
 be helpful later if we want to combine results and data.</p>
@@ -174,13 +158,10 @@ from the prior. (We wrap inside <code><a href="https://rdrr.io/r/utils/capture.o
 suppress Stan’s insistent printing of information.)</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/capture.output.html" class="external-link">capture.output</a></span><span class="op">(</span><span class="op">{</span></span>
-<span><span class="va">df_posterior</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_stan.html">run_stan</a></span><span class="op">(</span></span>
-<span>  data_wrangled <span class="op">=</span> <span class="va">data_wrangled</span>,</span>
-<span>  distribution <span class="op">=</span> <span class="st">"posterior"</span><span class="op">)</span></span>
+<span><span class="va">df_posterior</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_stan.html">run_stan</a></span><span class="op">(</span>data_wrangled <span class="op">=</span> <span class="va">data_wrangled</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">df_prior</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_stan.html">run_stan</a></span><span class="op">(</span></span>
-<span>  data_wrangled <span class="op">=</span> <span class="va">data_wrangled</span>,</span>
-<span>  distribution <span class="op">=</span> <span class="st">"prior"</span><span class="op">)</span></span>
+<span><span class="va">df_prior</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_stan.html">run_stan</a></span><span class="op">(</span>data_wrangled <span class="op">=</span> <span class="va">data_wrangled</span>, </span>
+<span>                     distribution <span class="op">=</span> <span class="st">"prior"</span><span class="op">)</span></span>
 <span><span class="op">}</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
@@ -200,13 +181,13 @@ prior and true value, demonstrating that the posterior moves away from
 the prior toward the true value, as it should for a correctly
 implemented model with informative data. One should always test this. We
 do this using <code>plot_posterior()</code> from our package
-<code>mastiff</code>, just for nine parameters for better visibility
+<code>mastiff</code>, just for 16 parameters for better visibility
 within Rmarkdown:</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">mastiff</span><span class="fu">::</span><span class="fu"><a href="https://bdi-pathogens.github.io/mastiff/reference/plot_posterior.html" class="external-link">plot_posterior</a></span><span class="op">(</span></span>
 <span>    posterior_samples <span class="op">=</span> <span class="va">df_posterior</span>,</span>
 <span>    prior_samples     <span class="op">=</span> <span class="va">df_prior</span>,</span>
-<span>    params_desired <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">df_prior</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">9</span><span class="op">]</span>,</span>
+<span>    params_desired <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">df_prior</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">16</span><span class="op">]</span>,</span>
 <span>    true_param_values <span class="op">=</span> <span class="va">param_true_values_vector</span>,</span>
 <span>    skip_stanfit_to_dt <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_posterior_prior-1.png" class="r-plt" alt="" width="95%"></p>
@@ -246,54 +227,19 @@ effects.</p>
 <p><code>df_posterior</code> has columns named
 <code>y_sam_sim_unconditional[1]</code>,
 <code>y_sam_sim_unconditional[2]</code> etc. which contain posterior
-predicted y values for new set of sampled individuals with the same
-distribution of covariates (i.e. partitioned into the same
-subpopulations, in this example based on a single covariate
-<code>letter</code>) as in the dataset analysed. The integer in square
-brackets indexes the sample replicate as in
-<code>df_sam$which_sam_rep</code>; we merge <code>df_sam</code> into
-<code>df_posterior</code> to associated each predicted <code>y</code>
-value with the appropriate subpopulation. We plot the empirical
-subpopulation-level distributions of y values, and the posterior
-predictive distribution of subpopulation-level distributions of y
-values. We use a log scale for y even though it can be negative, because
-with our default parameters it’s only rarely negative and a log scale is
-clearer. We make both a spline density plot and also a histogram
-(splines are easier to see but the algorithm may make mistakes on
-fitting a smoothed distribution).</p>
+predicted y values for new set of sampled individuals. The integer in
+square brackets indexes the sample replicate as in
+<code>df_sam$which_sam_rep</code>. We plot the empirical
+population-level distribution of y values (in blue), and the posterior
+predictive distribution of the same thing (in black, one line per sample
+from the posterior predictive distribution).</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">df_y_sim</span> <span class="op">&lt;-</span> <span class="va">df_posterior</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="fu"><a href="https://tidyselect.r-lib.org/reference/starts_with.html" class="external-link">starts_with</a></span><span class="op">(</span><span class="st">"y_sam_sim_unconditional["</span><span class="op">)</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>sample <span class="op">=</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/row_number.html" class="external-link">row_number</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>  <span class="fu"><a href="https://tidyr.tidyverse.org/reference/pivot_longer.html" class="external-link">pivot_longer</a></span><span class="op">(</span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"sample"</span><span class="op">)</span>, names_to <span class="op">=</span> <span class="st">"param"</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
-<span>  <span class="fu">tidyr</span><span class="fu">::</span><span class="fu"><a href="https://tidyr.tidyverse.org/reference/extract.html" class="external-link">extract</a></span><span class="op">(</span><span class="va">param</span>, </span>
-<span>               into <span class="op">=</span> <span class="st">"which_sam_rep"</span>, </span>
-<span>               regex <span class="op">=</span> <span class="st">"y_sam_sim_unconditional\\[([0-9]+)\\]"</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>which_sam_rep <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">which_sam_rep</span><span class="op">)</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
-<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate-joins.html" class="external-link">left_join</a></span><span class="op">(</span><span class="va">df_sam</span>, by <span class="op">=</span> <span class="st">"which_sam_rep"</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>value <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log10</a></span><span class="op">(</span><span class="va">value</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_step</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">df_y_sim</span>,</span>
-<span>            <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">value</span>,</span>
-<span>                y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">density</span><span class="op">)</span>,</span>
-<span>                group <span class="op">=</span> <span class="va">sample</span><span class="op">)</span>,</span>
-<span>            stat<span class="op">=</span><span class="st">"bin"</span>,</span>
-<span>            color<span class="op">=</span><span class="st">"black"</span>,</span>
-<span>            bins <span class="op">=</span> <span class="fl">60</span>,</span>
-<span>            alpha <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_step</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">df_sam</span>,</span>
-<span>            <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log10</a></span><span class="op">(</span><span class="va">y</span><span class="op">)</span>, <span class="co"># y,</span></span>
-<span>                y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes_eval.html" class="external-link">after_stat</a></span><span class="op">(</span><span class="va">density</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>            stat<span class="op">=</span><span class="st">"bin"</span>,</span>
-<span>            bins <span class="op">=</span> <span class="fl">60</span>,</span>
-<span>            color<span class="op">=</span><span class="st">"blue"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_cartesian.html" class="external-link">coord_cartesian</a></span><span class="op">(</span>expand <span class="op">=</span> <span class="cn">F</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">letter</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"log10(OD value)"</span>,</span>
-<span>       y <span class="op">=</span> <span class="st">"probability density"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_posterior_retrodictive-1.png" class="r-plt" alt="" width="700"></p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_density.html" class="external-link">geom_density</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">df_y_sim</span>,</span>
 <span>               <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">value</span>,</span>
 <span>                   group <span class="op">=</span> <span class="va">sample</span><span class="op">)</span>,</span>
@@ -302,10 +248,9 @@ fitting a smoothed distribution).</p>
 <span>            <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log10</a></span><span class="op">(</span><span class="va">y</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>            color<span class="op">=</span><span class="st">"blue"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/coord_cartesian.html" class="external-link">coord_cartesian</a></span><span class="op">(</span>expand <span class="op">=</span> <span class="cn">F</span><span class="op">)</span> <span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span><span class="va">letter</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"log10(OD value)"</span>,</span>
 <span>       y <span class="op">=</span> <span class="st">"probability density"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_posterior_retrodictive-2.png" class="r-plt" alt="" width="700"></p>
+<p><img src="estimation_on_simulated_data_simple_files/figure-html/plot_posterior_retrodictive-1.png" class="r-plt" alt="" width="700"></p>
 <p><code>df_posterior</code> has columns named
 <code>p_sam_is_pos[1]</code>, <code>p_sam_is_pos[2]</code> etc. which
 contain the probability that sample 1, 2 etc. is positive given its
@@ -313,7 +258,7 @@ observed y values. Calculate the posterior mean for each of these
 quantities, and then plot the distribution over individuals of these
 values, stratified by true serostatus. This gives a sense of the model’s
 accuracy and confidence in estimating serostatus.</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">df_prob_pos</span> <span class="op">&lt;-</span> <span class="va">df_posterior</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span><span class="fu"><a href="https://tidyselect.r-lib.org/reference/starts_with.html" class="external-link">starts_with</a></span><span class="op">(</span><span class="st">"p_sam_is_pos["</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">df_prob_pos</span> <span class="op">&lt;-</span> <span class="va">df_prob_pos</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">.SD</span>, <span class="va">mean</span><span class="op">)</span><span class="op">]</span></span>

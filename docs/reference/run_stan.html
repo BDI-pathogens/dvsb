@@ -59,7 +59,7 @@ estimation of the parameters that generated a given dataset.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">run_stan</span><span class="op">(</span></span>
 <span>  <span class="va">data_wrangled</span>,</span>
 <span>  distribution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"posterior"</span>, <span class="st">"prior"</span><span class="op">)</span>,</span>
-<span>  model <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"dvsb"</span>, <span class="st">"dvsb_accidental_blanks"</span>, <span class="st">"dvsb_no_mu_x_predictors"</span><span class="op">)</span>,</span>
+<span>  accidental_blanks <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  interface <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"rstan"</span>, <span class="st">"cmdstanr"</span>, <span class="st">"cmdstan"</span><span class="op">)</span>,</span>
 <span>  params_to_ignore <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"lp__"</span>, <span class="st">"rho[1,1]"</span>, <span class="st">"rho[2,2]"</span>, <span class="st">"rho[3,3]"</span>, <span class="st">"rho[4,4]"</span>,</span>
 <span>    <span class="st">"rho[2,1]"</span>, <span class="st">"rho[3,1]"</span>, <span class="st">"rho[4,1]"</span>, <span class="st">"rho[3,2]"</span>, <span class="st">"rho[4,2]"</span>, <span class="st">"rho[4,3]"</span>, <span class="st">"rho.1.1"</span>,</span>
@@ -96,14 +96,10 @@ output by <code><a href="wrangle_data.html">wrangle_data()</a></code></p></dd>
 we sample from? (See the details section of this help.)</p></dd>
 
 
-<dt id="arg-model">model<a class="anchor" aria-label="anchor" href="#arg-model"></a></dt>
-<dd><p>one of <code>"dvsb"</code>, <code>"dvsb_accidental_blanks"</code> or
-<code>"dvsb_no_mu_x_predictors"</code>. <code>dvsb</code> is the main dvsb model;
-<code>dvsb_accidental_blanks</code> is the extended model that allows for the
-possibility that each sample well accidentally contains nothing at all
-(i.e. is blank); <code>dvsb_no_mu_x_predictors</code> is the restricted model in which
-regression models are not specified for the means of the two antibody
-distributions (one for seropositives and one for seronegatives).</p></dd>
+<dt id="arg-accidental-blanks">accidental_blanks<a class="anchor" aria-label="anchor" href="#arg-accidental-blanks"></a></dt>
+<dd><p>a single logical value: should we use the extended
+statistical model that allows for the possibility that each sample well
+accidentally contains nothing at all (i.e. is blank)?</p></dd>
 
 
 <dt id="arg-interface">interface<a class="anchor" aria-label="anchor" href="#arg-interface"></a></dt>
