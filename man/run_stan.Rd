@@ -7,7 +7,7 @@
 run_stan(
   data_wrangled,
   distribution = c("posterior", "prior"),
-  model = c("dvsb", "dvsb_accidental_blanks", "dvsb_no_mu_x_predictors"),
+  accidental_blanks = FALSE,
   interface = c("rstan", "cmdstanr", "cmdstan"),
   params_to_ignore = c("lp__", "rho[1,1]", "rho[2,2]", "rho[3,3]", "rho[4,4]",
     "rho[2,1]", "rho[3,1]", "rho[4,1]", "rho[3,2]", "rho[4,2]", "rho[4,3]", "rho.1.1",
@@ -36,13 +36,9 @@ output by \code{\link[=wrangle_data]{wrangle_data()}}}
 \item{distribution}{one of "posterior" or "prior" - which distribution should
 we sample from? (See the details section of this help.)}
 
-\item{model}{one of \code{"dvsb"}, \code{"dvsb_accidental_blanks"} or
-\code{"dvsb_no_mu_x_predictors"}. \code{dvsb} is the main dvsb model;
-\code{dvsb_accidental_blanks} is the extended model that allows for the
-possibility that each sample well accidentally contains nothing at all
-(i.e. is blank); \code{dvsb_no_mu_x_predictors} is the restricted model in which
-regression models are not specified for the means of the two antibody
-distributions (one for seropositives and one for seronegatives).}
+\item{accidental_blanks}{a single logical value: should we use the extended
+statistical model that allows for the possibility that each sample well
+accidentally contains nothing at all (i.e. is blank)?}
 
 \item{interface}{one of \code{"rstan"}, \code{"cmdstanr"} or \code{"cmdstan"}.}
 

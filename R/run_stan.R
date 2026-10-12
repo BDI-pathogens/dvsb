@@ -31,13 +31,9 @@
 #' @param distribution one of "posterior" or "prior" - which distribution should
 #'   we sample from? (See the details section of this help.)
 #' @param interface one of `"rstan"`, `"cmdstanr"` or `"cmdstan"`.
-#' @param model one of `"dvsb"`, `"dvsb_accidental_blanks"` or
-#'   `"dvsb_no_mu_x_predictors"`. `dvsb` is the main dvsb model;
-#'   `dvsb_accidental_blanks` is the extended model that allows for the
-#'   possibility that each sample well accidentally contains nothing at all
-#'   (i.e. is blank); `dvsb_no_mu_x_predictors` is the restricted model in which
-#'   regression models are not specified for the means of the two antibody
-#'   distributions (one for seropositives and one for seronegatives).
+#' @param accidental_blanks a single logical value: should we use the extended
+#'   statistical model that allows for the possibility that each sample well
+#'   accidentally contains nothing at all (i.e. is blank)?
 #' @param params_to_ignore a character vector naming parameters to be excluded
 #'   from output. The default value is those parameters, including derived
 #'   quantities that are calculated as part of the statistical model, that we
@@ -67,7 +63,7 @@
 #'
 run_stan <- function(data_wrangled,
                      distribution = c("posterior", "prior"),
-                     model = c("dvsb", "dvsb_accidental_blanks", "dvsb_no_mu_x_predictors"),
+                     accidental_blanks = FALSE,
                      interface = c("rstan", "cmdstanr", "cmdstan"),
                      params_to_ignore = c(
                        "lp__",
@@ -134,11 +130,34 @@ run_stan <- function(data_wrangled,
   stopifnot(is.character(params_to_ignore))
   stopifnot(is.character(interface))
   interface <- match.arg(interface)
-  stopifnot(is.character(model))
-  model <- match.arg(model)
+  mastiff::check_logical(accidental_blanks)
   stopifnot(is.character(distribution))
   distribution <- match.arg(distribution)
   
+  # Get which of the three dvsb models we need, while checking arg consistency
+  stopifnot("x_mix_pred_vars_names" %in% names(data_wrangled$data_descriptors))
+  stopifnot("mu_pos" %in% names(data_wrangled$data_descriptors$x_mix_pred_vars_names))
+  stopifnot("mu_neg" %in% names(data_wrangled$data_descriptors$x_mix_pred_vars_names))
+  if (length(data_wrangled$data_descriptors$x_mix_pred_vars_names$mu_pos)) {
+    if (length(data_wrangled$data_descriptors$x_mix_pred_vars_names$mu_neg)) {
+      if (accidental_blanks) {
+        model <- "dvsb_accidental_blanks"
+      } else {
+        model <- "dvsb"
+      }
+    } else {
+      stop("You cannot specify a regression for mu_pos but not mu_neg")
+    }
+  } else {
+    if (length(data_wrangled$data_descriptors$x_mix_pred_vars_names$mu_neg)) stop(
+      "You cannot specify a regression for mu_neg but not mu_pos")
+    if (accidental_blanks) {
+      stop(paste("Use of accidental_blanks requires a regression model to be",
+                 "specified for mu_pos and mu_neg"))
+    }
+    model <- "dvsb_no_mu_x_predictors"
+  }
+
   path_to_stan_code <- get_stan_file_path(model)
   input_to_stan <- data_wrangled[[paste0("stan_input_", distribution)]]
   result <- mastiff::run_stan_interfaces(path_to_stan_code = path_to_stan_code,
