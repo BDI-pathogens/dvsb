@@ -30,13 +30,12 @@ test_that("simulated data has expected size and indices", {
 test_that("All combinations of x_mix parameters can have regression models", {
   x_mix_params <- c("mu_neg", "mu_pos", "p_pos", "sd_neg", "sd_pos")
   bools <- list()
-  for (bool_mu_neg in c(FALSE, TRUE)) {
-    for (bool_mu_pos in c(FALSE, TRUE)) {
+  for (bool_mu_ in c(FALSE, TRUE)) {
       for (bool_sd_neg in c(FALSE, TRUE)) {
         for (bool_sd_pos in c(FALSE, TRUE)) {
           for (bool_p_pos in c(FALSE, TRUE)) {
-            bools <- list(mu_neg = bool_mu_neg,
-                          mu_pos = bool_mu_pos,
+            bools <- list(mu_neg = bool_mu_,
+                          mu_pos = bool_mu_,
                           sd_neg = bool_sd_neg,
                           sd_pos = bool_sd_pos,
                           p_pos  = bool_p_pos)
@@ -63,8 +62,21 @@ test_that("All combinations of x_mix parameters can have regression models", {
           }
         }
       }
-    }
+    
   }
+})
+
+test_that("A regression model for only one of mu_neg or mu_pos gives warning", {
+  expect_warning(simulate_data(
+    x_mix_pred_vars = list(mu_pos = list(a = letters[1:3])),
+    x_mix_pred_vars_sds = list(mu_pos = c(a = 1))),
+    regexp = paste("You have chosen to simulate using a regression for only",
+                   "one of mu_pos and mu_neg"))
+  expect_warning(simulate_data(
+    x_mix_pred_vars = list(mu_neg = list(a = letters[1:3])),
+    x_mix_pred_vars_sds = list(mu_neg = c(a = 1))),
+    regexp = paste("You have chosen to simulate using a regression for only",
+                   "one of mu_pos and mu_neg"))
 })
 
 test_that("simulate_data works with f_pred_vars", {

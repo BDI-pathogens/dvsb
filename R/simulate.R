@@ -395,7 +395,17 @@ simulate_data <- function(
     ))
   }
   
-  # TODO: warn if a regression model is specified for exactly one of mu_pos, mu_neg
+  # Warn if a regression model is specified for exactly one of mu_pos, mu_neg
+  if ((length(x_mix_pred_vars$mu_pos) &&
+       ! length(x_mix_pred_vars$mu_neg)) ||
+      ((! length(x_mix_pred_vars$mu_pos)) &&
+       length(x_mix_pred_vars$mu_neg))) {
+    warning(paste(
+      "You have chosen to simulate using a regression for only one of mu_pos",
+      "and mu_neg. When it comes to analysing this data, the statistical model",
+      "requires a regression model for both or neither. Continuing."
+    ))
+  }
   
   # SIMULATE PLATE VARIABILITY AND CALS ----
   
