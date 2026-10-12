@@ -32,20 +32,16 @@ theme_set(theme_classic())
 
 ## Simulate data
 
-We simulate data, giving us a list with seven things in it.
-(If we were using real data instead of simulated data, we would simply need to create the `df_sam` and `df_cal` dataframes ourselves instead of running `simulate_data()` below.
-The documentation for `wrangle_data()` explains what columns these dataframes require, and how sets of covariates for regression models are specified using the arguments `x_mix_pred_vars_names`, `p_pos_binary_pred_vars`, `f_pred_vars_names`.)
+We simulate data.
+If we were using real data instead of simulated data, we would simply need to create the `df_sam` and `df_cal` dataframes ourselves instead of running `simulate_data()` below.
+The documentation for `wrangle_data()` explains what columns these dataframes require.
 
 ```{r simulate, message=FALSE}
-data <- simulate_data(seed = 1234,
-                      num_sam_per_plate = 100)
+data <- simulate_data(seed = 12345)
 df_sam <- data$df_sam
 df_cal <- data$df_cal
 df_plate <- data$df_plate
 param_true_values_list <- data$params
-f_pred_vars_names <- data$f_pred_vars_names
-x_mix_pred_vars_names <- data$x_mix_pred_vars_names
-p_pos_binary_pred_vars <- data$p_pos_binary_pred_vars
 ```
 
 Plot the simulated calibration data (one facet per plate):
@@ -56,20 +52,18 @@ ggplot(df_cal) +
   facet_wrap(~plate, ncol = 3) 
 ```
 
-Plot the simulated sample data, histogramming the x and y values, one facet for each category of the `letter` covariate (which differ in their x distributions when using default arguments for `simulate_data()`):
+Plot the simulated sample data, histogramming the x and y values:
 
 ```{r plot_data_sam_x, fig.height=5}
 ggplot(df_sam) +
-  geom_histogram(aes(x = x), bins = 20) +
-  facet_wrap(~letter) +
+  geom_histogram(aes(x = x), bins = 30) +
   scale_x_log10()
 ```
 
 ```{r plot_data_sam_y, fig.height=5}
 # With default values, y is rarely negative; restrict to positive for visibility
 ggplot(df_sam %>% filter(y > 0)) +
-  geom_histogram(aes(x = y), bins = 20) +
-  facet_wrap(~letter) +
+  geom_histogram(aes(x = y), bins = 30) +
   scale_x_log10()
 ```
 
@@ -89,11 +83,7 @@ data_wrangled <- wrangle_data(
   df_cal = df_cal, 
   df_priors_scalars = priors_list$df_priors_scalars,
   df_priors_vectors = priors_list$df_priors_vectors, 
-  rho_prior_eta = priors_list$rho_prior_eta, 
-  x_mix_pred_vars_names = x_mix_pred_vars_names, 
-  p_pos_binary_pred_vars = p_pos_binary_pred_vars,
-  f_pred_vars_names = f_pred_vars_names
-  )
+  rho_prior_eta = priors_list$rho_prior_eta)
 ```
 
 Update our dataframes for samples, calibrators and plates with the extra columns we just added (which introduce integer indexing); this can be helpful later if we want to combine results and data.
@@ -109,13 +99,10 @@ We run Stan once to sample from the posterior, and again to sample from the prio
 
 ```{r run_stan, error = FALSE, warning = FALSE, message = FALSE, results = "hide"}
 capture.output({
-df_posterior <- run_stan(
-  data_wrangled = data_wrangled,
-  distribution = "posterior")
+df_posterior <- run_stan(data_wrangled = data_wrangled)
 
-df_prior <- run_stan(
-  data_wrangled = data_wrangled,
-  distribution = "prior")
+df_prior <- run_stan(data_wrangled = data_wrangled, 
+                     distribution = "prior")
 })
 ```
 
@@ -133,13 +120,13 @@ param_true_values_vector <- wrangle_true_params(
 
 For each of the population-level parameters we plot the posterior, prior and true value, demonstrating that the posterior moves away from the prior toward the true value, as it should for a correctly implemented model with informative data.
 One should always test this.
-We do this using `plot_posterior()` from our package `mastiff`, just for nine parameters for better visibility within Rmarkdown:
+We do this using `plot_posterior()` from our package `mastiff`, just for 16 parameters for better visibility within Rmarkdown:
 
-```{r plot_posterior_prior, warning=FALSE, out.width="95%", fig.height=10}
+```{r plot_posterior_prior, warning=FALSE, out.width="95%", fig.height=7}
 mastiff::plot_posterior(
     posterior_samples = df_posterior,
     prior_samples     = df_prior,
-    params_desired = names(df_prior)[1:9],
+    params_desired = names(df_prior)[1:16],
     true_param_values = param_true_values_vector,
     skip_stanfit_to_dt = TRUE)
 ```
@@ -173,42 +160,16 @@ ggplot(df_sam_x) +
        y = "Estimated log x")
 ```
 
-`df_posterior` has columns named `y_sam_sim_unconditional[1]`, `y_sam_sim_unconditional[2]` etc. which contain posterior predicted y values for new set of sampled individuals with the same distribution of covariates (i.e. partitioned into the same subpopulations, in this example based on a single covariate `letter`) as in the dataset analysed.
-The integer in square brackets indexes the sample replicate as in `df_sam$which_sam_rep`; we merge `df_sam` into `df_posterior` to associated each predicted `y` value with the appropriate subpopulation.
-We plot the empirical subpopulation-level distributions of y values, and the posterior predictive distribution of subpopulation-level distributions of y values.
-We use a log scale for y even though it can be negative, because with our default parameters it's only rarely negative and a log scale is clearer.
-We make both a spline density plot and also a histogram (splines are easier to see but the algorithm may make mistakes on fitting a smoothed distribution).
+`df_posterior` has columns named `y_sam_sim_unconditional[1]`, `y_sam_sim_unconditional[2]` etc. which contain posterior predicted y values for new set of sampled individuals.
+The integer in square brackets indexes the sample replicate as in `df_sam$which_sam_rep`.
+We plot the empirical population-level distribution of y values (in blue), and the posterior predictive distribution of the same thing (in black, one line per sample from the posterior predictive distribution).
 
 ```{r plot_posterior_retrodictive, message = FALSE, warning = FALSE}
 df_y_sim <- df_posterior %>%
   select(starts_with("y_sam_sim_unconditional[")) %>%
   mutate(sample = row_number()) %>%
   pivot_longer(-c("sample"), names_to = "param") %>%
-  tidyr::extract(param, 
-               into = "which_sam_rep", 
-               regex = "y_sam_sim_unconditional\\[([0-9]+)\\]") %>%
-  mutate(which_sam_rep = as.integer(which_sam_rep)) %>%
-  left_join(df_sam, by = "which_sam_rep") %>%
   mutate(value = log10(value))
-ggplot() +
-  geom_step(data = df_y_sim,
-            aes(x = value,
-                y = after_stat(density),
-                group = sample),
-            stat="bin",
-            color="black",
-            bins = 60,
-            alpha = 0.1) +
-  geom_step(data = df_sam,
-            aes(x = log10(y), # y,
-                y = after_stat(density)),
-            stat="bin",
-            bins = 60,
-            color="blue") +
-  coord_cartesian(expand = F) +
-  facet_wrap(~letter) +
-  labs(x = "log10(OD value)",
-       y = "probability density")
 ggplot() +
   geom_density(data = df_y_sim,
                aes(x = value,
@@ -218,7 +179,6 @@ ggplot() +
             aes(x = log10(y)),
             color="blue") +
   coord_cartesian(expand = F) +
-  facet_wrap(~letter) +
   labs(x = "log10(OD value)",
        y = "probability density")
 ```
