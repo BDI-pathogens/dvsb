@@ -46,6 +46,9 @@ accidentally contains nothing at all (i.e. is blank)?}
 from output. The default value is those parameters, including derived
 quantities that are calculated as part of the statistical model, that we
 think will typically not be of interest.}
+
+\item{...}{additional arguments will be passed to
+\code{\link[mastiff:run_stan_interfaces]{mastiff::run_stan_interfaces()}}.}
 }
 \value{
 a dataframe with one row per sample from the posterior and one
