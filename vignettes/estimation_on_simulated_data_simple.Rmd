@@ -2,7 +2,7 @@
 title: "Basic estimation on simulated data"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{basic_estimation_on_simulated_data_simple}
+  %\VignetteIndexEntry{basic_estimation_on_simulated_data}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
