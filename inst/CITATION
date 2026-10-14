@@ -1,0 +1,8 @@
+bibentry(
+  bibtype = "Article",
+  title = "Estimation of stratified seroprevalence directly from raw serological assay measurements with multi-level Bayesian mixture modelling",
+  author = "Chris Wymant and Michelle Kendall and James A. Hay and Christophe Fraser",
+  journal = "medRxiv",
+  year = "2026",
+  doi = "10.64898/2026.09.17.26363301"
+)
