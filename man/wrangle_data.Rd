@@ -7,9 +7,7 @@
 wrangle_data(
   df_sam,
   df_cal,
-  df_priors_scalars,
-  df_priors_vectors,
-  rho_prior_eta = 1,
+  priors_list,
   x_mix_pred_vars_names = list(p_pos = character(), mu_pos = character(), sd_pos =
     character(), mu_neg = character(), sd_neg = character()),
   p_pos_binary_pred_vars = character(),
@@ -25,16 +23,7 @@ id_sam, y, and plate. y should be numeric.}
 its list of outputs): with one row per calibrator replicate, including
 columns x, y, and plate. x and y should be numeric.}
 
-\item{df_priors_scalars, df_priors_vectors}{dataframes of the format output by
-\code{\link[=get_priors]{get_priors()}} (inside its list of outputs): each having one row per
-parameter, including columns \code{param}, \code{lower}, and \code{upper}. \code{param} should
-be character, \code{lower} and \code{upper} should be numeric.}
-
-\item{rho_prior_eta}{the single positive number 'eta' that is a
-hyperparameter of the LKJ distribution used as the prior for the
-correlation matrix for variability in the parameters of the x<->y
-relationship between plates. See the Stan docs on the LKJ distribution for
-the definition of eta.}
+\item{priors_list}{a list as output by \code{\link[=get_priors]{get_priors()}}.}
 
 \item{x_mix_pred_vars_names}{a list (whose names are the parameters p_pos,
 mu_neg, mu_pos, sd_neg, sd_pos) of character vectors (each one naming the

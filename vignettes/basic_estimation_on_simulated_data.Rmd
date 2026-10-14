@@ -81,9 +81,8 @@ Wrangle the data and priors into the form needed for stan.
 data_wrangled <- wrangle_data(
   df_sam = df_sam, 
   df_cal = df_cal, 
-  df_priors_scalars = priors_list$df_priors_scalars,
-  df_priors_vectors = priors_list$df_priors_vectors, 
-  rho_prior_eta = priors_list$rho_prior_eta)
+  priors_list = priors_list
+)
 ```
 
 Update our dataframes for samples, calibrators and plates with the extra columns we just added (which introduce integer indexing); this can be helpful later if we want to combine results and data.

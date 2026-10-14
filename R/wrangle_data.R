@@ -6,15 +6,7 @@
 #' @param df_cal a dataframe of the format output by [simulate_data()] (inside
 #'   its list of outputs): with one row per calibrator replicate, including
 #'   columns x, y, and plate. x and y should be numeric.
-#' @param df_priors_scalars,df_priors_vectors dataframes of the format output by
-#'   [get_priors()] (inside its list of outputs): each having one row per
-#'   parameter, including columns `param`, `lower`, and `upper`. `param` should
-#'   be character, `lower` and `upper` should be numeric.
-#' @param rho_prior_eta the single positive number 'eta' that is a
-#'   hyperparameter of the LKJ distribution used as the prior for the
-#'   correlation matrix for variability in the parameters of the x<->y
-#'   relationship between plates. See the Stan docs on the LKJ distribution for
-#'   the definition of eta.
+#' @param priors_list a list as output by [get_priors()].
 #' @param x_mix_pred_vars_names a list (whose names are the parameters p_pos,
 #'   mu_neg, mu_pos, sd_neg, sd_pos) of character vectors (each one naming the
 #'   categorical predictor variables used in the regression model for that
@@ -40,9 +32,7 @@
 wrangle_data <- function(
     df_sam,
     df_cal,
-    df_priors_scalars,
-    df_priors_vectors,
-    rho_prior_eta = 1,
+    priors_list,
     x_mix_pred_vars_names = list(
       p_pos  = character(),
       mu_pos = character(),
@@ -74,9 +64,13 @@ wrangle_data <- function(
   }
   stopifnot(is.character(p_pos_binary_pred_vars))
   stopifnot(all(p_pos_binary_pred_vars %in% names(df_sam)))
-  mastiff::check_numeric(rho_prior_eta, lower = 0)
-  stopifnot(is.data.frame(df_priors_scalars))
-  stopifnot(is.data.frame(df_priors_vectors))
+  stopifnot(is.list(priors_list))
+  stopifnot("df_priors_scalars" %in% names(priors_list))
+  stopifnot("df_priors_vectors" %in% names(priors_list))
+  stopifnot("rho_prior_eta" %in% names(priors_list))
+  mastiff::check_numeric(priors_list$rho_prior_eta, lower = 0)
+  stopifnot(is.data.frame(priors_list$df_priors_scalars))
+  stopifnot(is.data.frame(priors_list$df_priors_vectors))
   cols_expected_sam <- c("y", "plate", "id_sam")
   for (col in cols_expected_sam) {
     if (! col %in% names(df_sam)) stop(paste("Column", col,
@@ -109,10 +103,10 @@ wrangle_data <- function(
   stopifnot(!anyNA(df_cal$plate))
   cols_expected_df_priors <- c("param", "lower", "upper")
   for (col in cols_expected_df_priors) {
-    if (! col %in% names(df_priors_scalars)) stop(paste(
-      "Column", col, "missing from df_priors_scalars"))
-    if (! col %in% names(df_priors_vectors)) stop(paste(
-      "Column", col, "missing from df_priors_vectors"))
+    if (! col %in% names(priors_list$df_priors_scalars)) stop(paste(
+      "Column", col, "missing from priors_list$df_priors_scalars"))
+    if (! col %in% names(priors_list$df_priors_vectors)) stop(paste(
+      "Column", col, "missing from priors_list$df_priors_vectors"))
   }
   
   for (param in c("mu_neg", "sd_neg", "sd_pos", "mu_pos", "p_pos", "p_blank", 
@@ -121,13 +115,13 @@ wrangle_data <- function(
                   "sigma_mu_pos_pred_vars", "sigma_sd_pos_pred_vars", 
                   "sigma_mu_neg_pred_vars", "sigma_sd_neg_pred_vars", 
                   "p_pos_binary_effects")) {
-    if (! param %in% df_priors_scalars$param) stop(paste(
-      "Parameter", param, "missing from df_priors_scalars"
+    if (! param %in% priors_list$df_priors_scalars$param) stop(paste(
+      "Parameter", param, "missing from priors_list$df_priors_scalars"
     ))
   }
   for (param in c("sigma_f_plate", "f", "sigma_f_pred_vars")) {
-    if (! param %in% df_priors_vectors$param) stop(paste(
-      "Parameter", param, "missing from df_priors_vectors"
+    if (! param %in% priors_list$df_priors_vectors$param) stop(paste(
+      "Parameter", param, "missing from priors_list$df_priors_vectors"
     ))
   }
   
@@ -143,6 +137,10 @@ wrangle_data <- function(
 
   
   # GENERAL WRANGLING ----
+  
+  df_priors_scalars <- priors_list$df_priors_scalars
+  df_priors_vectors <- priors_list$df_priors_vectors
+  rho_prior_eta <- priors_list$rho_prior_eta
   
   df <- dplyr::bind_rows(df_sam, df_cal)
   

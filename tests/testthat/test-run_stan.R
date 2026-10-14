@@ -68,9 +68,7 @@ test_that("cmdstan works", {
   data_wrangled <- wrangle_data(
     df_sam = data$df_sam, 
     df_cal = data$df_cal, 
-    df_priors_scalars = priors_list$df_priors_scalars,
-    df_priors_vectors = priors_list$df_priors_vectors, 
-    rho_prior_eta = priors_list$rho_prior_eta, 
+    priors_list = priors_list,
     x_mix_pred_vars_names = data$x_mix_pred_vars_names, 
     p_pos_binary_pred_vars = data$p_pos_binary_pred_vars,
     f_pred_vars_names = data$f_pred_vars_names
@@ -140,9 +138,7 @@ test_that("cmdstanr works", {
   data_wrangled <- wrangle_data(
     df_sam = data$df_sam, 
     df_cal = data$df_cal, 
-    df_priors_scalars = priors_list$df_priors_scalars,
-    df_priors_vectors = priors_list$df_priors_vectors, 
-    rho_prior_eta = priors_list$rho_prior_eta, 
+    priors_list = priors_list,
     x_mix_pred_vars_names = data$x_mix_pred_vars_names, 
     p_pos_binary_pred_vars = data$p_pos_binary_pred_vars,
     f_pred_vars_names = data$f_pred_vars_names
@@ -208,9 +204,7 @@ test_that("rstan works", {
   data_wrangled <- wrangle_data(
     df_sam = data$df_sam, 
     df_cal = data$df_cal, 
-    df_priors_scalars = priors_list$df_priors_scalars,
-    df_priors_vectors = priors_list$df_priors_vectors, 
-    rho_prior_eta = priors_list$rho_prior_eta, 
+    priors_list = priors_list,
     x_mix_pred_vars_names = data$x_mix_pred_vars_names, 
     p_pos_binary_pred_vars = data$p_pos_binary_pred_vars,
     f_pred_vars_names = data$f_pred_vars_names
