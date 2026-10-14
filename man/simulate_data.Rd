@@ -141,11 +141,12 @@ argument can be used to specify values for all these coefficients; this may
 be useful to keep them fixed over several different simulations of a
 dataset, e.g. with different stochastic seeds, to compare inference with
 these random effects fixed. If used, this argument should be a list (whose
-names are the x mixture parameters p_pos, mu_neg, mu_pos, sd_neg, sd_pos)
-of lists (whose names match those of the same parameter in x_mix_pred_vars)
-of named numeric vectors (one per categorical variable used in a regression
-model for this parameter; the names, one per category of this variable,
-must match those for the variable as specified in x_mix_pred_vars).}
+names are some or all of the x mixture parameters p_pos, mu_neg, mu_pos,
+sd_neg, sd_pos) of lists (whose names are the names of categorical
+variables used as covariates in a regression model for this parameter) of
+named numeric vectors (whose names are the different categories of this
+categorical variable, and whose values are the effects this category has on
+this parameter).}
 
 \item{p_pos_binary_effects}{a named numeric vector. Each \{name, numeric
 value\} pair within this vector specifies the name of a logical variable and

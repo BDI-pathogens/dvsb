@@ -89,29 +89,46 @@ test_that("simulate_data works with f_pred_vars", {
   expect_all_equal(sort(unique(data$df_plate$place)) == c("A", "B", "C"), TRUE)
 })
 
-test_that("simulate_data works with x_mix_effects", {
-  x_mix_effects <- list(
-    p_pos = list(letter = c(a=-0.1, b=-0.3, c=0.4)),
-    mu_pos = list(letter = c(a=0.2, b=0.3, c=-0.5)),
-    mu_neg = list(letter = c(a=0.2, b=0.2, c=-0.4)),
-    sd_pos = list(letter = c(a=0.2, b=-0.2, c=0)),
-    sd_neg = list(letter = c(a=0.1, b=-0.1, c=0))
-  )
-  x_mix_pred_vars <- list(p_pos = list(letter = letters[1:3]),
-                          mu_neg = list(letter = letters[1:3]),
-                          mu_pos = list(letter = letters[1:3]),
-                          sd_neg = list(letter = letters[1:3]),
-                          sd_pos = list(letter = letters[1:3]))
-  data <- simulate_data(x_mix_effects = x_mix_effects,
-                        x_mix_pred_vars = x_mix_pred_vars,
-                        x_mix_pred_vars_sds = list(
-                          p_pos = c(letter = 1),
-                          mu_neg = c(letter = 1),
-                          mu_pos = c(letter = 1),
-                          sd_neg = c(letter = 0.2),
-                          sd_pos = c(letter = 0.2)
-                        ))
-  expect_true(identical(data$params$x_mix_effects, x_mix_effects))
+
+
+test_that("All combinations of x_mix parameters work in x_mix_effects", {
+  x_mix_params <- c("mu_neg", "mu_pos", "p_pos", "sd_neg", "sd_pos")
+  for (bool_mu_ in c(FALSE, TRUE)) {
+    for (bool_sd_neg in c(FALSE, TRUE)) {
+      for (bool_sd_pos in c(FALSE, TRUE)) {
+        for (bool_p_pos in c(FALSE, TRUE)) {
+          bools <- c(mu_neg = bool_mu_,
+                     mu_pos = bool_mu_,
+                     sd_neg = bool_sd_neg,
+                     sd_pos = bool_sd_pos,
+                     p_pos  = bool_p_pos)
+          if (! any(bools)) next
+          x_mix_effects = list()
+          x_mix_pred_vars <- list()
+          for (param in x_mix_params) {
+            if (bools[[param]]) {
+              x_mix_effects[[param]] <- list(a = c(a = 1, b = 2, d = -3),
+                                             b = c(e = 1, f = 2, g = -3))
+              x_mix_pred_vars[[param]] <- list(a = c("a", "b", "d"),
+                                               b = c("e", "f", "g"))
+            }
+          }
+          
+          data <- simulate_data(x_mix_effects = x_mix_effects, num_plate = 100)
+          for (param in x_mix_params) {
+            if (! bools[[param]]) {
+              expect_identical(data$params$x_mix_effects[[param]], list())
+            } else {
+              expect_identical(purrr::map(data$params$x_mix_effects[[param]], 
+                                          names),
+                               x_mix_pred_vars[[param]])
+            }
+          }
+        }
+      }
+    }
+    
+  }
 })
 
 test_that("Expected error messages in simulate_data are triggered", {

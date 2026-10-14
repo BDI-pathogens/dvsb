@@ -104,11 +104,12 @@
 #'   be useful to keep them fixed over several different simulations of a
 #'   dataset, e.g. with different stochastic seeds, to compare inference with
 #'   these random effects fixed. If used, this argument should be a list (whose
-#'   names are the x mixture parameters p_pos, mu_neg, mu_pos, sd_neg, sd_pos)
-#'   of lists (whose names match those of the same parameter in x_mix_pred_vars)
-#'   of named numeric vectors (one per categorical variable used in a regression
-#'   model for this parameter; the names, one per category of this variable,
-#'   must match those for the variable as specified in x_mix_pred_vars).
+#'   names are some or all of the x mixture parameters p_pos, mu_neg, mu_pos,
+#'   sd_neg, sd_pos) of lists (whose names are the names of categorical
+#'   variables used as covariates in a regression model for this parameter) of
+#'   named numeric vectors (whose names are the different categories of this
+#'   categorical variable, and whose values are the effects this category has on
+#'   this parameter).
 #' @param p_pos_binary_effects a named numeric vector. Each \{name, numeric
 #'   value\} pair within this vector specifies the name of a logical variable and
 #'   the additive shift in seroprevalence (on a logit scale) between when this
@@ -315,20 +316,34 @@ simulate_data <- function(
   # Check a manually specified x_mix_effects
   if (! identical(x_mix_effects, NA)) {
     stopifnot(is.list(x_mix_effects))
-    stopifnot(identical(sort(names(x_mix_effects)),
-                        sort(x_mix_params)))
+    stopifnot(!is.null(names(x_mix_effects)))
+    for (name_ in names(x_mix_effects)) {
+      if (! name_ %in% x_mix_params) stop(paste(
+        "Unexpected element", name_, "in x_mix_effects"
+      ))
+    }
+    stopifnot(!anyDuplicated(names(x_mix_effects)))
+    x_mix_pred_vars <- list()
     for (param in x_mix_params) {
-      stopifnot(is.list(x_mix_effects[[param]]))
-      stopifnot(identical(sort(names(x_mix_effects[[param]])),
-                          sort(names(x_mix_pred_vars[[param]]))))
+      x_mix_pred_vars[[param]] <- list()
+      if (! param %in% names(x_mix_effects)) {
+        x_mix_effects[[param]] <- list()
+        next
+      }
+      if (! is.list(x_mix_effects[[param]])) {
+        stop(paste0("x_mix_effects$", param, " is not a list"))
+      }
       for (param_inner in names(x_mix_effects[[param]])) {
         stopifnot(is.numeric(x_mix_effects[[param]][[param_inner]]))
-        stopifnot(identical(sort(names(x_mix_effects[[param]][[param_inner]])),
-                            sort(x_mix_pred_vars[[param]][[param_inner]])))
+        stopifnot(length(names(x_mix_effects[[param]][[param_inner]])) > 1)
         stopifnot(all(is.finite(x_mix_effects[[param]][[param_inner]])))
         stopifnot(abs(sum(x_mix_effects[[param]][[param_inner]])) < 1e-5)
+        x_mix_pred_vars[[param]][[param_inner]] <- 
+          names(x_mix_effects[[param]][[param_inner]])
       }
     }
+    x_mix_pred_vars_names <- purrr::map(x_mix_pred_vars, names)
+    x_mix_pred_vars_nums <- purrr::map_int(x_mix_pred_vars_names, length)
   }  
   
   # Check that if the same predictor variable is specified for different params,
