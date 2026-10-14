@@ -17,9 +17,6 @@ stan_dir <- system.file("stan", package = "dvsb")
 x_mix_params <- c("p_pos", "mu_neg", "mu_pos", "sd_neg", "sd_pos")
 
 priors_list <- get_priors()
-df_priors_scalars <- priors_list$df_priors_scalars
-df_priors_vectors <- priors_list$df_priors_vectors
-rho_prior_eta <- priors_list$rho_prior_eta
 
 params_to_ignore <- c(
   "accept_stat__",
@@ -152,9 +149,7 @@ simulate_and_capture <-
   data_wrangled <- wrangle_data(
     df_sam = df_sam, 
     df_cal = df_cal, 
-    df_priors_scalars = df_priors_scalars,
-    df_priors_vectors = df_priors_vectors, 
-    rho_prior_eta = rho_prior_eta, 
+    priors_list = priors_list,
     x_mix_pred_vars_names = x_mix_pred_vars_names, 
     p_pos_binary_pred_vars = p_pos_binary_pred_vars,
     f_pred_vars_names = f_pred_vars_names
@@ -270,11 +265,6 @@ x_mix_effects <- list(
   sd_pos = list(letter = c(a=0.2, b=-0.2, c=0)),
   sd_neg = list(letter = c(a=0.1, b=-0.1, c=0))
 )
-x_mix_pred_vars <- list(p_pos = list(letter = letters[1:3]),
-                        mu_neg = list(letter = letters[1:3]),
-                        mu_pos = list(letter = letters[1:3]),
-                        sd_neg = list(letter = letters[1:3]),
-                        sd_pos = list(letter = letters[1:3]))
 
 p_pos_binary_effects <- numeric()
 
@@ -294,7 +284,6 @@ for (num_plate in num_plates_range) {
                                    num_plate = num_plate,
                                    num_sam_per_plate = num_sam_per_plate,
                                    x_mix_effects = x_mix_effects,
-                                   x_mix_pred_vars = x_mix_pred_vars,
                                    p_pos_binary_effects = p_pos_binary_effects)
     list_df_y_sam_sim[[i]] <- result$df_y_sam_sim
     list_df_quantiles[[i]] <- result$df_quantiles
@@ -328,7 +317,6 @@ for (num_plate_ in num_plates_range) {
                                    num_plate = num_plate_,
                                    num_sam_per_plate = num_sam_per_plate,
                                    x_mix_effects = x_mix_effects,
-                                   x_mix_pred_vars = x_mix_pred_vars,
                                    p_pos_binary_effects = p_pos_binary_effects)
     list_df_y_sam_sim[[i]] <- result$df_y_sam_sim
     list_df_quantiles[[i]] <- result$df_quantiles
@@ -354,7 +342,6 @@ for (seed in seed_range) {
                                  num_plate = 1, # Can't be zero, but irrelevant for prior
                                  num_sam_per_plate = num_sam_per_plate,
                                  x_mix_effects = x_mix_effects,
-                                 x_mix_pred_vars = x_mix_pred_vars,
                                  p_pos_binary_effects = p_pos_binary_effects)
   list_df_quantiles[[i]] <- result$df_quantiles
   list_df_sam[[i]] <- result$df_sam
@@ -370,15 +357,12 @@ df_sam <- rbindlist(list_df_sam, use.names = TRUE)
 
 # Get the true params in wrangled form. Simulate again for convenience for this.
 data <- simulate_data(x_mix_effects = x_mix_effects,
-                      x_mix_pred_vars = x_mix_pred_vars,
                       p_pos_binary_effects = p_pos_binary_effects)
 param_true_values_list <- data$params
 data_wrangled <- wrangle_data(
   df_sam = data$df_sam, 
   df_cal = data$df_cal, 
-  df_priors_scalars = df_priors_scalars,
-  df_priors_vectors = df_priors_vectors, 
-  rho_prior_eta = rho_prior_eta, 
+  priors_list = priors_list, 
   x_mix_pred_vars_names = data$x_mix_pred_vars_names, 
   p_pos_binary_pred_vars = data$p_pos_binary_pred_vars,
   f_pred_vars_names = data$f_pred_vars_names
@@ -692,9 +676,7 @@ param_true_values_list <- data$params
 data_wrangled <- wrangle_data(
   df_sam = data$df_sam, 
   df_cal = data$df_cal, 
-  df_priors_scalars = df_priors_scalars,
-  df_priors_vectors = df_priors_vectors, 
-  rho_prior_eta = rho_prior_eta, 
+  priors_list = priors_list,
   x_mix_pred_vars_names = data$x_mix_pred_vars_names, 
   p_pos_binary_pred_vars = data$p_pos_binary_pred_vars,
   f_pred_vars_names = data$f_pred_vars_names
