@@ -146,7 +146,13 @@ sd_neg, sd_pos) of lists (whose names are the names of categorical
 variables used as covariates in a regression model for this parameter) of
 named numeric vectors (whose names are the different categories of this
 categorical variable, and whose values are the effects this category has on
-this parameter).}
+this parameter). The mean value of each numeric vector should be zero
+(because in the statistical model, we model these values as normally
+distributed with mean zero). If using this argument, we set the values
+inside the \code{x_mix_pred_vars_sds} list (that is inside the list of outputs
+returned by this function) to be the biased standard deviation of each
+numeric vector, to match what the statistical model will tend to estimate
+(as the maximum-likelihood value).}
 
 \item{p_pos_binary_effects}{a named numeric vector. Each \{name, numeric
 value\} pair within this vector specifies the name of a logical variable and

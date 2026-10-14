@@ -34,6 +34,7 @@ test_that("All combinations of x_mix parameters can have regression models", {
       for (bool_sd_neg in c(FALSE, TRUE)) {
         for (bool_sd_pos in c(FALSE, TRUE)) {
           for (bool_p_pos in c(FALSE, TRUE)) {
+            
             bools <- list(mu_neg = bool_mu_,
                           mu_pos = bool_mu_,
                           sd_neg = bool_sd_neg,
@@ -48,8 +49,17 @@ test_that("All combinations of x_mix parameters can have regression models", {
                 x_mix_pred_vars_sds[[param]] <- c(a = 1, b = 1)
               }
             }
+            
             data <- simulate_data(x_mix_pred_vars = x_mix_pred_vars,
                                   x_mix_pred_vars_sds = x_mix_pred_vars_sds)
+            data_wrangled <- wrangle_data(df_sam = data$df_sam, 
+                                          df_cal = data$df_cal, 
+                                          priors_list = get_priors(),
+                                          x_mix_pred_vars_names = 
+                                            data$x_mix_pred_vars_names)
+            expect_no_error(wrangle_true_params(data$params, 
+                                                data_wrangled$data_descriptors))
+            
             for (param in x_mix_params) {
               if (! bools[[param]]) {
                 expect_identical(data$params$x_mix_effects[[param]], list())
@@ -97,6 +107,7 @@ test_that("All combinations of x_mix parameters work in x_mix_effects", {
     for (bool_sd_neg in c(FALSE, TRUE)) {
       for (bool_sd_pos in c(FALSE, TRUE)) {
         for (bool_p_pos in c(FALSE, TRUE)) {
+          
           bools <- c(mu_neg = bool_mu_,
                      mu_pos = bool_mu_,
                      sd_neg = bool_sd_neg,
@@ -115,6 +126,13 @@ test_that("All combinations of x_mix parameters work in x_mix_effects", {
           }
           
           data <- simulate_data(x_mix_effects = x_mix_effects, num_plate = 100)
+          data_wrangled <- wrangle_data(df_sam = data$df_sam, 
+                                        df_cal = data$df_cal, 
+                                        priors_list = get_priors(),
+                                        x_mix_pred_vars_names = 
+                                          data$x_mix_pred_vars_names)
+          expect_no_error(wrangle_true_params(data$params, 
+                                              data_wrangled$data_descriptors))
           for (param in x_mix_params) {
             if (! bools[[param]]) {
               expect_identical(data$params$x_mix_effects[[param]], list())
