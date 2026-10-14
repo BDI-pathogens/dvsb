@@ -18,7 +18,7 @@ PL4(xlog, f_1, f_2, f_3, f_4)
 \item{f_4}{a number}
 }
 \value{
-a number
+y (a number)
 }
 \description{
 Four-parameter logistic function
