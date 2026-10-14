@@ -32,7 +32,13 @@
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu"><li>
-      <a href="../articles/estimation_on_simulated_data_simple.html">Estimation on simulated data</a>
+      <a href="../articles/basic_estimation_on_simulated_data.html">Basic estimation on simulated data</a>
+    </li>
+    <li>
+      <a href="../articles/finding_outliers.html">Finding outliers</a>
+    </li>
+    <li>
+      <a href="../articles/regression_models.html">Regression models</a>
     </li>
   </ul></li>
       </ul><ul class="nav navbar-nav navbar-right"></ul></div><!--/.nav-collapse -->
@@ -242,11 +248,18 @@ argument can be used to specify values for all these coefficients; this may
 be useful to keep them fixed over several different simulations of a
 dataset, e.g. with different stochastic seeds, to compare inference with
 these random effects fixed. If used, this argument should be a list (whose
-names are the x mixture parameters p_pos, mu_neg, mu_pos, sd_neg, sd_pos)
-of lists (whose names match those of the same parameter in x_mix_pred_vars)
-of named numeric vectors (one per categorical variable used in a regression
-model for this parameter; the names, one per category of this variable,
-must match those for the variable as specified in x_mix_pred_vars).</p></dd>
+names are some or all of the x mixture parameters p_pos, mu_neg, mu_pos,
+sd_neg, sd_pos) of lists (whose names are the names of categorical
+variables used as covariates in a regression model for this parameter) of
+named numeric vectors (whose names are the different categories of this
+categorical variable, and whose values are the effects this category has on
+this parameter). The mean value of each numeric vector should be zero
+(because in the statistical model, we model these values as normally
+distributed with mean zero). If using this argument, we set the values
+inside the <code>x_mix_pred_vars_sds</code> list (that is inside the list of outputs
+returned by this function) to be the biased standard deviation of each
+numeric vector, to match what the statistical model will tend to estimate
+(as the maximum-likelihood value).</p></dd>
 
 
 <dt id="arg-p-pos-binary-effects">p_pos_binary_effects<a class="anchor" aria-label="anchor" href="#arg-p-pos-binary-effects"></a></dt>

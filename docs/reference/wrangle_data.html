@@ -32,7 +32,13 @@
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu"><li>
-      <a href="../articles/estimation_on_simulated_data_simple.html">Estimation on simulated data</a>
+      <a href="../articles/basic_estimation_on_simulated_data.html">Basic estimation on simulated data</a>
+    </li>
+    <li>
+      <a href="../articles/finding_outliers.html">Finding outliers</a>
+    </li>
+    <li>
+      <a href="../articles/regression_models.html">Regression models</a>
     </li>
   </ul></li>
       </ul><ul class="nav navbar-nav navbar-right"></ul></div><!--/.nav-collapse -->
@@ -57,9 +63,7 @@
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">wrangle_data</span><span class="op">(</span></span>
 <span>  <span class="va">df_sam</span>,</span>
 <span>  <span class="va">df_cal</span>,</span>
-<span>  <span class="va">df_priors_scalars</span>,</span>
-<span>  <span class="va">df_priors_vectors</span>,</span>
-<span>  rho_prior_eta <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  <span class="va">priors_list</span>,</span>
 <span>  x_mix_pred_vars_names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>p_pos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>, mu_pos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>, sd_pos <span class="op">=</span></span>
 <span>    <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>, mu_neg <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>, sd_neg <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  p_pos_binary_pred_vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/character.html" class="external-link">character</a></span><span class="op">(</span><span class="op">)</span>,</span>
@@ -83,19 +87,8 @@ its list of outputs): with one row per calibrator replicate, including
 columns x, y, and plate. x and y should be numeric.</p></dd>
 
 
-<dt id="arg-df-priors-scalars-df-priors-vectors">df_priors_scalars, df_priors_vectors<a class="anchor" aria-label="anchor" href="#arg-df-priors-scalars-df-priors-vectors"></a></dt>
-<dd><p>dataframes of the format output by
-<code><a href="get_priors.html">get_priors()</a></code> (inside its list of outputs): each having one row per
-parameter, including columns <code>param</code>, <code>lower</code>, and <code>upper</code>. <code>param</code> should
-be character, <code>lower</code> and <code>upper</code> should be numeric.</p></dd>
-
-
-<dt id="arg-rho-prior-eta">rho_prior_eta<a class="anchor" aria-label="anchor" href="#arg-rho-prior-eta"></a></dt>
-<dd><p>the single positive number 'eta' that is a
-hyperparameter of the LKJ distribution used as the prior for the
-correlation matrix for variability in the parameters of the x&lt;-&gt;y
-relationship between plates. See the Stan docs on the LKJ distribution for
-the definition of eta.</p></dd>
+<dt id="arg-priors-list">priors_list<a class="anchor" aria-label="anchor" href="#arg-priors-list"></a></dt>
+<dd><p>a list as output by <code><a href="get_priors.html">get_priors()</a></code>.</p></dd>
 
 
 <dt id="arg-x-mix-pred-vars-names">x_mix_pred_vars_names<a class="anchor" aria-label="anchor" href="#arg-x-mix-pred-vars-names"></a></dt>
