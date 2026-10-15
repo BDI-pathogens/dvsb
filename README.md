@@ -19,7 +19,7 @@ pak::pak("BDI-pathogens/dvsb")
 ```
 
 To interface to its Stan code, dvsb can use cmdstanr or cmdstan instead of rstan, if you desire.
-This requires that you have cmdstan installed.
+This requires that you have cmdstanr installed.
 Do that by running
 ```r
 install.packages("cmdstanr", repos = c('https://stan-dev.r-universe.dev', getOption("repos")))
