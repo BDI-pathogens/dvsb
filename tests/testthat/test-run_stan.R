@@ -1,3 +1,5 @@
+# DEFINE EXPECTED PARAMS IN TESTS ----
+
 stan_params_expected_in_testing_posterior <- c(
   "f[1]", "f[2]", "f[3]", "f[4]", "sigma_f[1]_plate", "sigma_f[2]_plate", 
   "sigma_f[3]_plate", "sigma_f[4]_plate", "sigma_p_pos_pred_vars_letter", 
@@ -37,6 +39,17 @@ stan_params_expected_in_testing_prior <-
                   "|y_cal_sim|f_per_plate|loglik_per_plate|logprob_f_effects_per_plate"),
            stan_params_expected_in_testing_posterior)]
 
+stan_params_expected_in_testing_posterior_no_predictors <- 
+  stan_params_expected_in_testing_posterior[
+    !grepl(paste0("letter|bool"), stan_params_expected_in_testing_posterior)]
+
+stan_params_expected_in_testing_prior_no_predictors <-
+  stan_params_expected_in_testing_posterior_no_predictors[
+    !grepl(paste0("y_sam|p_sam_is_pos|pos_sam_sim_unconditional|xlog_sam",
+                  "|y_cal_sim|f_per_plate|loglik_per_plate|logprob_f_effects_per_plate"),
+           stan_params_expected_in_testing_posterior_no_predictors)]
+
+# TEST plain dvsb ----
 
 test_that("cmdstan works", {
   
@@ -241,5 +254,334 @@ test_that("rstan works", {
   
 })
 
-# TODO: test the other two models
+# TEST dvsb_no_mu_x_predictors ----
 
+test_that("cmdstan works with dvsb_no_mu_x_predictors", {
+  
+  priors_list <- get_priors()
+  
+  data <- simulate_data(num_plate = 2, 
+                        num_sam_per_plate = 20, 
+                        num_rep_per_sam = 1,
+                        num_rep_per_cal = 1, 
+                        x_cals = c(0, 1))
+  
+  data_wrangled <- wrangle_data(
+    df_sam = data$df_sam, 
+    df_cal = data$df_cal, 
+    priors_list = priors_list
+  )
+  
+  iterations <- 1 
+  cmdstan_output_basename <- "/Users/cwymant/temp_dvsb_out"
+  
+  df_posterior <- pkgcond::suppress_warnings(run_stan(
+    data_wrangled = data_wrangled,
+    distribution = "posterior",
+    interface = "cmdstan",
+    iter_warmup = iterations,
+    iter_sampling = iterations,
+    cmdstan_path_to_output = cmdstan_output_basename),
+    mastiff:::stan_safe_warnings())
+  
+  df_prior <- pkgcond::suppress_warnings(run_stan(
+    data_wrangled = data_wrangled,
+    distribution = "prior",
+    interface = "cmdstan",
+    iter_warmup = iterations,
+    iter_sampling = iterations,
+    cmdstan_path_to_output = cmdstan_output_basename),
+    mastiff:::stan_safe_warnings())
+  
+  expect_true(is.data.frame(df_posterior))
+  expect_true(is.data.frame(df_prior))
+  expect_all_true(stan_params_expected_in_testing_posterior_no_predictors %in% 
+                    names(df_posterior))
+  expect_all_true(stan_params_expected_in_testing_prior_no_predictors %in% 
+                    names(df_prior))
+  
+})
+
+test_that("cmdstanr works with dvsb_no_mu_x_predictors", {
+  
+  priors_list <- get_priors()
+  
+  data <- simulate_data(num_plate = 2, 
+                        num_sam_per_plate = 20, 
+                        num_rep_per_sam = 1,
+                        num_rep_per_cal = 1, 
+                        x_cals = c(0, 1))
+  
+  data_wrangled <- wrangle_data(
+    df_sam = data$df_sam, 
+    df_cal = data$df_cal, 
+    priors_list = priors_list
+  )
+  
+  iterations <- 1 
+
+  df_posterior <- pkgcond::suppress_warnings(run_stan(
+    data_wrangled = data_wrangled,
+    distribution = "posterior",
+    interface = "cmdstanr",
+    iter_warmup = iterations,
+    iter_sampling = iterations),
+    mastiff:::stan_safe_warnings())
+  
+  df_prior <- pkgcond::suppress_warnings(run_stan(
+    data_wrangled = data_wrangled,
+    distribution = "prior",
+    interface = "cmdstanr",
+    iter_warmup = iterations,
+    iter_sampling = iterations),
+    mastiff:::stan_safe_warnings())
+  
+  expect_true(is.data.frame(df_posterior))
+  expect_true(is.data.frame(df_prior))
+  expect_all_true(stan_params_expected_in_testing_posterior_no_predictors %in% 
+                    names(df_posterior))
+  expect_all_true(stan_params_expected_in_testing_prior_no_predictors %in% 
+                    names(df_prior))
+  
+})
+
+test_that("rstan works with dvsb_no_mu_x_predictors", {
+  
+  priors_list <- get_priors()
+  
+  data <- simulate_data(num_plate = 2, 
+                        num_sam_per_plate = 20, 
+                        num_rep_per_sam = 1,
+                        num_rep_per_cal = 1, 
+                        x_cals = c(0, 1))
+  
+  data_wrangled <- wrangle_data(
+    df_sam = data$df_sam, 
+    df_cal = data$df_cal, 
+    priors_list = priors_list
+  )
+  
+  iterations <- 1 
+  
+  df_posterior <- pkgcond::suppress_warnings(run_stan(
+    data_wrangled = data_wrangled,
+    distribution = "posterior",
+    interface = "rstan",
+    iter_warmup = iterations,
+    iter_sampling = iterations,
+    cores = 1),
+    mastiff:::stan_safe_warnings())
+  
+  df_prior <- pkgcond::suppress_warnings(run_stan(
+    data_wrangled = data_wrangled,
+    distribution = "prior",
+    interface = "rstan",
+    iter_warmup = iterations,
+    iter_sampling = iterations,
+    cores = 1),
+    mastiff:::stan_safe_warnings())
+  
+  expect_true(is.data.frame(df_posterior))
+  expect_true(is.data.frame(df_prior))
+  expect_all_true(stan_params_expected_in_testing_posterior_no_predictors %in% 
+                    names(df_posterior))
+  expect_all_true(stan_params_expected_in_testing_prior_no_predictors %in% 
+                    names(df_prior))
+  
+})
+
+# TEST dvsb_accidental_blanks ----
+
+test_that("cmdstan works with dvsb_accidental_blanks", {
+  
+  priors_list <- get_priors()
+  
+  data <- simulate_data(num_plate = 2, 
+                        num_sam_per_plate = 20, 
+                        num_rep_per_sam = 1,
+                        num_rep_per_cal = 1, 
+                        x_cals = c(0, 1),
+                        x_mix_pred_vars = list(
+                          p_pos  = list(letter = letters[1:4]),
+                          mu_neg = list(letter = letters[1:4]),
+                          mu_pos = list(letter = letters[1:4]),
+                          sd_neg = list(letter = letters[1:4]),
+                          sd_pos = list(letter = letters[1:4])
+                        ),
+                        x_mix_pred_vars_sds = list(
+                          p_pos = c(letter = 1),
+                          mu_neg = c(letter = 1),
+                          mu_pos = c(letter = 1),
+                          sd_neg = c(letter = 0.2),
+                          sd_pos = c(letter = 0.2)
+                        ),
+                        p_pos_binary_effects = c("boolA" = -2,
+                                                 "boolB" = 0,
+                                                 "boolC" = 2))
+  
+  data_wrangled <- wrangle_data(
+    df_sam = data$df_sam, 
+    df_cal = data$df_cal, 
+    priors_list = priors_list,
+    x_mix_pred_vars_names = data$x_mix_pred_vars_names, 
+    p_pos_binary_pred_vars = data$p_pos_binary_pred_vars,
+    f_pred_vars_names = data$f_pred_vars_names
+  )
+  
+  iterations <- 1 
+  cmdstan_output_basename <- "/Users/cwymant/temp_dvsb_out"
+  
+  df_posterior <- pkgcond::suppress_warnings(run_stan(
+    accidental_blanks = TRUE,
+    data_wrangled = data_wrangled,
+    distribution = "posterior",
+    interface = "cmdstan",
+    iter_warmup = iterations,
+    iter_sampling = iterations,
+    cmdstan_path_to_output = cmdstan_output_basename),
+    mastiff:::stan_safe_warnings())
+  
+  df_prior <- pkgcond::suppress_warnings(run_stan(
+    accidental_blanks = TRUE,
+    data_wrangled = data_wrangled,
+    distribution = "prior",
+    interface = "cmdstan",
+    iter_warmup = iterations,
+    iter_sampling = iterations,
+    cmdstan_path_to_output = cmdstan_output_basename),
+    mastiff:::stan_safe_warnings())
+  
+  expect_true(is.data.frame(df_posterior))
+  expect_true(is.data.frame(df_prior))
+  expect_all_true(c(stan_params_expected_in_testing_posterior, "p_blank") %in% names(df_posterior))
+  expect_all_true(c(stan_params_expected_in_testing_prior, "p_blank") %in% names(df_prior))
+  
+})
+
+test_that("cmdstanr works with dvsb_accidental_blanks", {
+  
+  priors_list <- get_priors()
+  
+  data <- simulate_data(num_plate = 2, 
+                        num_sam_per_plate = 20, 
+                        num_rep_per_sam = 1,
+                        num_rep_per_cal = 1, 
+                        x_cals = c(0, 1),
+                        x_mix_pred_vars = list(
+                          p_pos  = list(letter = letters[1:4]),
+                          mu_neg = list(letter = letters[1:4]),
+                          mu_pos = list(letter = letters[1:4]),
+                          sd_neg = list(letter = letters[1:4]),
+                          sd_pos = list(letter = letters[1:4])
+                        ),
+                        x_mix_pred_vars_sds = list(
+                          p_pos = c(letter = 1),
+                          mu_neg = c(letter = 1),
+                          mu_pos = c(letter = 1),
+                          sd_neg = c(letter = 0.2),
+                          sd_pos = c(letter = 0.2)
+                        ),
+                        p_pos_binary_effects = c("boolA" = -2,
+                                                 "boolB" = 0,
+                                                 "boolC" = 2))
+  
+  data_wrangled <- wrangle_data(
+    df_sam = data$df_sam, 
+    df_cal = data$df_cal, 
+    priors_list = priors_list,
+    x_mix_pred_vars_names = data$x_mix_pred_vars_names, 
+    p_pos_binary_pred_vars = data$p_pos_binary_pred_vars,
+    f_pred_vars_names = data$f_pred_vars_names
+  )
+  
+  iterations <- 1 
+
+  df_posterior <- pkgcond::suppress_warnings(run_stan(
+    accidental_blanks = TRUE,
+    data_wrangled = data_wrangled,
+    distribution = "posterior",
+    interface = "cmdstanr",
+    iter_warmup = iterations,
+    iter_sampling = iterations),
+    mastiff:::stan_safe_warnings())
+  
+  df_prior <- pkgcond::suppress_warnings(run_stan(
+    accidental_blanks = TRUE,
+    data_wrangled = data_wrangled,
+    distribution = "prior",
+    interface = "cmdstanr",
+    iter_warmup = iterations,
+    iter_sampling = iterations),
+    mastiff:::stan_safe_warnings())
+  
+  expect_true(is.data.frame(df_posterior))
+  expect_true(is.data.frame(df_prior))
+  expect_all_true(c(stan_params_expected_in_testing_posterior, "p_blank") %in% names(df_posterior))
+  expect_all_true(c(stan_params_expected_in_testing_prior, "p_blank") %in% names(df_prior))
+  
+})
+
+test_that("rstan works with dvsb_accidental_blanks", {
+  
+  priors_list <- get_priors()
+  
+  data <- simulate_data(num_plate = 2, 
+                        num_sam_per_plate = 20, 
+                        num_rep_per_sam = 1,
+                        num_rep_per_cal = 1, 
+                        x_cals = c(0, 1),
+                        x_mix_pred_vars = list(
+                          p_pos  = list(letter = letters[1:4]),
+                          mu_neg = list(letter = letters[1:4]),
+                          mu_pos = list(letter = letters[1:4]),
+                          sd_neg = list(letter = letters[1:4]),
+                          sd_pos = list(letter = letters[1:4])
+                        ),
+                        x_mix_pred_vars_sds = list(
+                          p_pos = c(letter = 1),
+                          mu_neg = c(letter = 1),
+                          mu_pos = c(letter = 1),
+                          sd_neg = c(letter = 0.2),
+                          sd_pos = c(letter = 0.2)
+                        ),
+                        p_pos_binary_effects = c("boolA" = -2,
+                                                 "boolB" = 0,
+                                                 "boolC" = 2))
+  
+  data_wrangled <- wrangle_data(
+    df_sam = data$df_sam, 
+    df_cal = data$df_cal, 
+    priors_list = priors_list,
+    x_mix_pred_vars_names = data$x_mix_pred_vars_names, 
+    p_pos_binary_pred_vars = data$p_pos_binary_pred_vars,
+    f_pred_vars_names = data$f_pred_vars_names
+  )
+  
+  iterations <- 1 
+  
+  df_posterior <- pkgcond::suppress_warnings(run_stan(
+    accidental_blanks = TRUE,
+    data_wrangled = data_wrangled,
+    distribution = "posterior",
+    interface = "rstan",
+    iter_warmup = iterations,
+    iter_sampling = iterations,
+    cores = 1),
+    mastiff:::stan_safe_warnings())
+  
+  df_prior <- pkgcond::suppress_warnings(run_stan(
+    accidental_blanks = TRUE,
+    data_wrangled = data_wrangled,
+    distribution = "prior",
+    interface = "rstan",
+    iter_warmup = iterations,
+    iter_sampling = iterations,
+    cores = 1),
+    mastiff:::stan_safe_warnings())
+  
+  expect_true(is.data.frame(df_posterior))
+  expect_true(is.data.frame(df_prior))
+  expect_all_true(c(stan_params_expected_in_testing_posterior, "p_blank") %in% names(df_posterior))
+  expect_all_true(c(stan_params_expected_in_testing_prior, "p_blank") %in% names(df_prior))
+  
+})
